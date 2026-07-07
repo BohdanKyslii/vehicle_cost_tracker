@@ -1,0 +1,20 @@
+@import 'tailwindcss';
+
+/* Prevents zooming on iOS when focusing on an input. */
+input,
+select,
+textarea {
+  font-size: 16px;
+}
+
+/* Safe area для iPhone (notch / home indicator) */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Minimum button size for touch (44px — Apple's recommendation) */
+button,
+a[role="button"] {
+  min-height: 44px;
+  touch-action: manipulation;
+}
