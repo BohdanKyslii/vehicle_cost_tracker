@@ -815,412 +815,726 @@ export interface ScannedWaybill {
 ---
 
 # ═══════════════════════════════════════════════════════════
-# ФАЗА 3 — MOCK ДАНІ (замінник API)
+# ФАЗА 3 — ЛЕНДІНГ: NAV, АВТОРИЗАЦІЯ ТА МАРШРУТИЗАЦІЯ
 # ═══════════════════════════════════════════════════════════
 
-## Крок 3.1 — Навіщо потрібні mock дані
+## Крок 3.1 — Навіщо ця фаза перед mock-даними
 
-Поки немає Django backend — будемо читати локальні JSON файли.
-Перевага: можна розробляти UI незалежно від сервера.
-Потім просто змінюємо `VITE_USE_MOCK=false` і все починає
-працювати з реальним API без змін у компонентах.
+План курсу спочатку передбачав mock JSON, а вже потім routing.
+Але зручніше почати з "вхідних дверей" застосунку — сторінки,
+яку бачить будь-який користувач першою: навігація + вхід/реєстрація.
 
----
+Це дає одразу:
+- робочий `react-router-dom` (був у залежностях, але не підключений)
+- каркас маршрутів під усі майбутні розділи (`/fleet`, `/waybills`, ...)
+- місце, куди пізніше підʼєднається реальна авторизація через Django
 
-## Крок 3.2 — Створення src/mocks/cars.json
-
-```json
-[
-  {
-    "idCar": 1,
-    "nameCar": "Mercedes Sprinter 315 CDI",
-    "numberCar": "АА1234ВВ",
-    "amountCar": 8333,
-    "defaultTrackingMode": "full",
-    "statusCar": "active",
-    "isActive": true
-  },
-  {
-    "idCar": 2,
-    "nameCar": "Volkswagen Crafter 35",
-    "numberCar": "АА5678СС",
-    "amountCar": 10417,
-    "defaultTrackingMode": "daily",
-    "statusCar": "active",
-    "isActive": true
-  },
-  {
-    "idCar": 3,
-    "nameCar": "Ford Transit 350",
-    "numberCar": "АА9012КК",
-    "amountCar": 6806,
-    "defaultTrackingMode": "daily",
-    "statusCar": "repair",
-    "isActive": true
-  }
-]
-```
+Дизайн узятий із готового прототипу (`documents/start_page/`) —
+статичний HTML/CSS/vanilla-JS, який ми переносимо в React-компоненти.
 
 ---
 
-## Крок 3.3 — Створення src/mocks/drivers.json
+## Крок 3.2 — Підключення React Router
 
-```json
-[
-  {
-    "idDriver": 1,
-    "nameDriver": "Коваленко Іван Петрович",
-    "phone": "+380501234567",
-    "idCar": 1,
-    "isActive": true
-  },
-  {
-    "idDriver": 2,
-    "nameDriver": "Мельник Сергій Олексійович",
-    "phone": "+380677654321",
-    "idCar": 2,
-    "isActive": true
-  },
-  {
-    "idDriver": 3,
-    "nameDriver": "Бондаренко Олег Миколайович",
-    "phone": "+380639876543",
-    "idCar": 3,
-    "isActive": true
-  }
-]
+`react-router-dom` вже встановлений (Крок 1.3), лишилось його
+активувати. Відкрий `src/main.tsx`:
+
+```typescript
+// src/main.tsx
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import { BrowserRouter } from 'react-router-dom'
+import './index.css'
+import App from './App.tsx'
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
+  </StrictMode>,
+)
 ```
+
+ЩО РОБИТЬ КОД:
+- `BrowserRouter` — обгортка, яка дає всім дочірнім компонентам
+  доступ до навігації (через History API браузера, без перезавантаження)
+- Обгортати потрібно ЗОВНІ `<App />`, а не всередині — інакше
+  `<Routes>` у App.tsx не запрацюють
 
 ---
 
-## Крок 3.4 — Створення src/mocks/customers.json
+## Крок 3.3 — Структура файлів цієї фази
 
-```json
-[
-  {
-    "idCustomer": "C001",
-    "nameCustomer": "ТОВ Сонячна торгівля",
-    "networkCustomer": "Роздріб",
-    "isActive": true
-  },
-  {
-    "idCustomer": "C002",
-    "nameCustomer": "ФОП Петренко В.М.",
-    "networkCustomer": "Роздріб",
-    "isActive": true
-  },
-  {
-    "idCustomer": "C003",
-    "nameCustomer": "Мережа Зоряний",
-    "networkCustomer": "Мережа",
-    "isActive": true
-  },
-  {
-    "idCustomer": "C004",
-    "nameCustomer": "ТОВ Смак України",
-    "networkCustomer": "HoReCa",
-    "isActive": true
-  },
-  {
-    "idCustomer": "C005",
-    "nameCustomer": "Супермаркет АТБ №312",
-    "networkCustomer": "Мережа",
-    "isActive": true
-  }
-]
 ```
+src/
+├── assets/
+│   └── logo.png
+├── styles/
+│   └── landing.css
+├── hocks/
+│   └── useAuthModal.ts
+├── components/
+│   ├── layouts/
+│   │   └── TopNav.tsx
+│   └── auth/
+│       └── AuthModal.tsx
+└── pages/
+    ├── LandingPage.tsx
+    └── UnderConstruction.tsx
+```
+
+Скопіюй `documents/start_page/rubin_logo_512.8ebfaa2f5f9a.png`
+у `src/assets/logo.png`.
 
 ---
 
-## Крок 3.5 — Створення src/mocks/stores.json
+## Крок 3.4 — Стилі: чому окремий CSS-файл, а не Tailwind
 
-```json
-[
-  {
-    "idStore": "S001",
-    "idCustomer": "C001",
-    "nameStore": "Магазин Сонячний (Хрещатик)",
-    "storeAddress": "вул. Хрещатик, 10, Київ",
-    "isActive": true
-  },
-  {
-    "idStore": "S002",
-    "idCustomer": "C001",
-    "nameStore": "Магазин Сонячний (Льва Толстого)",
-    "storeAddress": "вул. Льва Толстого, 5, Київ",
-    "isActive": true
-  },
-  {
-    "idStore": "S003",
-    "idCustomer": "C003",
-    "nameStore": "Зоряний Полтава",
-    "storeAddress": "вул. Соборності, 12, Полтава",
-    "isActive": true
-  },
-  {
-    "idStore": "S004",
-    "idCustomer": "C003",
-    "nameStore": "Зоряний Харків",
-    "storeAddress": "пр. Науки, 45, Харків",
-    "isActive": true
-  },
-  {
-    "idStore": "S005",
-    "idCustomer": "C005",
-    "nameStore": "АТБ Пирятин",
-    "storeAddress": "вул. Центральна, 1, Пирятин",
-    "isActive": true
-  }
-]
+Модалка авторизації має складну анімовану верстку (grid із
+двома панелями, які перемикаються прозорістю/трансформаціями).
+Переписувати це у Tailwind-класи — довше і менш читабельно,
+ніж перенести готовий CSS майже без змін.
+
+Створи `src/styles/landing.css` і перенеси туди вміст
+`documents/start_page/style.css`, обгорнувши колірний фон у клас
+`.landing` (щоб не зачепити інші сторінки глобально):
+
+```css
+.landing {
+  min-height: 100vh;
+  color: #fff;
+  background: linear-gradient(180deg, #2b1330 0%, #0f1724 100%);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+}
+/* .top-nav, .auth-backdrop, .auth-card ... — решта класів як у прототипі,
+   без .landing-префікса: вони мають position:fixed, тому працюють
+   незалежно від DOM-вкладеності */
 ```
+
+Імпортується CSS прямо в компоненті сторінки (Крок 3.8), не глобально —
+Vite підвантажує його лише коли рендериться відповідна сторінка.
 
 ---
 
-## Крок 3.6 — Створення src/mocks/waybills.json
+## Крок 3.5 — useAuthModal: свій React hook
 
-```json
-[
-  {
-    "id": 1,
-    "legalEntity": "Rubin",
-    "waybillNumber": "НН-000101",
-    "waybillDate": "2026-06-27",
-    "linePosition": 1,
-    "customerId": "C001",
-    "customerName": "ТОВ Сонячна торгівля",
-    "storeId": "S001",
-    "productId": "P001",
-    "productName": "Вино Ркацителі 0.75л",
-    "quantity": 60,
-    "priceUah": 145.00,
-    "totalUah": 8700.00,
-    "totalWeightKg": 90.0,
-    "totalVolumeCbm": 0.072,
-    "deliveryChannel": "own",
-    "status": "delivered",
-    "importedAt": "2026-06-28T09:00:00+03:00"
-  },
-  {
-    "id": 2,
-    "legalEntity": "Rubin",
-    "waybillNumber": "НН-000101",
-    "waybillDate": "2026-06-27",
-    "linePosition": 2,
-    "customerId": "C001",
-    "customerName": "ТОВ Сонячна торгівля",
-    "storeId": "S001",
-    "productId": "P002",
-    "productName": "Вино Аліготе 0.75л",
-    "quantity": 48,
-    "priceUah": 132.00,
-    "totalUah": 6336.00,
-    "totalWeightKg": 72.0,
-    "totalVolumeCbm": 0.058,
-    "deliveryChannel": "own",
-    "status": "delivered",
-    "importedAt": "2026-06-28T09:00:00+03:00"
-  },
-  {
-    "id": 3,
-    "legalEntity": "ESP",
-    "waybillNumber": "НН-000201",
-    "waybillDate": "2026-06-27",
-    "linePosition": 1,
-    "customerId": "C003",
-    "customerName": "Мережа Зоряний",
-    "storeId": "S003",
-    "productId": "P003",
-    "productName": "Горілка Хортиця 0.5л",
-    "quantity": 240,
-    "priceUah": 210.00,
-    "totalUah": 50400.00,
-    "totalWeightKg": 156.0,
-    "totalVolumeCbm": 0.080,
-    "deliveryChannel": "hired",
-    "status": "delivered",
-    "importedAt": "2026-06-28T09:00:00+03:00"
-  },
-  {
-    "id": 4,
-    "legalEntity": "OPT",
-    "waybillNumber": "НН-000301",
-    "waybillDate": "2026-06-28",
-    "linePosition": 1,
-    "customerId": "C002",
-    "customerName": "ФОП Петренко В.М.",
-    "storeId": null,
-    "productId": "P005",
-    "productName": "Коньяк Тиса 0.5л",
-    "quantity": 12,
-    "priceUah": 385.00,
-    "totalUah": 4620.00,
-    "totalWeightKg": 9.0,
-    "totalVolumeCbm": 0.008,
-    "deliveryChannel": "carrier",
-    "status": "delivered",
-    "importedAt": "2026-06-29T09:00:00+03:00"
-  },
-  {
-    "id": 5,
-    "legalEntity": "Rubin",
-    "waybillNumber": "НН-000401",
-    "waybillDate": "2026-06-29",
-    "linePosition": 1,
-    "customerId": "C005",
-    "customerName": "Супермаркет АТБ №312",
-    "storeId": "S005",
-    "productId": "P004",
-    "productName": "Пиво Чернігівське 0.5л",
-    "quantity": 480,
-    "priceUah": 42.00,
-    "totalUah": 20160.00,
-    "totalWeightKg": 264.0,
-    "totalVolumeCbm": 0.221,
-    "deliveryChannel": null,
-    "status": "pending",
-    "importedAt": "2026-06-29T09:00:00+03:00"
-  },
-  {
-    "id": 6,
-    "legalEntity": "Rubin",
-    "waybillNumber": "НН-000098-Р",
-    "waybillDate": "2026-06-27",
-    "linePosition": 1,
-    "customerId": "C001",
-    "customerName": "ТОВ Сонячна торгівля",
-    "storeId": "S001",
-    "productId": "P002",
-    "productName": "Вино Аліготе 0.75л",
-    "quantity": -12,
-    "priceUah": 132.00,
-    "totalUah": -1584.00,
-    "comment": "НН-000088",
-    "deliveryChannel": "own",
-    "status": "delivered",
-    "importedAt": "2026-06-28T09:00:00+03:00"
-  }
-]
+Замість vanilla-JS (`classList.toggle`, `addEventListener`) —
+стан модалки через `useState`. Створи `src/hocks/useAuthModal.ts`:
+
+```typescript
+// src/hocks/useAuthModal.ts
+import { useState } from 'react';
+
+export function useAuthModal() {
+  const [isOpen, setIsOpen] = useState(false);
+  const [isSignup, setIsSignup] = useState(false);
+
+  return {
+    isOpen,
+    isSignup,
+    openLogin: () => {
+      setIsSignup(false);
+      setIsOpen(true);
+    },
+    openSignup: () => {
+      setIsSignup(true);
+      setIsOpen(true);
+    },
+    close: () => setIsOpen(false),
+    switchTo: (signup: boolean) => setIsSignup(signup),
+  };
+}
 ```
+
+ЩО РОБИТЬ КОД:
+- Custom hook — звичайна функція, що починається з `use` і всередині
+  викликає інші hooks (`useState`). React дозволяє так виносити
+  повторювану логіку стану з компонента
+- Повертає обʼєкт з даними (`isOpen`, `isSignup`) і функціями
+  для їх зміни — компонент, що використовує hook, не знає ПРО
+  саму реалізацію стану, тільки про API
 
 ---
 
-## Крок 3.7 — Створення src/mocks/route-events.json
+## Крок 3.6 — AuthModal.tsx: форма без бекенда
 
-```json
-[
-  {
-    "id": 1, "carId": 1, "driverId": 1, "trackingMode": "full",
-    "eventType": "depot_start",
-    "eventTs": "2026-06-27T07:45:00+03:00",
-    "odometerKm": 87450, "palletsCount": null,
-    "createdAt": "2026-06-27T07:46:00+03:00"
-  },
-  {
-    "id": 2, "carId": 1, "driverId": 1, "trackingMode": "full",
-    "eventType": "delivery",
-    "eventTs": "2026-06-27T09:30:00+03:00",
-    "odometerKm": 87523, "palletsCount": 3,
-    "waybillNumber": "НН-000101",
-    "waybillDate": "2026-06-27",
-    "customerName": "ТОВ Сонячна торгівля",
-    "rejectionFull": false,
-    "createdAt": "2026-06-27T09:31:00+03:00"
-  },
-  {
-    "id": 3, "carId": 1, "driverId": 1, "trackingMode": "full",
-    "eventType": "refuel",
-    "eventTs": "2026-06-27T12:00:00+03:00",
-    "fuelLiters": 55.4, "fuelCostUah": 3158.0,
-    "adBlueLiters": 2.0, "adBlueCostUah": 90.0,
-    "createdAt": "2026-06-27T12:01:00+03:00"
-  },
-  {
-    "id": 4, "carId": 1, "driverId": 1, "trackingMode": "full",
-    "eventType": "parking_end",
-    "eventTs": "2026-06-27T17:30:00+03:00",
-    "odometerKm": 87648,
-    "createdAt": "2026-06-27T17:31:00+03:00"
-  },
-  {
-    "id": 5, "carId": 2, "driverId": 2, "trackingMode": "daily",
-    "eventType": "depot_start",
-    "eventTs": "2026-06-28T08:00:00+03:00",
-    "odometerKm": 54478, "palletsCount": 6,
-    "notes": "Накладні за сьогодні: НН-000201",
-    "createdAt": "2026-06-28T08:01:00+03:00"
-  },
-  {
-    "id": 6, "carId": 2, "driverId": 2, "trackingMode": "daily",
-    "eventType": "refuel",
-    "eventTs": "2026-06-28T10:30:00+03:00",
-    "fuelLiters": 48.0, "fuelCostUah": 2736.0,
-    "adBlueLiters": 0, "adBlueCostUah": 0,
-    "createdAt": "2026-06-28T10:31:00+03:00"
-  }
-]
+Django ще не має `/api/auth/` — форми поки що лише `preventDefault()`.
+Створи `src/components/auth/AuthModal.tsx`:
+
+```typescript
+// src/components/auth/AuthModal.tsx
+import { useEffect } from 'react';
+import type { FormEvent } from 'react';
+
+interface Props {
+  open: boolean;
+  signup: boolean;
+  onClose: () => void;
+  onSwitch: (signup: boolean) => void;
+}
+
+// TODO: підключити до /api/auth/, коли Django-ендпоінти будуть готові
+function handleSubmit(e: FormEvent) {
+  e.preventDefault();
+}
+
+export function AuthModal({ open, signup, onClose, onSwitch }: Props) {
+  useEffect(() => {
+    if (!open) return;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = ''; };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [open, onClose]);
+
+  return (
+    <div
+      className={`auth-backdrop${open ? ' open' : ''}`}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className={`auth-card${signup ? ' is-signup' : ''}`}>
+        {/* pane-login, pane-left-promo, pane-right-promo, pane-signup —
+            чотири панелі, видимість яких перемикає клас .is-signup
+            на .auth-card (та сама логіка, що й у прототипі, лише
+            через className замість classList.toggle) */}
+      </div>
+    </div>
+  );
+}
 ```
+
+ЩО РОБИТЬ КОД:
+- Два `useEffect`: перший блокує скрол сторінки поки модалка відкрита
+  (і повертає скрол назад при закритті — `return () => {...}` це
+  cleanup-функція, React викликає її автоматично)
+- Другий підписується на Escape лише поки модалка відкрита
+- `onClick` на backdrop перевіряє `e.target === e.currentTarget` —
+  тобто клікнули саме по фону, а не по картці всередині нього
+- Повний JSX чотирьох панелей — дивись готовий файл
+  `src/components/auth/AuthModal.tsx`, тут наведена лише логіка
 
 ---
 
-## Крок 3.8 — Створення src/mocks/monthly-costs.json
+## Крок 3.7 — TopNav.tsx: навігація
 
-```json
-[
-  {
-    "id": 1, "carId": 1, "month": "2026-06-01",
-    "salaryUah": 25000, "taxesUah": 5500,
-    "depreciationUah": 8333,
-    "repairActualUah": null, "repairRateUahKm": 2.00,
-    "otherCostsUah": 1200,
-    "otherCostsComment": "Штраф за паркування"
-  },
-  {
-    "id": 2, "carId": 2, "month": "2026-06-01",
-    "salaryUah": 22000, "taxesUah": 4840,
-    "depreciationUah": 10417,
-    "repairActualUah": 3500, "repairRateUahKm": 2.00,
-    "otherCostsUah": 800,
-    "otherCostsComment": "Заміна гальмівних колодок"
-  }
-]
+Створи `src/components/layouts/TopNav.tsx`:
+
+```typescript
+// src/components/layouts/TopNav.tsx
+import { Link } from 'react-router-dom';
+import logo from '../../assets/logo.png';
+
+interface Props {
+  onOpenAuth: () => void;
+}
+
+export function TopNav({ onOpenAuth }: Props) {
+  return (
+    <nav className="top-nav">
+      <div className="nav-inner">
+        <div className="logo">
+          <Link to="/"><img src={logo} alt="Logo" /></Link>
+        </div>
+        <ul className="menu">
+          <li><Link to="/fleet">Автопарк</Link></li>
+          <li><Link to="/waybills">Накладні</Link></li>
+          <li><Link to="/driver">Водії</Link></li>
+          <li><Link to="/analytics">Аналітика</Link></li>
+          <li className="has-submenu">
+            <span>Ще</span>
+            <ul className="submenu">
+              <li><Link to="/hired">Найманий транспорт</Link></li>
+              <li><Link to="/carriers">Служби доставки</Link></li>
+              <li><Link to="/admin">Адмін</Link></li>
+            </ul>
+          </li>
+        </ul>
+        <div className="actions">
+          <button type="button" className="signup-btn" onClick={onOpenAuth}>
+            Sign Up
+          </button>
+        </div>
+      </div>
+    </nav>
+  );
+}
 ```
+
+ЩО РОБИТЬ КОД:
+- `<Link to="...">` — аналог `<a href="...">`, але БЕЗ перезавантаження
+  сторінки: React Router перехоплює клік і сам підмінює компонент
+- `onOpenAuth` — колбек, переданий згори (Крок 3.8/3.9): TopNav
+  не знає ПРО стан модалки, тільки викликає функцію при кліку —
+  так компонент лишається переносним між сторінками
 
 ---
 
-## Крок 3.9 — Створення src/mocks/hired-trips.json
+## Крок 3.8 — Сторінки: LandingPage і UnderConstruction
 
-```json
-[
-  {
-    "id": 1,
-    "carNumber": "ВВ1111АА",
-    "routeName": "Пирятин, Полтава, Харків",
-    "tripDate": "2026-06-27",
-    "palletsCount": 8,
-    "costUah": 4500.00,
-    "comment": "Перевізник ТОВ Транслог",
-    "createdAt": "2026-06-27T09:00:00+03:00"
-  },
-  {
-    "id": 2,
-    "carNumber": "КК2222ВВ",
-    "routeName": "Суми, Конотоп",
-    "tripDate": "2026-06-28",
-    "palletsCount": 5,
-    "costUah": 2800.00,
-    "comment": null,
-    "createdAt": "2026-06-28T10:00:00+03:00"
-  }
-]
+Кожен пункт меню веде на розділ, якого ще не існує. Замість
+порожньої білої сторінки — однакова заглушка "в розробці" зі
+збереженою навігацією. Створи `src/pages/UnderConstruction.tsx`:
+
+```typescript
+// src/pages/UnderConstruction.tsx
+import { TopNav } from '../components/layouts/TopNav';
+import { useAuthModal } from '../hocks/useAuthModal';
+import { AuthModal } from '../components/auth/AuthModal';
+import '../styles/landing.css';
+
+interface Props {
+  title: string;
+}
+
+export function UnderConstruction({ title }: Props) {
+  const auth = useAuthModal();
+
+  return (
+    <div className="landing">
+      <TopNav onOpenAuth={auth.openSignup} />
+      <main className="page">
+        <div>
+          <h1>{title}</h1>
+          <p>Ця сторінка ще в розробці.</p>
+        </div>
+      </main>
+      <AuthModal
+        open={auth.isOpen}
+        signup={auth.isSignup}
+        onClose={auth.close}
+        onSwitch={auth.switchTo}
+      />
+    </div>
+  );
+}
 ```
+
+І `src/pages/LandingPage.tsx` — та сама структура, лише замість
+`title`/тексту "в розробці" — вітальний текст головної сторінки:
+
+```typescript
+// src/pages/LandingPage.tsx
+import { TopNav } from '../components/layouts/TopNav';
+import { AuthModal } from '../components/auth/AuthModal';
+import { useAuthModal } from '../hocks/useAuthModal';
+import '../styles/landing.css';
+
+export function LandingPage() {
+  const auth = useAuthModal();
+
+  return (
+    <div className="landing">
+      <TopNav onOpenAuth={auth.openSignup} />
+      <main className="page">
+        <div>
+          <h1>Vehicle Cost Tracker</h1>
+          <p>Облік транспортних витрат — автопарк, накладні, аналітика.</p>
+        </div>
+      </main>
+      <AuthModal
+        open={auth.isOpen}
+        signup={auth.isSignup}
+        onClose={auth.close}
+        onSwitch={auth.switchTo}
+      />
+    </div>
+  );
+}
+```
+
+ЩО РОБИТЬ КОД:
+- Обидві сторінки викликають `useAuthModal()` кожна СВІЙ екземпляр
+  стану — це нормально, модалка на будь-якій сторінці працює
+  незалежно (пізніше, коли зʼявиться Layout-компонент, стан можна
+  буде підняти на рівень вище, щоб не дублювати)
+- `UnderConstruction` приймає `title` пропсом — один компонент
+  на всі майбутні розділи, поки вони не готові
+
+---
+
+## Крок 3.9 — App.tsx: маршрути
+
+ВИДАЛИ дефолтний вміст `src/App.tsx` (лічильник HMR від Vite
+з посиланнями на react.dev/vite.dev — він більше не потрібен)
+і напиши:
+
+```typescript
+// src/App.tsx
+import { Routes, Route } from 'react-router-dom';
+import { LandingPage } from './pages/LandingPage';
+import { UnderConstruction } from './pages/UnderConstruction';
+
+function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<LandingPage />} />
+      <Route path="/fleet" element={<UnderConstruction title="Автопарк" />} />
+      <Route path="/waybills" element={<UnderConstruction title="Накладні" />} />
+      <Route path="/driver" element={<UnderConstruction title="Водії" />} />
+      <Route path="/analytics" element={<UnderConstruction title="Аналітика" />} />
+      <Route path="/hired" element={<UnderConstruction title="Найманий транспорт" />} />
+      <Route path="/carriers" element={<UnderConstruction title="Служби доставки" />} />
+      <Route path="/admin" element={<UnderConstruction title="Адмін" />} />
+      <Route path="*" element={<UnderConstruction title="Сторінку не знайдено" />} />
+    </Routes>
+  );
+}
+
+export default App
+```
+
+ЩО РОБИТЬ КОД:
+- `<Routes>` перебирає дочірні `<Route>` і рендерить ПЕРШИЙ, чий
+  `path` збігається з поточною адресою
+- `path="*"` — catch-all, спрацьовує коли жоден інший маршрут
+  не підійшов (аналог `404`)
+- Коли зʼявиться реальна сторінка (наприклад Фаза 11 — WaybillList),
+  просто заміниш відповідний `<UnderConstruction .../>` на
+  `<WaybillListPage />` — решта маршрутів і TopNav не зміняться
+
+---
+
+## Крок 3.10 — Перевірка
+
+```
+npm run dev
+```
+
+Відкрий http://localhost:5173 — має зʼявитись темний фон,
+верхнє меню з логотипом і кнопкою Sign Up.
+
+Перевір:
+- Клік "Sign Up" → відкривається модалка у режимі реєстрації
+- Кнопка "Sign In" у лівій панелі → перемикає на форму входу
+- `Escape` або клік по темному фону → закриває модалку
+- Клік по "Автопарк" у меню → переходить на `/fleet`,
+  показує "Ця сторінка ще в розробці", меню лишається зверху
+
+Якщо все working — переходь до наступної фази.
 
 ---
 
 # ═══════════════════════════════════════════════════════════
-# ФАЗА 4 — УТИЛІТИ (чиста логіка без React)
+# ФАЗА 4 — GIT-РЕПОЗИТОРІЙ ТА АВТОДЕПЛОЙ
 # ═══════════════════════════════════════════════════════════
 
-## Крок 4.1 — Що таке чисті функції і навіщо utils/
+## Крок 4.1 — Навіщо ця фаза саме тут
+
+З цього моменту проєкт житиме на реальному сервері (Raspberry Pi,
+домен `warehouse.mom`), і кожна наступна фаза буде розробкою
+у гілці з подальшим злиттям у `main`. Простіше налаштувати це
+одразу, поки коду небагато, ніж розбиратись, коли фаз стане 10.
+
+---
+
+## Крок 4.2 — Ініціалізація репозиторію
+
+Якщо репозиторій ще не створений:
+
+```bash
+git init
+git add .
+git commit -m "Initial commit"
+```
+
+На GitHub створи новий приватний репозиторій (без README/.gitignore —
+вони вже є локально), тоді підключи remote:
+
+```bash
+git remote add origin git@github.com:<твій-акаунт>/vehicle_cost_tracker.git
+git branch -M main
+git push -u origin main
+```
+
+Перевір `.gitignore` — обов'язково мають бути виключені:
+
+```
+node_modules
+dist
+.env
+.env.production
+```
+
+`.env`/`.env.production` НІКОЛИ не комітяться — там може бути
+адреса реального API чи інші налаштування середовища. Замість
+цього значення для сервера кладуться туди вручну (Крок 4.4).
+
+---
+
+## Крок 4.3 — Docker: пакування React-збірки
+
+Продакшн-збірка React — це просто статичні файли (`npm run build`
+кладе їх у `dist/`). Їх треба чимось віддавати браузеру — для
+цього використовуємо nginx усередині Docker-контейнера.
+
+Створи `Dockerfile` у корені проєкту:
+
+```dockerfile
+FROM node:22-alpine AS build
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+FROM nginx:alpine
+COPY --from=build /app/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+EXPOSE 8080
+```
+
+ЩО РОБИТЬ КОД:
+- Multi-stage build: перший етап (`AS build`) ставить залежності
+  й збирає проєкт у Node-контейнері, другий — бере ГОТОВІ файли
+  з `dist/` і кладе в легкий nginx-образ. Сам Node у фінальному
+  образі не залишається — менший розмір
+- `npm ci` (не `npm install`) — ставить залежності СУВОРО за
+  `package-lock.json`, без несподіваних оновлень версій
+
+Створи `nginx.conf` поруч:
+
+```nginx
+server {
+    listen 8080;
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:8000/api/;
+        proxy_set_header Host $host;
+    }
+
+    location /admin/ {
+        proxy_pass http://127.0.0.1:8000/admin/;
+        proxy_set_header Host $host;
+    }
+
+    location /static/ {
+        proxy_pass http://127.0.0.1:8000/static/;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
+```
+
+ЩО РОБИТЬ КОД:
+- `location /api/`, `/admin/`, `/static/` — усе, що починається
+  з цих шляхів, nginx перенаправляє на Django-бекенд (порт 8000
+  на тому ж сервері)
+- `location /` з `try_files $uri $uri/ /index.html` — це SPA-fallback:
+  якщо файлу за адресою немає (наприклад `/fleet` — це не файл,
+  а React-маршрут), nginx все одно віддає `index.html`, а
+  React Router вже сам розбирається, яку сторінку показати
+
+Створи `docker-compose.yml`:
+
+```yaml
+services:
+  ui:
+    build: .
+    restart: unless-stopped
+    network_mode: host  # доступ до backend (127.0.0.1:8000) напряму
+```
+
+---
+
+## Крок 4.4 — GitHub Actions: автодеплой
+
+Мета: `git push` у `main` сам збирає і перезапускає контейнер
+на сервері. Створи `.github/workflows/deploy.yml`:
+
+```yaml
+name: Deploy UI
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install cloudflared
+        run: |
+          curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 \
+            -o cloudflared
+          chmod +x cloudflared
+          sudo mv cloudflared /usr/local/bin/
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.PI_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          cat > ~/.ssh/config << 'EOF'
+          Host pi-deploy
+            HostName ssh.warehouse.mom
+            User rasberry_kisliy
+            IdentityFile ~/.ssh/deploy_key
+            ProxyCommand cloudflared access ssh --hostname ssh.warehouse.mom
+            StrictHostKeyChecking no
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Deploy via SSH
+        run: |
+          ssh pi-deploy '
+            cd ~/vehicle_cost_tracker
+            git pull origin main
+            docker compose build
+            docker compose up -d
+            docker image prune -f
+          '
+```
+
+ЩО РОБИТЬ КОД:
+- Сервер (Raspberry Pi) не має публічної IP-адреси — GitHub Actions
+  не може достукатись до нього напряму. Замість цього SSH-зʼєднання
+  тунелюється через Cloudflare Tunnel (`cloudflared access ssh`),
+  який уже налаштований на самому Pi
+- Секрети (`PI_SSH_KEY`) додаються в `Settings → Secrets and
+  variables → Actions` репозиторію на GitHub — НЕ в `.env` файл
+  проєкту. Це різні речі: `.env` читає сам застосунок під час
+  роботи, secrets використовує лише сам workflow під час деплою
+- Скрипт заходить на сервер, підтягує код, пересобирає
+  Docker-образ і перезапускає контейнер
+
+---
+
+## Крок 4.5 — Робота з гілками для наступних фаз
+
+Починаючи з Фази 5, кожна фаза розробляється в окремій гілці,
+а не напряму в `main`. Причина: `main` — це те, що вже задеплоєне
+й показується користувачам через `warehouse.mom`. Незавершений або
+зламаний код туди потрапляти не повинен.
+
+### Створення гілки під фазу
+
+Перед початком нової фази:
+
+```bash
+git checkout main
+git pull origin main          # підтягнути все, що змержено раніше
+git checkout -b feature/faza-5-utils
+```
+
+Назва гілки: `feature/faza-N-коротка-назва` — видно одразу,
+що це за робота, без відкриття гілки.
+
+### Робота і проміжні коміти
+
+Комітити можна часто, дрібними кроками — це НЕ `main`, зламаний
+проміжний стан тут нормальний:
+
+```bash
+git add src/utils/formatters.ts
+git commit -m "Add currency/date formatters"
+
+git add src/utils/eventHelpers.ts
+git commit -m "Add route event helpers"
+```
+
+### Перевірка перед злиттям
+
+Перш ніж зливати гілку в `main`:
+
+```bash
+npm run build      # проєкт взагалі збирається без помилок?
+npm run dev         # і виглядає як треба у браузері?
+```
+
+Якщо `main` тим часом пішов вперед (хтось інший або ти сам
+злив іншу гілку) — онови свою гілку ПЕРЕД злиттям:
+
+```bash
+git checkout feature/faza-5-utils
+git fetch origin
+git rebase origin/main
+```
+
+`rebase` переносить твої коміти "поверх" свіжого `main` —
+історія лишається лінійною. Якщо виникають конфлікти,
+git зупиниться і покаже файли, де треба вручну обрати
+правильний варіант (`git status` покаже які), потім:
+
+```bash
+git add <вирішений-файл>
+git rebase --continue
+```
+
+### Злиття у main
+
+Два варіанти — обери один підхід і дотримуйся його по всіх фазах.
+
+**Варіант А (рекомендовано): Pull Request на GitHub**
+
+```bash
+git push -u origin feature/faza-5-utils
+```
+
+Потім на GitHub: `Compare & pull request` → перевір diff →
+`Merge pull request`. Плюс: видно історію рішень, можна
+переглянути зміни перед злиттям навіть працюючи самостійно.
+
+**Варіант Б: злиття локально**
+
+```bash
+git checkout main
+git pull origin main
+git merge --no-ff feature/faza-5-utils
+git push origin main
+```
+
+`--no-ff` (no fast-forward) — навіть якщо злиття можна було б
+зробити "прямою лінією", git все одно створює merge-коміт.
+Завдяки цьому в історії видно ГРАНИЦІ фази (де вона почалась
+і де закінчилась), а не суцільний список окремих комітів.
+
+### Після злиття
+
+```bash
+git branch -d feature/faza-5-utils            # видалити локально
+git push origin --delete feature/faza-5-utils  # видалити на GitHub
+```
+
+Злиття в `main` = push у GitHub = автодеплой (Крок 4.4) сам
+збере й викотить нову версію на `warehouse.mom`.
+
+### Підсумок цикла на прикладі Фази 5
+
+```bash
+git checkout main && git pull origin main
+git checkout -b feature/faza-5-utils
+# ... пишеш код, комітиш поетапно ...
+npm run build && npm run dev   # перевірка
+git fetch origin && git rebase origin/main   # якщо main пішов вперед
+git push -u origin feature/faza-5-utils
+# Pull Request на GitHub → Merge
+git checkout main && git pull origin main
+git branch -d feature/faza-5-utils
+```
+
+Цей цикл повторюється для кожної фази з 5 по 11.
+
+---
+
+# ═══════════════════════════════════════════════════════════
+# ФАЗА 5 — УТИЛІТИ (чиста логіка без React)
+# ═══════════════════════════════════════════════════════════
+
+## Крок 5.1 — Що таке чисті функції і навіщо utils/
 
 Чиста функція (pure function) — функція яка:
 1. Завжди повертає однаковий результат для однакових аргументів
@@ -1241,7 +1555,7 @@ function calcRepair(km: number, rate: number) { return km * rate; }
 
 ---
 
-## Крок 4.2 — Створення src/utils/formatters.ts
+## Крок 5.2 — Створення src/utils/formatters.ts
 
 ```typescript
 // src/utils/formatters.ts
@@ -1338,7 +1652,7 @@ export function channelLabel(channel: "own" | "hired" | "carrier" | null | undef
 
 ---
 
-## Крок 4.3 — Створення src/utils/eventHelpers.ts
+## Крок 5.3 — Створення src/utils/eventHelpers.ts
 
 ```typescript
 // src/utils/eventHelpers.ts
@@ -1416,7 +1730,7 @@ export function eventTypeIcon(type: RouteEventType): string {
 
 ---
 
-## Крок 4.4 — Створення src/utils/calcSummary.ts
+## Крок 5.4 — Створення src/utils/calcSummary.ts
 
 ```typescript
 // src/utils/calcSummary.ts
@@ -1570,7 +1884,7 @@ export function buildRouteSegments(events: RouteEvent[]): RouteSegment[] {
 
 ---
 
-## Крок 4.5 — Створення src/utils/calcTransportCost.ts
+## Крок 5.5 — Створення src/utils/calcTransportCost.ts
 
 ```typescript
 // src/utils/calcTransportCost.ts
@@ -1660,7 +1974,7 @@ export function allocateHiredTripCost(
 
 ---
 
-## Крок 4.6 — Створення src/utils/parseQR.ts
+## Крок 5.6 — Створення src/utils/parseQR.ts
 
 ```typescript
 // src/utils/parseQR.ts
@@ -1707,7 +2021,7 @@ export function parseQRCode(raw: string): QRResult | null {
 
 ---
 
-## Крок 4.7 — Створення src/utils/clientFilter.ts
+## Крок 5.7 — Створення src/utils/clientFilter.ts
 
 ```typescript
 // src/utils/clientFilter.ts
@@ -1810,10 +2124,10 @@ export function paginate<T>(
 ---
 
 # ═══════════════════════════════════════════════════════════
-# ФАЗА 5 — API ШАР
+# ФАЗА 6 — API ШАР
 # ═══════════════════════════════════════════════════════════
 
-## Крок 5.1 — Що таке async/await і Promises
+## Крок 6.1 — Що таке async/await і Promises
 
 ```typescript
 // Promise — це об'єкт який представляє майбутнє значення
@@ -1842,7 +2156,7 @@ async function getCars() {
 
 ---
 
-## Крок 5.2 — Створення src/api/config.ts
+## Крок 6.2 — Створення src/api/config.ts
 
 ```typescript
 // src/api/config.ts
@@ -1861,7 +2175,7 @@ export function mockDelay(ms = 300): Promise<void> {
 
 ---
 
-## Крок 5.3 — Створення src/api/cars.ts
+## Крок 6.3 — Створення src/api/cars.ts
 
 ```typescript
 // src/api/cars.ts
@@ -1897,7 +2211,7 @@ export async function fetchCar(id: number): Promise<Car> {
 
 ---
 
-## Крок 5.4 — Створення src/api/drivers.ts
+## Крок 6.4 — Створення src/api/drivers.ts
 
 ```typescript
 // src/api/drivers.ts
@@ -1932,7 +2246,7 @@ export async function fetchCurrentDriver(): Promise<Driver> {
 
 ---
 
-## Крок 5.5 — Створення src/api/waybills.ts
+## Крок 6.5 — Створення src/api/waybills.ts
 
 ```typescript
 // src/api/waybills.ts
@@ -2079,7 +2393,7 @@ export async function fetchUnassignedWaybills(): Promise<WaybillSummary[]> {
 
 ---
 
-## Крок 5.6 — Створення src/api/routeEvents.ts
+## Крок 6.6 — Створення src/api/routeEvents.ts
 
 ```typescript
 // src/api/routeEvents.ts
@@ -2142,10 +2456,10 @@ export async function createRouteEvent(data: RouteEventCreate): Promise<RouteEve
 ---
 
 # ═══════════════════════════════════════════════════════════
-# ФАЗА 6 — REACT QUERY HOOKS
+# ФАЗА 7 — REACT QUERY HOOKS
 # ═══════════════════════════════════════════════════════════
 
-## Крок 6.1 — Що таке React Query і навіщо він
+## Крок 7.1 — Що таке React Query і навіщо він
 
 Без React Query ти б писав так у кожному компоненті:
 
@@ -2179,7 +2493,7 @@ React Query також:
 
 ---
 
-## Крок 6.2 — Налаштування main.tsx
+## Крок 7.2 — Налаштування main.tsx
 
 Відкрий `src/main.tsx`, ВИДАЛИ вміст і напиши:
 
@@ -2224,7 +2538,7 @@ createRoot(document.getElementById("root")!).render(
 
 ---
 
-## Крок 6.3 — Створення hooks/useCars.ts
+## Крок 7.3 — Створення hooks/useCars.ts
 
 ```typescript
 // src/hooks/useCars.ts
@@ -2253,7 +2567,7 @@ export function useCar(id: number) {
 
 ---
 
-## Крок 6.4 — Створення hooks/useRouteEvents.ts
+## Крок 7.4 — Створення hooks/useRouteEvents.ts
 
 ```typescript
 // src/hooks/useRouteEvents.ts
@@ -2305,7 +2619,7 @@ export function useCreateRouteEvent() {
 
 ---
 
-## Крок 6.5 — Створення hooks/useWaybills.ts
+## Крок 7.5 — Створення hooks/useWaybills.ts
 
 ```typescript
 // src/hooks/useWaybills.ts
@@ -2360,7 +2674,7 @@ export function useUnassignedWaybills() {
 
 ---
 
-## Крок 6.6 — Створення hooks/useDayMode.ts
+## Крок 7.6 — Створення hooks/useDayMode.ts
 
 ```typescript
 // src/hooks/useDayMode.ts
@@ -2407,7 +2721,7 @@ export function useDayMode(carDefaultMode: TrackingMode) {
 
 ---
 
-## Крок 6.7 — Створення hooks/useWaybillFilters.ts
+## Крок 7.7 — Створення hooks/useWaybillFilters.ts
 
 ```typescript
 // src/hooks/useWaybillFilters.ts
@@ -2482,10 +2796,10 @@ export function useWaybillFilters() {
 ---
 
 # ═══════════════════════════════════════════════════════════
-# ФАЗА 7 — UI КОМПОНЕНТИ (АТОМАРНІ)
+# ФАЗА 8 — UI КОМПОНЕНТИ (АТОМАРНІ)
 # ═══════════════════════════════════════════════════════════
 
-## Крок 7.1 — Що таке JSX і props
+## Крок 8.1 — Що таке JSX і props
 
 ```typescript
 // JSX — це HTML-подібний синтаксис у JS/TS
@@ -2515,7 +2829,7 @@ function Button({ children, onClick, variant = "primary" }: ButtonProps) {
 
 ---
 
-## Крок 7.2 — Створення components/ui/Spinner.tsx
+## Крок 8.2 — Створення components/ui/Spinner.tsx
 
 ```typescript
 // src/components/ui/Spinner.tsx
@@ -2566,7 +2880,7 @@ export function Spinner({ size = "md", label = "Завантаження..." }: 
 
 ---
 
-## Крок 7.3 — Створення components/ui/EmptyState.tsx
+## Крок 8.3 — Створення components/ui/EmptyState.tsx
 
 ```typescript
 // src/components/ui/EmptyState.tsx
@@ -2594,7 +2908,7 @@ export function EmptyState({ title, subtitle, action }: EmptyStateProps) {
 
 ---
 
-## Крок 7.4 — Створення components/ui/ErrorBanner.tsx
+## Крок 8.4 — Створення components/ui/ErrorBanner.tsx
 
 ```typescript
 // src/components/ui/ErrorBanner.tsx
@@ -2629,7 +2943,7 @@ export function ErrorBanner({
 
 ---
 
-## Крок 7.5 — Створення components/ui/Button.tsx
+## Крок 8.5 — Створення components/ui/Button.tsx
 
 ```typescript
 // src/components/ui/Button.tsx
@@ -2696,7 +3010,7 @@ export function Button({
 
 ---
 
-## Крок 7.6 — Створення components/ui/Badge.tsx
+## Крок 8.6 — Створення components/ui/Badge.tsx
 
 ```typescript
 // src/components/ui/Badge.tsx
@@ -2771,7 +3085,7 @@ export function CarStatusBadge({ status }: { status: CarStatus }) {
 
 ---
 
-## Крок 7.7 — Створення components/ui/Pagination.tsx
+## Крок 8.7 — Створення components/ui/Pagination.tsx
 
 ```typescript
 // src/components/ui/Pagination.tsx
@@ -2839,7 +3153,7 @@ export function Pagination({ total, page, pageSize, onChange }: PaginationProps)
 
 ---
 
-## Крок 7.8 — Створення components/ui/Input.tsx
+## Крок 8.8 — Створення components/ui/Input.tsx
 
 ```typescript
 // src/components/ui/Input.tsx
@@ -2882,10 +3196,10 @@ export function Input({ label, error, helpText, id, className = "", ...rest }: I
 ---
 
 # ═══════════════════════════════════════════════════════════
-# ФАЗА 8 — LAYOUTS (ШАБЛОНИ СТОРІНОК)
+# ФАЗА 9 — LAYOUTS (ШАБЛОНИ СТОРІНОК)
 # ═══════════════════════════════════════════════════════════
 
-## Крок 8.1 — Що таке Layout і Outlet
+## Крок 9.1 — Що таке Layout і Outlet
 
 ```typescript
 // Layout — компонент-обгортка що задає загальну структуру сторінки
@@ -2899,7 +3213,7 @@ export function Input({ label, error, helpText, id, className = "", ...rest }: I
 
 ---
 
-## Крок 8.2 — Створення components/layouts/DriverLayout.tsx
+## Крок 9.2 — Створення components/layouts/DriverLayout.tsx
 
 ```typescript
 // src/components/layouts/DriverLayout.tsx
@@ -2959,7 +3273,7 @@ export function DriverLayout() {
 
 ---
 
-## Крок 8.3 — Створення components/layouts/MainLayout.tsx
+## Крок 9.3 — Створення components/layouts/MainLayout.tsx
 
 ```typescript
 // src/components/layouts/MainLayout.tsx
@@ -3015,10 +3329,15 @@ export function MainLayout() {
 ---
 
 # ═══════════════════════════════════════════════════════════
-# ФАЗА 9 — App.tsx ТА МАРШРУТИЗАЦІЯ
+# ФАЗА 10 — App.tsx ТА МАРШРУТИЗАЦІЯ
 # ═══════════════════════════════════════════════════════════
 
-## Крок 9.1 — Що таке React Router
+> ПРИМІТКА: `BrowserRouter` і базовий `App.tsx` з `<Routes>` вже
+> налаштовані у Фазі 3 (лендінг), під `UnderConstruction`-заглушки.
+> Ця фаза замінює заглушки на реальні `Layout`-компоненти й сторінки —
+> сам Router переналаштовувати не треба, лише розширити список `<Route>`.
+
+## Крок 10.1 — Що таке React Router
 
 React Router — бібліотека навігації для SPA (Single Page Application).
 Замість перезавантаження сторінки — React замінює компонент.
@@ -3031,7 +3350,7 @@ React Router — бібліотека навігації для SPA (Single Page
 
 ---
 
-## Крок 9.2 — Тимчасові заглушки для сторінок
+## Крок 10.2 — Тимчасові заглушки для сторінок
 
 Перед написанням App.tsx нам потрібні хоча б порожні компоненти.
 Створи файл `src/pages/PlaceholderPage.tsx`:
@@ -3056,7 +3375,7 @@ export function PlaceholderPage({ title }: PlaceholderProps) {
 
 ---
 
-## Крок 9.3 — Написання src/App.tsx
+## Крок 10.3 — Написання src/App.tsx
 
 ВИДАЛИ вміст `src/App.tsx` і напиши:
 
@@ -3145,7 +3464,7 @@ export default function App() {
 
 ---
 
-## Крок 9.4 — Запуск і перевірка структури
+## Крок 10.4 — Запуск і перевірка структури
 
 ```
 npm run dev
@@ -3161,10 +3480,10 @@ npm run dev
 ---
 
 # ═══════════════════════════════════════════════════════════
-# ФАЗА 10 — ПЕРША РЕАЛЬНА СТОРІНКА: WaybillList
+# ФАЗА 11 — ПЕРША РЕАЛЬНА СТОРІНКА: WaybillList
 # ═══════════════════════════════════════════════════════════
 
-## Крок 10.1 — Чому починаємо з WaybillList
+## Крок 11.1 — Чому починаємо з WaybillList
 
 Це ключова сторінка для оцінки проєкту. Містить:
 - Фільтри (search, status, channel, legalEntity)
@@ -3174,7 +3493,7 @@ npm run dev
 
 ---
 
-## Крок 10.2 — Компонент SortHeader
+## Крок 11.2 — Компонент SortHeader
 
 ```typescript
 // src/components/ui/SortHeader.tsx
@@ -3215,7 +3534,7 @@ export function SortHeader({
 
 ---
 
-## Крок 10.3 — Компонент WaybillFiltersBar
+## Крок 11.3 — Компонент WaybillFiltersBar
 
 ```typescript
 // src/components/waybills/WaybillFiltersBar.tsx
@@ -3329,7 +3648,7 @@ export function WaybillFiltersBar({ filters, onChange }: WaybillFiltersBarProps)
 
 ---
 
-## Крок 10.4 — Компонент WaybillTable
+## Крок 11.4 — Компонент WaybillTable
 
 ```typescript
 // src/components/waybills/WaybillTable.tsx
@@ -3412,7 +3731,7 @@ export function WaybillTable({ items, sort, onSort }: WaybillTableProps) {
 
 ---
 
-## Крок 10.5 — Основна сторінка WaybillList
+## Крок 11.5 — Основна сторінка WaybillList
 
 ```typescript
 // src/pages/waybills/WaybillList.tsx
@@ -3517,7 +3836,7 @@ export function WaybillList() {
 
 ---
 
-## Крок 10.6 — Підключення WaybillList до App.tsx
+## Крок 11.6 — Підключення WaybillList до App.tsx
 
 Відкрий `src/App.tsx` і заміни рядок:
 
