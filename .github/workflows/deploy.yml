@@ -1,0 +1,47 @@
+name: Deploy UI
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install cloudflared
+        run: |
+          curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 \
+            -o cloudflared
+          chmod +x cloudflared
+          sudo mv cloudflared /usr/local/bin/
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.PI_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          cat > ~/.ssh/config << 'EOF'
+          Host pi-deploy
+            HostName ssh.warehouse.mom
+            User rasberry_kisliy
+            IdentityFile ~/.ssh/deploy_key
+            ProxyCommand cloudflared access ssh --hostname ssh.warehouse.mom
+            StrictHostKeyChecking no
+            PasswordAuthentication no
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Deploy via SSH
+        run: |
+          ssh pi-deploy '
+            set -e
+            cd ~/vehicle_cost_tracker
+            echo "==> Pulling latest code..."
+            git pull origin main
+            echo "==> Rebuilding containers..."
+            docker compose build
+            docker compose up -d
+            docker image prune -f
+            echo "==> Deploy complete!"
+          '

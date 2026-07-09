@@ -1,0 +1,5 @@
+services:
+  ui:
+    build: .
+    restart: unless-stopped
+    network_mode: host  # доступ до backend (127.0.0.1:8000) напряму
