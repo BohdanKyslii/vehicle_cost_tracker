@@ -1531,6 +1531,311 @@ git branch -d feature/faza-5-utils
 ---
 
 # ═══════════════════════════════════════════════════════════
+# ФАЗА 4.5 — РЕЄСТРАЦІЯ ТА АВТОРИЗАЦІЯ
+# ═══════════════════════════════════════════════════════════
+
+> Ця фаза йде поза початковою нумерацією (див. `task_description/ROADMAP.md`
+> у `vehicle_tracker_api`). AuthModal (Фаза 3) поки лише візуальна —
+> `handleSubmit` робить `preventDefault()` і нічого не відправляє.
+> Ця фаза підключає її до реального Django API з Фази 4.5 бекенду
+> (`DJANGO_CODING_GUIDE.md`) — **зроби спочатку backend-частину**,
+> без неї фронтенду немає куди стукати.
+>
+> Гілка: `feature/faza-4.5-auth` (той самий процес, що в Кроці 4.5
+> Фази 4 — checkout, коміти, PR, merge).
+
+## Крок 4.5.1 — Чому cookie, а не localStorage
+
+Backend видає Django `sessionid` cookie при логіні. Браузер сам
+зберігає й надсилає її з кожним запитом — фронтенду не треба:
+- вручну класти токен у `localStorage` (вразливо до XSS),
+- вручну додавати `Authorization` header у кожен `fetch`.
+
+Єдине, що треба зробити самим — увімкнути `credentials: "include"`
+(інакше `fetch` не надішле cookie) і додати `X-CSRFToken` header
+у мутуючі запити (POST/PUT/DELETE) — Django CSRF-захист працює
+навіть для сесійної автентифікації.
+
+## Крок 4.5.2 — src/api/config.ts
+
+```typescript
+// src/api/config.ts
+export const API_BASE = import.meta.env.VITE_API_BASE;
+
+// Читає значення cookie за іменем — Django кладе CSRF-токен
+// у cookie "csrftoken", яку JS може прочитати напряму
+function getCookie(name: string): string | null {
+  const match = document.cookie.match(new RegExp(`(^| )${name}=([^;]+)`));
+  return match ? decodeURIComponent(match[2]) : null;
+}
+
+interface FetchOptions extends RequestInit {
+  json?: unknown;
+}
+
+// Обгортка над fetch: credentials + CSRF header + JSON body/parse в одному місці
+export async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T> {
+  const { json, headers, ...rest } = options;
+
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...rest,
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRFToken": getCookie("csrftoken") ?? "",
+      ...headers,
+    },
+    body: json !== undefined ? JSON.stringify(json) : rest.body,
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error ?? `Request failed: ${res.status}`);
+  }
+  // 204 No Content (logout) — немає тіла для парсингу
+  if (res.status === 204) return undefined as T;
+  return res.json();
+}
+```
+
+ЩО РОБИТЬ КОД:
+- `getCookie` — регулярка витягує значення `csrftoken` із рядка
+  `document.cookie` (браузер зберігає всі cookie в одному рядку
+  `"ім'я1=знач1; ім'я2=знач2"`)
+- `credentials: "include"` — обов'язково для крос-портового запиту
+  (`:5173` → `:8000` під час розробки; в проді `/api/` той самий
+  origin через nginx, але прапорець нічого не ламає й там)
+- Єдина обгортка над `fetch` — усі майбутні `api/*.ts` файли
+  (Фаза 6) використовуватимуть саме її, а не голий `fetch`
+
+## Крок 4.5.3 — src/api/auth.ts
+
+```typescript
+// src/api/auth.ts
+import { apiFetch } from "./config";
+
+export interface CurrentUser {
+  id: number;
+  username: string;
+  email: string;
+}
+
+// Проставляє csrftoken cookie в браузері — викликається один раз
+// при старті застосунку, ДО першого логіну/реєстрації
+export function fetchCsrf() {
+  return apiFetch<{ csrfToken: string }>("/auth/csrf/");
+}
+
+export function fetchCurrentUser() {
+  return apiFetch<{ user: CurrentUser | null }>("/auth/me/");
+}
+
+export function login(username: string, password: string) {
+  return apiFetch<CurrentUser>("/auth/login/", {
+    method: "POST",
+    json: { username, password },
+  });
+}
+
+export function register(username: string, email: string, password: string) {
+  return apiFetch<CurrentUser>("/auth/register/", {
+    method: "POST",
+    json: { username, email, password },
+  });
+}
+
+export function logout() {
+  return apiFetch<void>("/auth/logout/", { method: "POST" });
+}
+```
+
+## Крок 4.5.4 — src/hooks/useCurrentUser.ts
+
+```typescript
+// src/hooks/useCurrentUser.ts
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import { fetchCurrentUser, login, register, logout } from "../api/auth";
+
+export function useCurrentUser() {
+  const queryClient = useQueryClient();
+
+  const query = useQuery({
+    queryKey: ["currentUser"],
+    queryFn: async () => (await fetchCurrentUser()).user,
+  });
+
+  // onSuccess тут не типовий React Query API — оновлюємо кеш вручну
+  // одразу після успішного логіну/реєстрації, щоб не чекати refetch
+  const loginMutation = useMutation({
+    mutationFn: ({ username, password }: { username: string; password: string }) =>
+      login(username, password),
+    onSuccess: (user) => queryClient.setQueryData(["currentUser"], user),
+  });
+
+  const registerMutation = useMutation({
+    mutationFn: ({ username, email, password }: { username: string; email: string; password: string }) =>
+      register(username, email, password),
+    onSuccess: (user) => queryClient.setQueryData(["currentUser"], user),
+  });
+
+  const logoutMutation = useMutation({
+    mutationFn: logout,
+    onSuccess: () => queryClient.setQueryData(["currentUser"], null),
+  });
+
+  return {
+    user: query.data,
+    isLoading: query.isLoading,
+    login: loginMutation.mutateAsync,
+    register: registerMutation.mutateAsync,
+    logout: logoutMutation.mutateAsync,
+    loginError: loginMutation.error,
+    registerError: registerMutation.error,
+  };
+}
+```
+
+## Крок 4.5.5 — Виклик fetchCsrf при старті застосунку
+
+Відкрий `src/main.tsx`, виклич `fetchCsrf()` один раз перед рендером
+(щоб cookie вже була в браузері до першого відкриття AuthModal):
+
+```typescript
+// src/main.tsx
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import { BrowserRouter } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import './index.css'
+import App from './App.tsx'
+import { fetchCsrf } from './api/auth'
+
+fetchCsrf();
+
+const queryClient = new QueryClient();
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </QueryClientProvider>
+  </StrictMode>,
+)
+```
+
+ЩО РОБИТЬ КОД:
+- `QueryClientProvider` — тут з'являється вперше, бо `useCurrentUser`
+  (Крок 4.5.4) вже використовує `@tanstack/react-query`. Решта
+  застосунку (Фаза 7) буде використовувати той самий `queryClient`
+
+## Крок 4.5.6 — Підключення AuthModal до реального API
+
+Онови `src/components/auth/AuthModal.tsx` — заміни заглушку
+`handleSubmit` на реальні виклики. Ключова зміна логіки (повний
+JSX панелей — без змін із Фази 3):
+
+```typescript
+// src/components/auth/AuthModal.tsx (фрагмент)
+import { useState } from 'react';
+import type { FormEvent } from 'react';
+import { useCurrentUser } from '../../hooks/useCurrentUser';
+
+// ... Props без змін ...
+
+export function AuthModal({ open, signup, onClose, onSwitch }: Props) {
+  const { login, register, loginError, registerError } = useCurrentUser();
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
+  async function handleLogin(e: FormEvent) {
+    e.preventDefault();
+    await login({ username, password });
+    onClose();
+  }
+
+  async function handleRegister(e: FormEvent) {
+    e.preventDefault();
+    await register({ username, email, password });
+    onClose();
+  }
+
+  // ... useEffect для скролу/Escape без змін ...
+
+  return (
+    <div className={`auth-backdrop${open ? ' open' : ''}`} /* ... */>
+      <div className={`auth-card${signup ? ' is-signup' : ''}`}>
+        {/* pane-login: <form onSubmit={handleLogin}> з input value={username}/onChange
+            і т.д., {loginError && <p className="error">{loginError.message}</p>} */}
+        {/* pane-signup: <form onSubmit={handleRegister}> аналогічно + поле email,
+            {registerError && <p className="error">{registerError.message}</p>} */}
+      </div>
+    </div>
+  );
+}
+```
+
+ЩО РОБИТЬ КОД:
+- `useState` для полів форми — контрольовані інпути (React завжди
+  знає поточне значення, а не читає його з DOM при сабміті)
+- `await login(...)` — `mutateAsync` кидає виняток при помилці,
+  тому `loginError`/`registerError` з `useCurrentUser` вже містять
+  причину (напр. "Невірний логін або пароль" від бекенду) —
+  просто показати їх текстом під формою
+- Немає try/catch навколо `await login` навмисно: якщо мутація
+  впаде, `onClose()` просто не викликається і форма лишається
+  відкритою з помилкою — саме та поведінка, яка потрібна
+
+## Крок 4.5.7 — TopNav: показ поточного користувача
+
+Відкрий `src/components/layouts/TopNav.tsx` — замінити завжди
+видиму кнопку "Sign Up" на умовний рендер:
+
+```typescript
+// src/components/layouts/TopNav.tsx (фрагмент)
+import { useCurrentUser } from '../../hooks/useCurrentUser';
+
+// ... всередині TopNav, після існуючого JSX меню ...
+const { user, logout } = useCurrentUser();
+
+// В actions:
+{user ? (
+  <div className="user-actions">
+    <span>{user.username}</span>
+    <button type="button" onClick={() => logout()}>Вийти</button>
+  </div>
+) : (
+  <button type="button" className="signup-btn" onClick={onOpenAuth}>
+    Sign Up
+  </button>
+)}
+```
+
+## Крок 4.5.8 — Перевірка .env
+
+`.env` (Крок 1.5) уже містить `VITE_API_BASE=http://localhost:8000/api` —
+переконайся, що це так. Backend (Фаза 4.5, Крок 4.5.2) має бути
+запущений (`python manage.py runserver`) одночасно з `npm run dev`.
+
+## Крок 4.5.9 — Перевірка в браузері
+
+1. `npm run dev`, відкрий http://localhost:5173
+2. Sign Up → заповни форму → сабміт
+3. У Django admin (`http://localhost:8000/admin/auth/user/`) має
+   з'явитись новий користувач
+4. Onload TopNav показує ім'я замість "Sign Up"
+5. Онови сторінку (F5) — користувач лишається залогіненим
+   (сесія в cookie, `fetchCurrentUser()` при старті це підтверджує)
+6. "Вийти" → TopNav знову показує "Sign Up"
+
+Якщо все працює — мерж гілку (Крок 4.5 із Фази 4) і переходь до
+Фази 5 (Утиліти) за початковим планом гайду.
+
+---
+
+# ═══════════════════════════════════════════════════════════
 # ФАЗА 5 — УТИЛІТИ (чиста логіка без React)
 # ═══════════════════════════════════════════════════════════
 
