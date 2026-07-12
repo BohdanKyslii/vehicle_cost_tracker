@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import logo from '../../assets/logo.png';
+import { useCurrentUser } from '../../hocks/useCurrentUser';
 
 interface Props {
   onOpenAuth: () => void;
@@ -8,9 +9,10 @@ interface Props {
 
 export function TopNav({ onOpenAuth }: Props) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-
+  
   const closeMenu = () => setIsMenuOpen(false);
-
+  const { user, logout, logoutError } = useCurrentUser();
+  
   return (
     <nav className="top-nav">
       <div className="nav-inner">
@@ -57,16 +59,36 @@ export function TopNav({ onOpenAuth }: Props) {
           </li>
         </ul>
         <div className="actions">
-          <button
-            type="button"
-            className="signup-btn"
-            onClick={() => {
-              closeMenu();
-              onOpenAuth();
-            }}
-          >
-            Sign Up
-          </button>
+          {user ? (
+            <div className="user-actions">
+              <span>{user.username}</span>
+              <button
+                type="button"
+                onClick={async () => {
+                  closeMenu();
+                  try {
+                    await logout();
+                  } catch {
+                    // помилка вже в logoutError — показуємо нижче
+                  }
+                }}
+              >
+                Вийти
+              </button>
+              {logoutError && <span className="error">{logoutError.message}</span>}
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="signup-btn"
+              onClick={() => {
+                closeMenu();
+                onOpenAuth();
+              }}
+            >
+              Sign Up
+            </button>
+          )}
         </div>
       </div>
     </nav>

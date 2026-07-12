@@ -1,5 +1,6 @@
-import { useEffect } from 'react';
-import type { FormEvent } from 'react';
+import {useEffect, useState} from 'react';
+import type { SubmitEvent } from 'react';
+import  { useCurrentUser} from "../../hocks/useCurrentUser";
 
 interface Props {
   open: boolean;
@@ -8,13 +9,27 @@ interface Props {
   onSwitch: (signup: boolean) => void;
 }
 
-// TODO: backend has no /api/auth endpoints yet — forms just prevent
-// default submission until the real API exists.
-function handleSubmit(e: FormEvent) {
-  e.preventDefault();
-}
-
 export function AuthModal({ open, signup, onClose, onSwitch }: Props) {
+  const { login, register, loginError, registerError } = useCurrentUser();
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [role, setRole] = useState('driver');
+  const [registerMessage, setRegisterMessage] = useState('');
+
+  async function handleLogin(e: SubmitEvent<HTMLFormElement>) {
+    e.preventDefault();
+    await login({username, password});
+    onClose();
+  }
+
+  async function handleRegister(e: SubmitEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const result = await register({username, email, password, role});
+    setRegisterMessage(result.message);
+    onSwitch(false); // перекидаємо на вхід — акаунт чекає на підтвердження
+  }
+  
   useEffect(() => {
     if (!open) return;
     document.body.style.overflow = 'hidden';
@@ -44,14 +59,24 @@ export function AuthModal({ open, signup, onClose, onSwitch }: Props) {
           <span className="pane-tag">WELCOME BACK</span>
           <h2>Sign in</h2>
           <p className="pane-sub">Enter your details to continue.</p>
-          <form className="auth-form" noValidate onSubmit={handleSubmit}>
+          <form className="auth-form" noValidate onSubmit={handleLogin}>
             <div className="field-wrap">
-              <span className="field-ico">✉</span>
-              <input type="email" placeholder="Email" />
+              <span className="field-ico">&#128100;</span>
+              <input
+                type="text"
+                placeholder="Username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+              />
             </div>
             <div className="field-wrap">
               <span className="field-ico">&#128274;</span>
-              <input type="password" placeholder="Password" />
+              <input
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
             </div>
             <div className="field-row">
               <label>
@@ -61,6 +86,8 @@ export function AuthModal({ open, signup, onClose, onSwitch }: Props) {
                 Forgot password?
               </button>
             </div>
+            {registerMessage && <p className="success">{registerMessage}</p>}
+            {loginError && <p className="error">{loginError.message}</p>}
             <button type="submit" className="btn-grad">
               Sign in
             </button>
@@ -96,22 +123,45 @@ export function AuthModal({ open, signup, onClose, onSwitch }: Props) {
           <span className="pane-tag">JOIN THE SPACE</span>
           <h2>Create account</h2>
           <p className="pane-sub">It only takes a few seconds.</p>
-          <form className="auth-form" noValidate onSubmit={handleSubmit}>
+          <form className="auth-form" noValidate onSubmit={handleRegister}>
             <div className="field-wrap">
               <span className="field-ico">&#128100;</span>
-              <input type="text" placeholder="Full name" />
+              <input
+                type="text"
+                placeholder="Username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+              />
             </div>
             <div className="field-wrap">
               <span className="field-ico">✉</span>
-              <input type="email" placeholder="you@example.com" />
+              <input
+                type="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
             </div>
             <div className="field-wrap">
               <span className="field-ico">&#128274;</span>
-              <input type="password" placeholder="Password" />
+              <input
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
             </div>
             <div className="field-wrap">
               <span className="field-ico">&#128274;</span>
               <input type="password" placeholder="Confirm password" />
+            </div>
+            <div className="field-wrap">
+              <span className="field-ico">&#128100;</span>
+              <select value={role} onChange={(e) => setRole(e.target.value)}>
+                <option value="driver">Водій</option>
+                <option value="logist">Логіст</option>
+                <option value="manager">Менеджер</option>
+              </select>
             </div>
             <label className="terms-check">
               <input type="checkbox" /> I agree to the{' '}
@@ -119,6 +169,7 @@ export function AuthModal({ open, signup, onClose, onSwitch }: Props) {
                 Terms
               </button>
             </label>
+            {registerError && <p className="error">{registerError.message}</p>}
             <button type="submit" className="btn-grad">
               Create account
             </button>

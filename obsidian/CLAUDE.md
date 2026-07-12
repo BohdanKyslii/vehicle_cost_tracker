@@ -13,7 +13,8 @@ Frontend-репозиторій застосунку обліку транспо
 
 - React 19, TypeScript, Vite
 - react-router-dom v7 (маршрутизація)
-- TanStack Query v5 (data fetching/caching) — ще не підключено в коді
+- TanStack Query v5 (data fetching/caching) — підключено з Фази 4.5
+  (`useCurrentUser`, `QueryClientProvider` у `main.tsx`)
 - Tailwind CSS + власні CSS-файли (landing.css — лендінг написаний на
   чистому CSS, не Tailwind, свідоме рішення для цієї частини)
 - Recharts (аналітика, заплановано)
@@ -28,10 +29,15 @@ src/
   main.tsx
   index.css
   assets/logo.png
+  api/
+    config.ts                — apiFetch обгортка (credentials, CSRF-заголовок, JSON)
+    auth.ts                  — fetchCsrf, fetchCurrentUser, login, register, logout
   components/
-    auth/AuthModal.tsx        — форма логіну/реєстрації (поки без бекенда)
-    layouts/TopNav.tsx        — верхня навігація лендінгу (з мобільним меню)
-  hocks/useAuthModal.ts       — хук стану модалки (тека названа "hocks", не "hooks")
+    auth/AuthModal.tsx        — форма логіну/реєстрації, підключена до useCurrentUser
+    layouts/TopNav.tsx        — верхня навігація (мобільне меню + стан юзера)
+  hocks/                      — тека названа "hocks", не "hooks" (див. decisions.md)
+    useAuthModal.ts           — хук стану модалки
+    useCurrentUser.ts         — React Query: query + login/register/logout мутації
   pages/
     LandingPage.tsx
     UnderConstruction.tsx     — заглушка для ще не готових розділів
