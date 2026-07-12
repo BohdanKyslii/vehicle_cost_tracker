@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Start page</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <nav class="top-nav">
+        <div class="nav-inner">
+            <div class="logo"><img src="rubin_logo_512.8ebfaa2f5f9a.png" alt="Logo"></div>
+            <ul class="menu">
+                <li><a href="#">About</a></li>
+                <li><a href="#">Works</a></li>
+                <li class="has-submenu">
+                    <a href="#">Skills</a>
+                    <ul class="submenu">
+                        <li><a href="#">React</a></li>
+                        <li><a href="#">Svelte</a></li>
+                        <li><a href="#">VueJs</a></li>
+                    </ul>
+                </li>
+                <li><a href="#">Tools</a></li>
+                <li><a href="#">Projects</a></li>
+            </ul>
+            <div class="actions">
+                <a href="#" class="signup-btn" id="headerAuthBtn">Sign Up</a>
+                <button class="menu-toggle" aria-label="Toggle menu">☰</button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="page">
+        <!-- Page content -->
+    </main>
+
+    <!-- Auth Modal -->
+    <div class="auth-backdrop" id="authBackdrop">
+        <div class="auth-card" id="authCard">
+
+            <!-- Column 1: Login form (login mode) / Left promo (signup mode) -->
+            <div class="auth-pane pane-login">
+                <span class="pane-tag">WELCOME BACK</span>
+                <h2>Sign in</h2>
+                <p class="pane-sub">Enter your details to continue.</p>
+                <form class="auth-form" novalidate>
+                    <div class="field-wrap">
+                        <span class="field-ico">✉</span>
+                        <input type="email" placeholder="Email">
+                    </div>
+                    <div class="field-wrap">
+                        <span class="field-ico">&#128274;</span>
+                        <input type="password" placeholder="Password">
+                    </div>
+                    <div class="field-row">
+                        <label><input type="checkbox"> Remember me</label>
+                        <a href="#" class="link-accent">Forgot password?</a>
+                    </div>
+                    <button type="submit" class="btn-grad">Sign in</button>
+                </form>
+                <p class="pane-or">or continue with</p>
+                <div class="social-row">
+                    <button class="btn-social">G</button>
+                    <button class="btn-social">&#9675;</button>
+                </div>
+            </div>
+
+            <div class="auth-pane pane-left-promo">
+                <h3>Already a member?</h3>
+                <p>Sign back in and pick up where you left off.</p>
+                <button class="btn-ghost" data-auth-switch="login">Sign In</button>
+            </div>
+
+            <!-- Column 2: Right promo (login mode) / Signup form (signup mode) -->
+            <div class="auth-pane pane-right-promo">
+                <h3>New around here?</h3>
+                <p>Create an account and unlock the full experience.</p>
+                <button class="btn-ghost" data-auth-switch="signup">Create account</button>
+            </div>
+
+            <div class="auth-pane pane-signup">
+                <span class="pane-tag">JOIN THE SPACE</span>
+                <h2>Create account</h2>
+                <p class="pane-sub">It only takes a few seconds.</p>
+                <form class="auth-form" novalidate>
+                    <div class="field-wrap">
+                        <span class="field-ico">&#128100;</span>
+                        <input type="text" placeholder="Full name">
+                    </div>
+                    <div class="field-wrap">
+                        <span class="field-ico">✉</span>
+                        <input type="email" placeholder="you@example.com">
+                    </div>
+                    <div class="field-wrap">
+                        <span class="field-ico">&#128274;</span>
+                        <input type="password" placeholder="Password">
+                    </div>
+                    <div class="field-wrap">
+                        <span class="field-ico">&#128274;</span>
+                        <input type="password" placeholder="Confirm password">
+                    </div>
+                    <label class="terms-check">
+                        <input type="checkbox"> I agree to the <a href="#" class="link-accent">Terms</a>
+                    </label>
+                    <button type="submit" class="btn-grad">Create account</button>
+                </form>
+            </div>
+
+            <button class="auth-close" data-auth-close aria-label="Close">✕</button>
+        </div>
+    </div>
+
+    <script src="auth.js"></script>
+</body>
+</html>

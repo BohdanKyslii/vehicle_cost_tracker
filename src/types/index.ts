@@ -154,6 +154,7 @@ export interface Driver {
 	idDriver: number;
 	nameDriver: string;
 	phoneDriver?: string;
+	driversLicense?: string;  // Driver's license number
 	telegramId?: number;    // for a future Telegram bot (notifications, newsletters, reports)
 	idCar: string | null;   // vehicle to which it is assigned
 	isActive: boolean;

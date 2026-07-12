@@ -105,6 +105,7 @@
 .has-submenu .submenu li a:hover { background: rgba(255, 255, 255, 0.08); }
 
 .actions { margin-left: auto; display: flex; align-items: center; gap: 12px; z-index: 10; }
+.user-actions { display: flex; align-items: center; gap: 12px; }
 .signup-btn {
   background: rgba(255, 255, 255, 0.06);
   color: #fff;
