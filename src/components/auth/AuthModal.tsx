@@ -56,15 +56,15 @@ export function AuthModal({ open, signup, onClose, onSwitch }: Props) {
     >
       <div className={`auth-card${signup ? ' is-signup' : ''}`}>
         <div className="auth-pane pane-login">
-          <span className="pane-tag">WELCOME BACK</span>
-          <h2>Sign in</h2>
-          <p className="pane-sub">Enter your details to continue.</p>
+          <span className="pane-tag">З ПОВЕРНЕННЯМ</span>
+          <h2>Вхід</h2>
+          <p className="pane-sub">Введіть свої дані, щоб продовжити.</p>
           <form className="auth-form" noValidate onSubmit={handleLogin}>
             <div className="field-wrap">
               <span className="field-ico">&#128100;</span>
               <input
                 type="text"
-                placeholder="Username"
+                placeholder="Ім'я користувача"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
               />
@@ -73,26 +73,26 @@ export function AuthModal({ open, signup, onClose, onSwitch }: Props) {
               <span className="field-ico">&#128274;</span>
               <input
                 type="password"
-                placeholder="Password"
+                placeholder="Пароль"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
             </div>
             <div className="field-row">
               <label>
-                <input type="checkbox" /> Remember me
+                <input type="checkbox" /> Запам'ятати мене
               </label>
               <button type="button" className="link-accent">
-                Forgot password?
+                Забули пароль?
               </button>
             </div>
             {registerMessage && <p className="success">{registerMessage}</p>}
             {loginError && <p className="error">{loginError.message}</p>}
             <button type="submit" className="btn-grad">
-              Sign in
+              Увійти
             </button>
           </form>
-          <p className="pane-or">or continue with</p>
+          <p className="pane-or">або продовжити через</p>
           <div className="social-row">
             <button type="button" className="btn-social">
               G
@@ -104,31 +104,31 @@ export function AuthModal({ open, signup, onClose, onSwitch }: Props) {
         </div>
 
         <div className="auth-pane pane-left-promo">
-          <h3>Already a member?</h3>
-          <p>Sign back in and pick up where you left off.</p>
+          <h3>Вже маєте акаунт?</h3>
+          <p>Увійдіть знову і продовжте з того місця, де зупинились.</p>
           <button type="button" className="btn-ghost" onClick={() => onSwitch(false)}>
-            Sign In
+            Увійти
           </button>
         </div>
 
         <div className="auth-pane pane-right-promo">
-          <h3>New around here?</h3>
-          <p>Create an account and unlock the full experience.</p>
+          <h3>Вперше тут?</h3>
+          <p>Створіть акаунт і отримайте повний доступ.</p>
           <button type="button" className="btn-ghost" onClick={() => onSwitch(true)}>
-            Create account
+            Створити акаунт
           </button>
         </div>
 
         <div className="auth-pane pane-signup">
-          <span className="pane-tag">JOIN THE SPACE</span>
-          <h2>Create account</h2>
-          <p className="pane-sub">It only takes a few seconds.</p>
+          <span className="pane-tag">ПРИЄДНУЙТЕСЯ</span>
+          <h2>Створення акаунту</h2>
+          <p className="pane-sub">Це займе лише кілька секунд.</p>
           <form className="auth-form" noValidate onSubmit={handleRegister}>
             <div className="field-wrap">
               <span className="field-ico">&#128100;</span>
               <input
                 type="text"
-                placeholder="Username"
+                placeholder="Ім'я користувача"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
               />
@@ -146,14 +146,14 @@ export function AuthModal({ open, signup, onClose, onSwitch }: Props) {
               <span className="field-ico">&#128274;</span>
               <input
                 type="password"
-                placeholder="Password"
+                placeholder="Пароль"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
             </div>
             <div className="field-wrap">
               <span className="field-ico">&#128274;</span>
-              <input type="password" placeholder="Confirm password" />
+              <input type="password" placeholder="Підтвердіть пароль" />
             </div>
             <div className="field-wrap">
               <span className="field-ico">&#128100;</span>
@@ -164,19 +164,19 @@ export function AuthModal({ open, signup, onClose, onSwitch }: Props) {
               </select>
             </div>
             <label className="terms-check">
-              <input type="checkbox" /> I agree to the{' '}
+              <input type="checkbox" /> Я погоджуюсь з{' '}
               <button type="button" className="link-accent">
-                Terms
+                умовами використання
               </button>
             </label>
             {registerError && <p className="error">{registerError.message}</p>}
             <button type="submit" className="btn-grad">
-              Create account
+              Створити акаунт
             </button>
           </form>
         </div>
 
-        <button type="button" className="auth-close" aria-label="Close" onClick={onClose}>
+        <button type="button" className="auth-close" aria-label="Закрити" onClick={onClose}>
           ✕
         </button>
       </div>

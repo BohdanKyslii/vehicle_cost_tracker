@@ -272,6 +272,18 @@
   font-size: 14px;
 }
 .field-wrap input::placeholder { color: rgba(255, 255, 255, 0.38); }
+.field-wrap select {
+  background: transparent;
+  border: 0;
+  outline: none;
+  color: #fff;
+  width: 100%;
+  font-size: 14px;
+}
+.field-wrap select option {
+  background: #0d0d1c;
+  color: #fff;
+}
 
 .field-row {
   display: flex;
