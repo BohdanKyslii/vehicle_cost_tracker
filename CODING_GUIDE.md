@@ -4207,10 +4207,25 @@ Admin бекенду (`vehicle_tracker_api`); адмін лише отримує
   - `POST /api/auth/pending-users/<id>/approve/` — `is_active=True`
   - `POST /api/auth/pending-users/<id>/reject/` — видалити або позначити
     відхиленим (вирішити на етапі реалізації)
-  - Permission-клас: тільки `Profile.role == HEAD`
-- **Frontend** (цей репозиторій): сторінка `/admin` (зараз `UnderConstruction`)
-  — таблиця заявок на реєстрацію з кнопками "Підтвердити" / "Відхилити",
-  React Query hook на кшталт `usePendingUsers()`
+  - Permission-клас: тільки `Profile.role == HEAD` (НЕ Django
+    `is_superuser` — це різні речі: `is_superuser` керує доступом до
+    Django Admin, `Profile.role` — доступом до цього екрана застосунку)
+- **Frontend** (цей репозиторій): сторінка вже заведена на шляху
+  `/panel` (НЕ `/admin`!) — `App.tsx::AdminPanelRoute`, зараз показує
+  заглушку через `UnderConstruction`, з гейтом по ролі
+  (`user?.profile?.role !== 'head'` → "Доступ заборонено"). Пункт меню
+  "Адмін" у `TopNav.tsx` теж вже рендериться лише для ролі `head`.
+  Цей крок — замінити вміст `AdminPanelRoute` на таблицю заявок з
+  кнопками "Підтвердити"/"Відхилити" (React Query hook на кшталт
+  `usePendingUsers()`), логіка гейта й шлях лишаються ті самі.
+  **Чому НЕ `/admin`:** на проді nginx проксіює `/admin/` напряму на
+  Django admin (`nginx.conf`, Крок 4.3); фронтенд-роут `/admin` (без
+  слеша) перекривав би справжню адмінку заглушкою через SPA-fallback —
+  звідси вибір `/panel`.
+- Клієнтський гейт — лише UX (сховати посилання/показати "немає
+  доступу"), НЕ заміна реального захисту: справжня перевірка завжди на
+  боці бекенду (`permission_classes` вище) — фронтенд-перевірку легко
+  обійти через DevTools
 - Мій план (адмін = HEAD) — заходити в реальний застосунок, а не в Django
   Admin, для рутинного підтвердження нових співробітників
 

@@ -52,9 +52,11 @@ export function TopNav({ onOpenAuth }: Props) {
               <li>
                 <Link to="/carriers" onClick={closeMenu}>Служби доставки</Link>
               </li>
-              <li>
-                <Link to="/admin" onClick={closeMenu}>Адмін</Link>
-              </li>
+              {user?.profile?.role === 'head' && (
+                <li>
+                  <Link to="/panel" onClick={closeMenu}>Адмін</Link>
+                </li>
+              )}
             </ul>
           </li>
         </ul>

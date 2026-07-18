@@ -1,9 +1,18 @@
 import { apiFetch} from "./config";
 
+export interface UserProfile {
+	role: 'driver' | 'logist' | 'manager' | 'head';
+	phone: string;
+	telegram_id: number | null;
+	driver: number | null;
+}
+
 export interface CurrentUser {
 	id: number;
 	username: string;
 	email: string;
+	is_active: boolean;
+	profile: UserProfile | null;
 }
 
 // Проставляє csrftoken cookie в браузері — викликається один раз
