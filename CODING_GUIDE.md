@@ -4194,6 +4194,26 @@ import { WaybillList } from "./pages/waybills/WaybillList";
 ### Крок 16 — CarrierShipmentForm (служби доставки)
 ### Крок 17 — Аналітика і графіки (Recharts)
 
+### Крок 18 — Адмін: підтвердження реєстрацій користувачів
+Зараз нові акаунти (`is_active=False`) підтверджуються ВРУЧНУ через Django
+Admin бекенду (`vehicle_tracker_api`); адмін лише отримує лист-сповіщення
+(див. `apps/accounts/views.py::_notify_admin_new_registration`, ADMIN_EMAIL
+у `.env`). Цей крок — про зручний екран підтвердження прямо в застосунку,
+замість Django Admin:
+
+- **Backend** (`vehicle_tracker_api`, `apps/accounts`):
+  - `GET /api/auth/pending-users/` — список `is_active=False` користувачів
+    (username, email, role, дата реєстрації), доступ лише для ролі HEAD
+  - `POST /api/auth/pending-users/<id>/approve/` — `is_active=True`
+  - `POST /api/auth/pending-users/<id>/reject/` — видалити або позначити
+    відхиленим (вирішити на етапі реалізації)
+  - Permission-клас: тільки `Profile.role == HEAD`
+- **Frontend** (цей репозиторій): сторінка `/admin` (зараз `UnderConstruction`)
+  — таблиця заявок на реєстрацію з кнопками "Підтвердити" / "Відхилити",
+  React Query hook на кшталт `usePendingUsers()`
+- Мій план (адмін = HEAD) — заходити в реальний застосунок, а не в Django
+  Admin, для рутинного підтвердження нових співробітників
+
 ---
 
 ## Корисні команди WebStorm:

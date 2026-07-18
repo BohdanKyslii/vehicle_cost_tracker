@@ -16,6 +16,7 @@ export function AuthModal({ open, signup, onClose, onSwitch }: Props) {
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('driver');
   const [registerMessage, setRegisterMessage] = useState('');
+  const [showTerms, setShowTerms] = useState(false);
 
   async function handleLogin(e: SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -41,11 +42,13 @@ export function AuthModal({ open, signup, onClose, onSwitch }: Props) {
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key !== 'Escape') return;
+      if (showTerms) setShowTerms(false);
+      else onClose();
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [open, onClose]);
+  }, [open, onClose, showTerms]);
 
   return (
     <div
@@ -94,11 +97,14 @@ export function AuthModal({ open, signup, onClose, onSwitch }: Props) {
           </form>
           <p className="pane-or">або продовжити через</p>
           <div className="social-row">
-            <button type="button" className="btn-social">
+            <button type="button" className="btn-social" aria-label="Google">
               G
             </button>
-            <button type="button" className="btn-social">
-              &#9675;
+            <button type="button" className="btn-social" aria-label="Telegram">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <line x1="22" y1="2" x2="11" y2="13" />
+                <polygon points="22 2 15 22 11 13 2 9 22 2" />
+              </svg>
             </button>
           </div>
         </div>
@@ -165,7 +171,15 @@ export function AuthModal({ open, signup, onClose, onSwitch }: Props) {
             </div>
             <label className="terms-check">
               <input type="checkbox" /> Я погоджуюсь з{' '}
-              <button type="button" className="link-accent">
+              <button
+                type="button"
+                className="link-accent"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setShowTerms(true);
+                }}
+              >
                 умовами використання
               </button>
             </label>
@@ -180,6 +194,39 @@ export function AuthModal({ open, signup, onClose, onSwitch }: Props) {
           ✕
         </button>
       </div>
+
+      {showTerms && (
+        <div
+          className="terms-backdrop"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowTerms(false);
+          }}
+        >
+          <div className="terms-card">
+            <h3>Умови використання</h3>
+            <div className="terms-body">
+              <p>
+                Цей застосунок призначений виключно для співробітників ТОВ «ТД РУБІН»
+                і використовується для внутрішнього обліку транспортних витрат компанії.
+              </p>
+              <p>
+                Уся інформація в системі — накладні, маршрути, витрати, аналітика та інші
+                дані — є комерційною таємницею компанії. Розголошення цієї інформації
+                третім особам, а також передача власного доступу стороннім особам
+                суворо заборонені.
+              </p>
+              <p>
+                Реєструючись, ви підтверджуєте, що використовуватимете застосунок лише
+                в робочих цілях і несете відповідальність за збереження конфіденційності
+                даних, до яких отримуєте доступ.
+              </p>
+            </div>
+            <button type="button" className="btn-grad" onClick={() => setShowTerms(false)}>
+              Зрозуміло
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
