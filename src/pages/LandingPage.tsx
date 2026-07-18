@@ -8,7 +8,7 @@ export function LandingPage() {
 
   return (
     <div className="landing">
-      <TopNav onOpenAuth={auth.openSignup} />
+      <TopNav onOpenAuth={auth.openLogin} />
       <main className="page">
         <div>
           <h1>Vehicle Cost Tracker</h1>

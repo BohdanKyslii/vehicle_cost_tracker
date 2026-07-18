@@ -86,7 +86,7 @@ export function TopNav({ onOpenAuth }: Props) {
                 onOpenAuth();
               }}
             >
-              Sign Up
+              Вхід
             </button>
           )}
         </div>
