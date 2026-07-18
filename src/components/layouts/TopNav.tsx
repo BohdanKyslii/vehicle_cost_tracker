@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import logo from '../../assets/logo.png';
 import { useCurrentUser } from '../../hocks/useCurrentUser';
 
@@ -9,17 +9,26 @@ interface Props {
 
 export function TopNav({ onOpenAuth }: Props) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  
+  const navigate = useNavigate();
+
   const closeMenu = () => setIsMenuOpen(false);
   const { user, logout, logoutError } = useCurrentUser();
-  
+
   return (
     <nav className="top-nav">
-      <div className="nav-inner">
+      <div
+        className="nav-inner"
+        onClick={(e) => {
+          // клік по порожньому місцю хедера — на головну; клік по
+          // логотипу/посиланням/кнопкам сюди не доходить (e.target тоді
+          // не сам nav-inner, а дочірній елемент)
+          if (e.target === e.currentTarget) navigate('/');
+        }}
+      >
         <div className="logo">
-          <Link to="/" onClick={closeMenu}>
-            <img src={logo} alt="Logo" />
-          </Link>
+          <a href="https://rubin.kyiv.ua/" target="_blank" rel="noreferrer">
+            <img src={logo} alt="ТОВ «ТД РУБІН»" />
+          </a>
         </div>
         <button
           type="button"

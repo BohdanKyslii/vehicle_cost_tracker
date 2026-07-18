@@ -1312,15 +1312,44 @@ server {
     location /api/ {
         proxy_pass http://127.0.0.1:8000/api/;
         proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
     }
 
     location /admin/ {
         proxy_pass http://127.0.0.1:8000/admin/;
         proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
     }
 
     location /static/ {
         proxy_pass http://127.0.0.1:8000/static/;
+    }
+
+    # index.html і PWA service worker/маніфест — НІКОЛИ не кешувати:
+    # інакше браузер може довго показувати стару версію застосунку
+    # (стара index.html посилається на JS/CSS файли з хешем, яких вже
+    # немає на диску після наступного деплою)
+    location = /index.html {
+        add_header Cache-Control "no-cache";
+    }
+    location ~* \.(?:webmanifest|json)$ {
+        add_header Cache-Control "no-cache";
+    }
+    location = /sw.js {
+        add_header Cache-Control "no-cache";
+    }
+    location = /registerSW.js {
+        add_header Cache-Control "no-cache";
+    }
+
+    # JS/CSS з хешем у назві файлу — можна кешувати надовго,
+    # ім'я змінюється при кожному новому білді
+    location ~* \.(?:js|css)$ {
+        add_header Cache-Control "public, max-age=31536000, immutable";
     }
 
     location / {
@@ -1337,6 +1366,15 @@ server {
   якщо файлу за адресою немає (наприклад `/fleet` — це не файл,
   а React-маршрут), nginx все одно віддає `index.html`, а
   React Router вже сам розбирається, яку сторінку показати
+- Блоки `Cache-Control: no-cache` для `index.html`/`sw.js`/маніфесту —
+  без цього браузер (особливо з увімкненим PWA service worker'ом) може
+  роками показувати СТАРУ версію застосунку навіть після успішного
+  деплою: `index.html` кешується, посилається на JS/CSS файли з хешем
+  попереднього білду, яких вже немає на диску. Симптом: нові фічі не
+  з'являються в конкретному браузері, хоча сервер оновився (в іншому
+  браузері/інкогніто — все ок). Хеш-файли (`.js`/`.css`) навпаки можна
+  кешувати надовго — ім'я змінюється при кожному білді, тож старий кеш
+  просто ніколи не переприсвоюється новому файлу
 
 Створи `docker-compose.yml`:
 
