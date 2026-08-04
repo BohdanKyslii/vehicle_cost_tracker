@@ -9,8 +9,10 @@ function App() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/fleet" element={<UnderConstruction title="Автопарк" />} />
       <Route path="/waybills" element={<UnderConstruction title="Накладні" />} />
+      {/* /driver — особистий екран водія (DriverLayout+DriverDashboard, Крок 13
+          CODING_GUIDE.md), ще не набраний руками — тому заглушка */}
       <Route path="/driver" element={<UnderConstruction title="Водії" />} />
-      {/* Telegram Mini App — окремо від /driver (це офісна секція управління водіями) */}
+      {/* Telegram Mini App — логінить через initData, після успіху веде саме в /driver */}
       <Route path="/driver-app" element={<DriverMiniApp />} />
       <Route path="/analytics" element={<UnderConstruction title="Аналітика" />} />
       <Route path="/hired" element={<UnderConstruction title="Найманий транспорт" />} />

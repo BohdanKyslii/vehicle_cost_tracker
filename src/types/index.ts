@@ -94,8 +94,8 @@ export interface StoreDeliveryAddress {
 // full = tracking of every unloading point
 export type TrackingMode = 'daily' | 'full';
 
-// Car operational status: active, under repair
-export type CarStatus = "active" | "repair";
+// Car operational status: active, under repair, or decommissioned
+export type CarStatus = "active" | "repair" | "inactive";
 
 // Vehicle status
 export interface Car {
@@ -108,7 +108,7 @@ export interface Car {
 	statusCar: CarStatus;
 	isActive: boolean;
 	// Nested objects
-	pecs?: CarSpecs;
+	specs?: CarSpecs;
 	trailer?: Trailer;
 }
 
@@ -155,8 +155,7 @@ export interface Driver {
 	nameDriver: string;
 	phoneDriver?: string;
 	driversLicense?: string;  // Driver's license number
-	telegramId?: number;    // for a future Telegram bot (notifications, newsletters, reports)
-	idCar: string | null;   // vehicle to which it is assigned
+	idCar: number | null;   // vehicle to which it is assigned
 	isActive: boolean;
 	car?: Car;
 }
@@ -241,6 +240,7 @@ export type RouteEventType =
 	| 'depot_start' // Start of morning to warehouse
 	| 'delivery' // Delivery to the store
 	| 'parking_end' // End of the workday: parking the car
+	| 'depot_return' // Return to warehouse (full mode)
 	| 'refuel'  // car refueling
 	| 'other_cost' // other driver expenses on the route
 	| 'return_goods'    // return of goods to the warehouse
@@ -262,7 +262,7 @@ export interface RouteEvent {
 	trackingMode?: TrackingMode;
 	eventType: RouteEventType;
 	eventTs: string;
-	odometrKm?: number;
+	odometerKm?: number;
 	palletsCount?: number;  // number of pallets (depot_start daily / delivery full)
 
 	// For delivery

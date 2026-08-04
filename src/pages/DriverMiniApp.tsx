@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Navigate } from 'react-router-dom';
 import { useCurrentUser } from '../hocks/useCurrentUser';
 
 const BOT_USERNAME = import.meta.env.VITE_TELEGRAM_BOT_USERNAME as string | undefined;
@@ -7,7 +8,7 @@ type Status = 'loading' | 'not_registered' | 'pending_approval' | 'error' | 'rea
 
 // Рендериться всередині Telegram WebView (кнопка бота), не сайту — тому без TopNav/AuthModal.
 export function DriverMiniApp() {
-	const { loginWithTelegram, user } = useCurrentUser();
+	const { loginWithTelegram } = useCurrentUser();
 	// Ліниво: якщо initData відсутній уже на першому рендері (відкрито поза Telegram),
 	// одразу стартуємо в error — не через синхронний setState всередині ефекту.
 	const [status, setStatus] = useState<Status>(() =>
@@ -57,7 +58,8 @@ export function DriverMiniApp() {
 				</Centered>
 			);
 		case 'ready':
-			return <Centered>Вітаємо, {user?.username}! Основний функціонал водія — у розробці.</Centered>;
+			// Далі — реальний екран водія (Крок 13 CODING_GUIDE.md), не заглушка тут.
+			return <Navigate to="/driver" replace />;
 	}
 }
 

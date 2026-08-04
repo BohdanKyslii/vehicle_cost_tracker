@@ -2031,6 +2031,22 @@ export function eventTypeIcon(type: RouteEventType): string {
   };
   return icons[type];
 }
+
+// Градієнт для тайла кожного типу події (Крок 13, DriverDashboard) —
+// різні кольори полегшують пошук потрібної кнопки одним поглядом.
+export function eventTypeGradient(type: RouteEventType): string {
+  const gradients: Record<RouteEventType, string> = {
+    depot_start: "from-blue-500 to-cyan-400",
+    delivery: "from-violet-500 to-purple-400",
+    parking_end: "from-slate-500 to-slate-400",
+    depot_return: "from-indigo-500 to-blue-400",
+    refuel: "from-amber-500 to-orange-400",
+    other_cost: "from-pink-500 to-rose-400",
+    return_goods: "from-teal-500 to-emerald-400",
+    extra_cargo: "from-fuchsia-500 to-pink-400",
+  };
+  return gradients[type];
+}
 ```
 
 ---
@@ -2461,15 +2477,17 @@ async function getCars() {
 
 ---
 
-## Крок 6.2 — Створення src/api/config.ts
+## Крок 6.2 — Доповнення src/api/config.ts
+
+`src/api/config.ts` вже існує (Фаза 4.5) — там уже є `API_BASE` і
+`apiFetch()` (обгортка над `fetch` з `credentials: 'include'` і
+CSRF-заголовком, потрібна для сесійної авторизації). ДОДАЙ у той самий
+файл (не створюй новий, не перезаписуй `API_BASE`/`apiFetch`):
 
 ```typescript
-// src/api/config.ts
+// додати в src/api/config.ts
 
-// import.meta.env — спосіб читати .env змінні у Vite
-// ?? — nullish coalescing: якщо ліва частина null/undefined → бери праву
 export const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
-export const API_BASE = import.meta.env.VITE_API_BASE ?? "/api";
 
 // Допоміжна функція: імітує мережеву затримку у mock режимі
 // Без неї компоненти не встигають показати loading стан
@@ -2478,15 +2496,111 @@ export function mockDelay(ms = 300): Promise<void> {
 }
 ```
 
+⚠️ **У решті Фази 6 (`cars.ts`, `drivers.ts`, `routeEvents.ts`) реальні
+запити йдуть через `apiFetch()`, а не сирий `fetch()`.** Причина не
+стилістична: `fetch()` без `credentials: 'include'` не надішле
+сесійну cookie, а POST без CSRF-заголовка Django відхилить з `403`
+(`CsrfViewMiddleware` увімкнений). `apiFetch` з Фази 4.5 вже вирішує
+обидві проблеми — просто перевикористовуємо його.
+
 ---
 
 ## Крок 6.3 — Створення src/api/cars.ts
 
+> ⚠️ Django REST Framework повертає списки загорнутими в пагінацію
+> (`{"count":.., "results":[...]}`), а поля бекенду — `snake_case`
+> (`name_car`), тоді як наші TS-типи — `camelCase` (`nameCar`). Функції
+> `mapCar`/`mapCarSpecs`/`mapTrailer` — єдине місце, де відбувається
+> це перетворення, щоб решта коду про це не думала.
+
 ```typescript
 // src/api/cars.ts
-import type { Car } from "../types";
-import { USE_MOCK, API_BASE, mockDelay } from "./config";
+import type { Car, CarSpecs, TrackingMode, CarStatus, Trailer } from "../types";
+import { USE_MOCK, mockDelay, apiFetch } from "./config";
 import mockCars from "../mocks/cars.json";
+
+interface Paginated<T> {
+  results: T[];
+}
+
+// Форма відповіді бекенду (snake_case) — окремо від camelCase TS-типів вище.
+interface RawCarSpecs {
+  vin_code?: string;
+  year_manufactured?: number;
+  weight_kg?: string;
+  payload_kg?: string;
+  length_cm?: string;
+  width_cm?: string;
+  height_cm?: string;
+  has_tail_lift: boolean;
+  has_trailer: boolean;
+}
+
+interface RawTrailer {
+  vin_code?: string;
+  year_manufactured?: number;
+  name_trailer: string;
+  model: string;
+  number_trailer: string;
+  is_active: boolean;
+}
+
+interface RawCar {
+  id: number;
+  name_car: string;
+  number_car: string;
+  fuel_card_number?: number;
+  amount_car: string;
+  default_tracking_mode: TrackingMode;
+  status_car: CarStatus;
+  is_active: boolean;
+  specs?: RawCarSpecs | null;
+  trailer?: RawTrailer | null;
+}
+
+function mapCarSpecs(raw: RawCarSpecs, carId: number): CarSpecs {
+  return {
+    idCar: carId, // CarSpecsSerializer виключає id/car — переюзаємо id авто
+    vinCode: raw.vin_code,
+    yearManufactured: raw.year_manufactured,
+    // DRF серіалізує DecimalField як рядок у JSON — тому Number(...)
+    weightKg: raw.weight_kg ? Number(raw.weight_kg) : undefined,
+    payloadKg: raw.payload_kg ? Number(raw.payload_kg) : undefined,
+    lengthCm: raw.length_cm ? Number(raw.length_cm) : undefined,
+    widthCm: raw.width_cm ? Number(raw.width_cm) : undefined,
+    heightCm: raw.height_cm ? Number(raw.height_cm) : undefined,
+    hasTailLift: raw.has_tail_lift,
+    hasTrailer: raw.has_trailer,
+  };
+}
+
+function mapTrailer(raw: RawTrailer, carId: number): Trailer {
+  return {
+    idTrailer: carId, // TrailerSerializer теж виключає id/car
+    vinCode: raw.vin_code,
+    yearManufactured: raw.year_manufactured,
+    nameTrailer: raw.name_trailer,
+    idCar: carId,
+    model: raw.model,
+    numberTrailer: raw.number_trailer,
+    isActive: raw.is_active,
+  };
+}
+
+function mapCar(raw: RawCar): Car {
+  return {
+    idCar: raw.id,
+    nameCar: raw.name_car,
+    numberCar: raw.number_car,
+    fuelCardNumber: raw.fuel_card_number ?? undefined,
+    amountCar: Number(raw.amount_car),
+    defaultTrackingMode: raw.default_tracking_mode,
+    statusCar: raw.status_car,
+    isActive: raw.is_active,
+    specs: raw.specs ? mapCarSpecs(raw.specs, raw.id) : undefined,
+    trailer: raw.trailer ? mapTrailer(raw.trailer, raw.id) : undefined,
+  };
+}
 
 // Отримати список всіх авто
 export async function fetchCars(): Promise<Car[]> {
@@ -2495,9 +2609,8 @@ export async function fetchCars(): Promise<Car[]> {
     // as Car[] — явне приведення типу (TypeScript довіряємо що JSON відповідає типу)
     return mockCars as Car[];
   }
-  const res = await fetch(`${API_BASE}/cars/`);
-  if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-  return res.json();
+  const data = await apiFetch<Paginated<RawCar>>("/cars/");
+  return data.results.map(mapCar);
 }
 
 // Отримати одне авто по id
@@ -2508,9 +2621,8 @@ export async function fetchCar(id: number): Promise<Car> {
     if (!car) throw new Error(`Авто #${id} не знайдено`);
     return car;
   }
-  const res = await fetch(`${API_BASE}/cars/${id}/`);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+  const raw = await apiFetch<RawCar>(`/cars/${id}/`);
+  return mapCar(raw);
 }
 ```
 
@@ -2521,21 +2633,42 @@ export async function fetchCar(id: number): Promise<Car> {
 ```typescript
 // src/api/drivers.ts
 import type { Driver } from "../types";
-import { USE_MOCK, API_BASE, mockDelay } from "./config";
+import { USE_MOCK, mockDelay, apiFetch } from "./config";
 import mockDrivers from "../mocks/drivers.json";
+
+interface Paginated<T> {
+  results: T[];
+}
+
+// DriverSerializer: id, name_driver, phone, car, car_number, car_name, is_active
+interface RawDriver {
+  id: number;
+  name_driver: string;
+  phone?: string;
+  car: number | null;
+  is_active: boolean;
+}
+
+function mapDriver(raw: RawDriver): Driver {
+  return {
+    idDriver: raw.id,
+    nameDriver: raw.name_driver,
+    phoneDriver: raw.phone || undefined,
+    idCar: raw.car ?? null,
+    isActive: raw.is_active,
+  };
+}
 
 export async function fetchDrivers(): Promise<Driver[]> {
   if (USE_MOCK) {
     await mockDelay();
     return mockDrivers as Driver[];
   }
-  const res = await fetch(`${API_BASE}/drivers/`);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+  const data = await apiFetch<Paginated<RawDriver>>("/drivers/");
+  return data.results.map(mapDriver);
 }
 
-// Поточний водій — у реальному застосунку визначається по JWT токену
-// В mock режимі — завжди перший активний водій
+// Поточний водій — визначається бекендом по сесії (Profile.driver, apps/accounts)
 export async function fetchCurrentDriver(): Promise<Driver> {
   if (USE_MOCK) {
     await mockDelay(100);
@@ -2543,9 +2676,8 @@ export async function fetchCurrentDriver(): Promise<Driver> {
     if (!driver) throw new Error("Водія не знайдено");
     return driver;
   }
-  const res = await fetch(`${API_BASE}/drivers/me/`);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+  const raw = await apiFetch<RawDriver>("/drivers/me/");
+  return mapDriver(raw);
 }
 ```
 
@@ -2700,11 +2832,126 @@ export async function fetchUnassignedWaybills(): Promise<WaybillSummary[]> {
 
 ## Крок 6.6 — Створення src/api/routeEvents.ts
 
+> ⚠️ Реальний ендпоінт останнього одометра — `@action(detail=False)` на
+> `RouteEventViewSet`, викликається як `?car_id=`-параметр:
+> `GET /route-events/last_odometer/?car_id=1`, а НЕ
+> `/route-events/{id}/last-odometer/`, як могло б здатись інтуїтивно.
+
 ```typescript
 // src/api/routeEvents.ts
-import type { RouteEvent, RouteEventCreate } from "../types";
-import { USE_MOCK, API_BASE, mockDelay } from "./config";
+import type { RouteEvent, RouteEventCreate, RouteEventType, TrackingMode } from "../types";
+import { USE_MOCK, mockDelay, apiFetch } from "./config";
 import mockEvents from "../mocks/route-events.json";
+
+interface Paginated<T> {
+  results: T[];
+}
+
+// RouteEventSerializer (fields = "__all__") — snake_case поля моделі
+interface RawRouteEvent {
+  id: number;
+  car: number;
+  driver: number;
+  tracking_mode: TrackingMode;
+  event_type: RouteEventType;
+  event_ts: string;
+  odometer_km: number | null;
+  pallets_count: number | null;
+  waybill_number: string;
+  waybill_date: string | null;
+  customer_name: string;
+  rejection_full: boolean | null;
+  rejection_product_id: string;
+  rejection_qty: string | null;
+  rejection_comment: string;
+  fuel_liters: string | null;
+  fuel_cost_uah: string | null;
+  ad_blue_liters: string | null;
+  ad_blue_cost_uah: string | null;
+  other_costs_uah: string | null;
+  other_costs_comment: string;
+  return_client_waybill: string;
+  extra_from: string;
+  extra_to: string;
+  extra_weight_kg: string | null;
+  extra_waybill: string;
+  extra_comment: string;
+  notes: string;
+  created_at: string;
+}
+
+function mapRouteEvent(raw: RawRouteEvent): RouteEvent {
+  return {
+    id: raw.id,
+    carId: raw.car,
+    driverId: raw.driver,
+    trackingMode: raw.tracking_mode,
+    eventType: raw.event_type,
+    eventTs: raw.event_ts,
+    odometerKm: raw.odometer_km ?? undefined,
+    palletsCount: raw.pallets_count ?? undefined,
+    waybillNumber: raw.waybill_number || undefined,
+    waybillDate: raw.waybill_date || undefined,
+    customerName: raw.customer_name || undefined,
+    rejection:
+      raw.rejection_full !== null && raw.rejection_full !== undefined
+        ? {
+            isFull: raw.rejection_full,
+            productId: raw.rejection_product_id ? Number(raw.rejection_product_id) : undefined,
+            quantity: raw.rejection_qty != null ? Number(raw.rejection_qty) : undefined,
+            comment: raw.rejection_comment || undefined,
+          }
+        : undefined,
+    fuelLiters: raw.fuel_liters != null ? Number(raw.fuel_liters) : undefined,
+    fuelCostUah: raw.fuel_cost_uah != null ? Number(raw.fuel_cost_uah) : undefined,
+    adBlueLiters: raw.ad_blue_liters != null ? Number(raw.ad_blue_liters) : undefined,
+    adBlueCostUah: raw.ad_blue_cost_uah != null ? Number(raw.ad_blue_cost_uah) : undefined,
+    // Увага: TS-поле — otherCostUah (однина), поле моделі — other_costs_uah (множина)
+    otherCostUah: raw.other_costs_uah != null ? Number(raw.other_costs_uah) : undefined,
+    otherCostComment: raw.other_costs_comment || undefined,
+    returnClientWaybill: raw.return_client_waybill || undefined,
+    extraFrom: raw.extra_from || undefined,
+    extraTo: raw.extra_to || undefined,
+    extraWeightKg: raw.extra_weight_kg != null ? Number(raw.extra_weight_kg) : undefined,
+    extraWaybill: raw.extra_waybill || undefined,
+    extraComment: raw.extra_comment || undefined,
+    notes: raw.notes || undefined,
+    createdAt: raw.created_at,
+  };
+}
+
+// Зворотне перетворення — camelCase форма → snake_case тіло POST-запиту
+function toRouteEventPayload(data: RouteEventCreate) {
+  return {
+    car: data.carId,
+    driver: data.driverId,
+    tracking_mode: data.trackingMode,
+    event_type: data.eventType,
+    event_ts: data.eventTs,
+    odometer_km: data.odometerKm ?? null,
+    pallets_count: data.palletsCount ?? null,
+    waybill_number: data.waybillNumber ?? "",
+    waybill_date: data.waybillDate ?? null,
+    customer_name: data.customerName ?? "",
+    rejection_full: data.rejection?.isFull ?? null,
+    rejection_product_id: data.rejection?.productId != null ? String(data.rejection.productId) : "",
+    rejection_qty: data.rejection?.quantity ?? null,
+    rejection_comment: data.rejection?.comment ?? "",
+    fuel_liters: data.fuelLiters ?? null,
+    fuel_cost_uah: data.fuelCostUah ?? null,
+    ad_blue_liters: data.adBlueLiters ?? null,
+    ad_blue_cost_uah: data.adBlueCostUah ?? null,
+    other_costs_uah: data.otherCostUah ?? null,
+    other_costs_comment: data.otherCostComment ?? "",
+    return_client_waybill: data.returnClientWaybill ?? "",
+    extra_from: data.extraFrom ?? "",
+    extra_to: data.extraTo ?? "",
+    extra_weight_kg: data.extraWeightKg ?? null,
+    extra_waybill: data.extraWaybill ?? "",
+    extra_comment: data.extraComment ?? "",
+    notes: data.notes ?? "",
+  };
+}
 
 // Поточні події водія за сьогодні
 export async function fetchTodayEvents(carId: number): Promise<RouteEvent[]> {
@@ -2715,9 +2962,8 @@ export async function fetchTodayEvents(carId: number): Promise<RouteEvent[]> {
       e => e.carId === carId && e.eventTs.startsWith(today)
     );
   }
-  const res = await fetch(`${API_BASE}/route-events/?car_id=${carId}&date=today`);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+  const data = await apiFetch<Paginated<RawRouteEvent>>(`/route-events/?car_id=${carId}&date=today`);
+  return data.results.map(mapRouteEvent);
 }
 
 // Останній одометр авто (для розрахунку пробігу daily режиму)
@@ -2729,10 +2975,10 @@ export async function fetchLastOdometer(carId: number): Promise<number | null> {
       .sort((a, b) => b.eventTs.localeCompare(a.eventTs));  // спадання по часу
     return events[0]?.odometerKm ?? null;
   }
-  const res = await fetch(`${API_BASE}/route-events/${carId}/last-odometer/`);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const data = await res.json();
-  return data.odometerKm;
+  const data = await apiFetch<{ odometer_km: number | null }>(
+    `/route-events/last_odometer/?car_id=${carId}`,
+  );
+  return data.odometer_km;
 }
 
 // Створення нової події (POST запит)
@@ -2747,14 +2993,11 @@ export async function createRouteEvent(data: RouteEventCreate): Promise<RouteEve
     };
     return newEvent;
   }
-  // POST запит: method, headers, body (серіалізований JSON)
-  const res = await fetch(`${API_BASE}/route-events/`, {
+  const raw = await apiFetch<RawRouteEvent>("/route-events/", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
+    json: toRouteEventPayload(data),
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+  return mapRouteEvent(raw);
 }
 ```
 
@@ -2981,9 +3224,18 @@ export function useUnassignedWaybills() {
 
 ## Крок 7.6 — Створення hooks/useDayMode.ts
 
+> ⚠️ Перша версія цього хука мала `useEffect`, який синхронно викликав
+> `setState` у тілі ефекту (щоб підхопити зміну `carDefaultMode`, коли
+> немає override) — React (`eslint-plugin-react-hooks`) вважає це
+> антипатерном: зайвий ре-рендер замість похідного значення. Той самий
+> баг був і в `DriverMiniApp.tsx` (Крок 4.5.6 нижче за текстом, вже
+> виправлено). Правильно — зберігати в `useState` тільки явний вибір
+> водія (`override`), а сам `dayMode` рахувати як `override ?? carDefaultMode`
+> щорендеру, без ефекту взагалі.
+
 ```typescript
 // src/hooks/useDayMode.ts
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import type { TrackingMode } from "../types";
 
 // Зберігає вибір режиму водія у localStorage
@@ -2994,31 +3246,23 @@ export function useDayMode(carDefaultMode: TrackingMode) {
   // Ключ включає дату — щодня режим скидається до дефолту
   const storageKey = `dayMode:${today}`;
 
-  // Початкове значення: з localStorage або дефолт від авто
-  const [dayMode, setDayModeState] = useState<TrackingMode>(() => {
+  // Зберігаємо лише ЯВНИЙ вибір водія — немає override → беремо дефолт авто
+  const [override, setOverride] = useState<TrackingMode | null>(() => {
     const stored = localStorage.getItem(storageKey);
-    // Перевіряємо чи збережене значення є валідним TrackingMode
-    if (stored === "daily" || stored === "full") return stored;
-    return carDefaultMode;
+    return stored === "daily" || stored === "full" ? stored : null;
   });
 
-  // При зміні режиму — зберігаємо у localStorage
+  // Похідне значення: якщо carDefaultMode зміниться (логіст поміняв авто),
+  // а override немає — dayMode підхопить новий дефолт сам, без ефекту
+  const dayMode = override ?? carDefaultMode;
+
   const setDayMode = (mode: TrackingMode) => {
     localStorage.setItem(storageKey, mode);
-    setDayModeState(mode);
+    setOverride(mode);
   };
 
   // isOverridden = true якщо водій вибрав інший режим ніж дефолт
-  const isOverridden = dayMode !== carDefaultMode;
-
-  // useEffect — виконується після рендеру
-  // Якщо carDefaultMode змінився (напр. логіст поміняв) і не було override — оновлюємо
-  useEffect(() => {
-    const stored = localStorage.getItem(storageKey);
-    if (!stored) {
-      setDayModeState(carDefaultMode);
-    }
-  }, [carDefaultMode, storageKey]);
+  const isOverridden = override !== null && override !== carDefaultMode;
 
   return { dayMode, setDayMode, isOverridden };
 }
@@ -3520,22 +3764,33 @@ export function Input({ label, error, helpText, id, className = "", ...rest }: I
 
 ## Крок 9.2 — Створення components/layouts/DriverLayout.tsx
 
+> 🎨 На відміну від `MainLayout` (Крок 9.3, світла офісна тема),
+> `DriverLayout` продовжує темну фіолетово-рожеву мову лендінгу
+> (`src/styles/landing.css`, `.landing`) — водій відкриває це у
+> Telegram WebView, і бренд має одразу впізнаватись. Дизайн-система тут
+> навмисно ІНША, ніж `ui/`-компоненти Фази 8 (ті лишаються світлими й
+> нейтральними для офісних сторінок) — окремі driver-версії кнопок,
+> полів тощо йдуть окремо у Кроці 13.
+
 ```typescript
 // src/components/layouts/DriverLayout.tsx
-import { Outlet, NavLink, useLocation } from "react-router-dom";
-
-// NavLink — як Link але додає клас "active" коли URL збігається
-// useLocation — хук що повертає поточний URL
+import { Outlet, NavLink } from "react-router-dom";
 
 export function DriverLayout() {
-  const location = useLocation();
-
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Header */}
-      <header className="bg-blue-700 text-white px-4 py-3 flex items-center justify-between">
-        <h1 className="font-semibold text-lg">🚛 Vehicle Tracker</h1>
-        <span className="text-sm opacity-80">
+    <div
+      className="min-h-screen flex flex-col text-white"
+      style={{ background: "linear-gradient(180deg, #2b1330 0%, #0f1724 100%)" }}
+    >
+      {/* Header — скляна панель поверх градієнта (backdrop-blur) */}
+      <header className="sticky top-0 z-10 backdrop-blur-md bg-white/5 border-b border-white/10 px-5 py-4 flex items-center justify-between">
+        <h1 className="font-bold text-lg flex items-center gap-2">
+          <span className="text-xl">🚛</span>
+          <span className="bg-gradient-to-r from-violet-300 to-pink-300 bg-clip-text text-transparent">
+            Vehicle Tracker
+          </span>
+        </h1>
+        <span className="text-sm text-white/50">
           {new Date().toLocaleDateString("uk-UA", { day: "2-digit", month: "long" })}
         </span>
       </header>
@@ -3543,13 +3798,13 @@ export function DriverLayout() {
       {/* Основний контент */}
       {/* max-w-md — максимальна ширина для мобільного вигляду */}
       {/* mx-auto — центрування на великих екранах */}
-      {/* pb-20 — відступ знизу щоб контент не перекривався bottom nav */}
-      <main className="flex-1 w-full max-w-md mx-auto px-4 py-4 pb-20">
+      {/* pb-24 — відступ знизу щоб контент не перекривався bottom nav */}
+      <main className="flex-1 w-full max-w-md mx-auto px-4 py-5 pb-24">
         <Outlet />
       </main>
 
-      {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 safe-bottom">
+      {/* Bottom Navigation — скляна панель, активний пункт — акцентний колір */}
+      <nav className="fixed bottom-0 left-0 right-0 backdrop-blur-md bg-[#0f1724]/90 border-t border-white/10">
         <div className="max-w-md mx-auto flex">
           {[
             { to: "/driver", label: "Маршрут", icon: "🗺️", exact: true },
@@ -3561,8 +3816,8 @@ export function DriverLayout() {
               to={to}
               end={exact}  // end=true → активний тільки при точному збігу URL
               className={({ isActive }) =>
-                `flex-1 flex flex-col items-center py-2 gap-0.5 text-xs
-                ${isActive ? "text-blue-600 font-medium" : "text-gray-500"}`
+                `flex-1 flex flex-col items-center py-2.5 gap-0.5 text-xs transition-colors
+                ${isActive ? "text-violet-300 font-semibold" : "text-white/40"}`
               }
             >
               <span className="text-xl">{icon}</span>
@@ -4165,6 +4420,532 @@ import { WaybillList } from "./pages/waybills/WaybillList";
 ---
 
 # ═══════════════════════════════════════════════════════════
+# ФАЗА 13 — DRIVERDASHBOARD (ЕКРАН ВОДІЯ)
+# ═══════════════════════════════════════════════════════════
+
+> Реальний "запуск і тестування водіями" — саме ця фаза. До цього
+> моменту `/driver-app` (Telegram Mini App, окрема фіча з `TELEGRAM_BOT_SETUP.md`
+> у бекенд-репо) вже логінить водія через `initData`, але веде в
+> заглушку — ось тут з'являється справжній екран.
+
+## Крок 13.0 — Чого бракує з попередніх фаз
+
+Дві дрібниці, які Фаза 7 і Крок 4.5.6 не покрили, а DriverDashboard
+без них не збереться:
+
+1. **`hooks/useDrivers.ts` не існує** — Фаза 7 (Крок 7.3) написала
+   тільки `useCars.ts`. Хук на `fetchCurrentDriver()` (Крок 6.4)
+   додається окремо, Крок 13.1 нижче.
+2. **`DriverMiniApp.tsx` (Крок 4.5.6) після успішного логіну має
+   вести саме сюди.** Якщо там зараз заглушка на кшталт
+   `Вітаємо, {user}!` — заміни її на `<Navigate to="/driver" replace />`
+   з `react-router-dom` (і прибери тепер уже непотрібний `user` з
+   деструктуризації `useCurrentUser()`, якщо він більше ніде не
+   використовується).
+
+## Крок 13.1 — Доповнення hooks/useDrivers.ts
+
+```typescript
+// src/hooks/useDrivers.ts
+import { useQuery } from "@tanstack/react-query";
+import { fetchCurrentDriver } from "../api/drivers";
+
+export function useCurrentDriver() {
+  return useQuery({ queryKey: ["drivers", "me"], queryFn: fetchCurrentDriver });
+}
+```
+
+---
+
+## Крок 13.2 — Driver-версії UI-компонентів
+
+`ui/Button.tsx`, `ui/Input.tsx` тощо (Фаза 8) лишаються світлими й
+нейтральними — вони ще знадобляться офісним сторінкам (`MainLayout`,
+Крок 9.3, Фаза 11+). Екран водія візуально інший (темний
+фіолетово-рожевий градієнт лендінгу, Крок 9.2) — тому для нього окремий,
+маленький набір driver-стилізованих версій тих самих примітивів, в
+одному файлі (тільки те, що реально потрібно DriverDashboard/EventForm):
+
+```typescript
+// src/components/driver/ui.tsx
+import type { ReactNode } from "react";
+
+// ── Button ──────────────────────────────────────────────
+const variantClasses = {
+  primary:
+    "bg-gradient-to-r from-violet-500 to-pink-500 text-white shadow-lg shadow-violet-500/25 hover:opacity-90 active:scale-[0.98]",
+  ghost: "text-white/70 hover:bg-white/5 hover:text-white active:scale-[0.98]",
+};
+
+interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: keyof typeof variantClasses;
+  isLoading?: boolean;
+  children: ReactNode;
+}
+
+export function Button({
+  variant = "primary",
+  isLoading = false,
+  children,
+  disabled,
+  className = "",
+  ...rest
+}: ButtonProps) {
+  return (
+    <button
+      disabled={disabled || isLoading}
+      className={`
+        inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm
+        rounded-xl font-semibold transition-all duration-150
+        disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100
+        ${variantClasses[variant]} ${className}
+      `.trim()}
+      {...rest}
+    >
+      {isLoading && (
+        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+        </svg>
+      )}
+      {children}
+    </button>
+  );
+}
+
+// ── Input ───────────────────────────────────────────────
+// Той самий .field-wrap патерн, що й у AuthModal (landing.css),
+// перенесений у Tailwind: rgba(255,255,255,.05) фон, тонка світла рамка.
+interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+  label?: string;
+  error?: string;
+  helpText?: string;
+}
+
+export function Input({ label, error, helpText, id, className = "", ...rest }: InputProps) {
+  const inputId = id ?? label?.toLowerCase().replace(/\s+/g, "-");
+  return (
+    <div className="flex flex-col gap-1.5">
+      {label && (
+        <label htmlFor={inputId} className="text-sm font-medium text-white/70">
+          {label}
+        </label>
+      )}
+      <input
+        id={inputId}
+        className={`
+          w-full rounded-xl px-4 py-3 text-sm text-white bg-white/5 border transition-colors
+          placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-violet-500/40
+          ${error ? "border-rose-400/60 bg-rose-500/5" : "border-white/10 focus:border-violet-400/60"}
+          ${className}
+        `.trim()}
+        {...rest}
+      />
+      {error && <p className="text-xs text-rose-400">{error}</p>}
+      {helpText && !error && <p className="text-xs text-white/40">{helpText}</p>}
+    </div>
+  );
+}
+
+// ── Spinner ─────────────────────────────────────────────
+export function Spinner({ size = "md", label = "Завантаження..." }: { size?: "sm" | "md" | "lg"; label?: string }) {
+  const sizeClasses = { sm: "h-4 w-4", md: "h-8 w-8", lg: "h-12 w-12" };
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 py-6">
+      <svg className={`animate-spin text-violet-400 ${sizeClasses[size]}`} viewBox="0 0 24 24" fill="none" aria-label={label}>
+        <circle className="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+        <path className="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+      </svg>
+      {label && <span className="text-sm text-white/40">{label}</span>}
+    </div>
+  );
+}
+
+// ── EmptyState ──────────────────────────────────────────
+export function EmptyState({ title, subtitle }: { title: string; subtitle?: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-14 text-center rounded-2xl bg-white/[0.03] border border-white/5">
+      <div className="text-5xl mb-4 opacity-80">📭</div>
+      <h3 className="text-base font-semibold text-white/90">{title}</h3>
+      {subtitle && <p className="mt-1 text-sm text-white/40 max-w-xs">{subtitle}</p>}
+    </div>
+  );
+}
+
+// ── ErrorBanner ─────────────────────────────────────────
+export function ErrorBanner({ message = "Сталася помилка. Спробуйте ще раз." }: { message?: string }) {
+  return (
+    <div className="rounded-xl bg-rose-500/10 border border-rose-500/20 p-4 flex items-start gap-3">
+      <span className="text-rose-400 text-xl">⚠️</span>
+      <p className="text-sm text-rose-200">{message}</p>
+    </div>
+  );
+}
+```
+
+---
+
+## Крок 13.3 — Створення components/driver/DayModeSwitch.tsx
+
+```typescript
+// src/components/driver/DayModeSwitch.tsx
+import type { TrackingMode } from "../../types";
+
+interface Props {
+  mode: TrackingMode;
+  onChange: (mode: TrackingMode) => void;
+  isOverridden: boolean;
+}
+
+export function DayModeSwitch({ mode, onChange, isOverridden }: Props) {
+  return (
+    <div>
+      <div className="inline-flex rounded-full bg-white/5 border border-white/10 p-1">
+        {(["daily", "full"] as const).map((m) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => onChange(m)}
+            className={`px-5 py-2 rounded-full text-sm font-semibold transition-all ${
+              mode === m
+                ? "bg-gradient-to-r from-violet-500 to-pink-500 text-white shadow-md shadow-violet-500/25"
+                : "text-white/50 hover:text-white/80"
+            }`}
+          >
+            {m === "daily" ? "Щоденний" : "Повний"}
+          </button>
+        ))}
+      </div>
+      {isOverridden && (
+        <p className="mt-2 text-xs text-amber-300/80">⚡ Змінено вручну на сьогодні</p>
+      )}
+    </div>
+  );
+}
+```
+
+---
+
+## Крок 13.4 — Створення pages/driver/DriverDashboard.tsx
+
+```typescript
+// src/pages/driver/DriverDashboard.tsx
+import { useNavigate } from "react-router-dom";
+import { useCurrentDriver } from "../../hooks/useDrivers";
+import { useCar } from "../../hooks/useCars";
+import { useTodayEvents, useLastOdometer } from "../../hooks/useRouteEvents";
+import { useDayMode } from "../../hooks/useDayMode";
+import { getAvailableEventTypes, eventTypeLabel, eventTypeIcon, eventTypeGradient } from "../../utils/eventHelpers";
+import { formatKm, formatDateTime } from "../../utils/formatters";
+import { Spinner, ErrorBanner, EmptyState } from "../../components/driver/ui";
+import { DayModeSwitch } from "../../components/driver/DayModeSwitch";
+
+export function DriverDashboard() {
+  const navigate = useNavigate();
+  const { data: driver, isLoading: driverLoading, error: driverError } = useCurrentDriver();
+  const { data: car, isLoading: carLoading } = useCar(driver?.idCar ?? 0);
+  const { dayMode, setDayMode, isOverridden } = useDayMode(car?.defaultTrackingMode ?? "daily");
+  const { data: events, isLoading: eventsLoading } = useTodayEvents(car?.idCar ?? 0);
+  const { data: lastOdometer } = useLastOdometer(car?.idCar ?? 0);
+
+  if (driverLoading || carLoading) return <Spinner label="Завантаження даних водія..." />;
+  if (driverError) return <ErrorBanner message="Не вдалось завантажити дані водія" />;
+  if (!driver || !car) {
+    return <EmptyState title="Авто не закріплене" subtitle="Зверніться до диспетчера, щоб прив'язати вас до авто" />;
+  }
+
+  const availableTypes = getAvailableEventTypes(dayMode);
+
+  return (
+    <div className="flex flex-col gap-6">
+      {/* Картка авто — glass-панель у стилі лендінгу */}
+      <div className="rounded-2xl bg-white/5 border border-white/10 p-5 backdrop-blur-sm">
+        <div className="flex items-center gap-3">
+          <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-violet-500 to-pink-500 flex items-center justify-center text-xl shrink-0">
+            🚐
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-white">{car.nameCar}</h2>
+            <p className="text-sm text-white/50">{car.numberCar}</p>
+          </div>
+        </div>
+        {lastOdometer != null && (
+          <p className="mt-3 text-xs text-white/40">
+            Останній одометр: <span className="text-white/70">{formatKm(lastOdometer)}</span>
+          </p>
+        )}
+      </div>
+
+      <DayModeSwitch mode={dayMode} onChange={setDayMode} isOverridden={isOverridden} />
+
+      <div>
+        <h3 className="text-sm font-semibold text-white/60 mb-3 tracking-wide uppercase">Нова подія</h3>
+        <div className="grid grid-cols-2 gap-3">
+          {availableTypes.map((type) => (
+            <button
+              key={type}
+              onClick={() => navigate(`/driver/event/new?type=${type}`)}
+              className="group flex flex-col items-center gap-2 rounded-2xl border border-white/10 bg-white/5 py-5 backdrop-blur-sm transition-all hover:bg-white/10 hover:border-white/20 hover:-translate-y-0.5 active:scale-[0.97]"
+            >
+              <div className={`h-11 w-11 rounded-full bg-gradient-to-br ${eventTypeGradient(type)} flex items-center justify-center text-xl shadow-lg transition-transform group-hover:scale-110`}>
+                {eventTypeIcon(type)}
+              </div>
+              <span className="text-xs font-medium text-white/80 text-center px-1">{eventTypeLabel(type)}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <h3 className="text-sm font-semibold text-white/60 mb-3 tracking-wide uppercase">Події сьогодні</h3>
+        {eventsLoading ? (
+          <Spinner size="sm" label="" />
+        ) : !events || events.length === 0 ? (
+          <EmptyState title="Ще немає подій" subtitle="Натисніть кнопку вище, щоб додати першу" />
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {events.map((e) => (
+              <li key={e.id} className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur-sm">
+                <div className={`h-9 w-9 shrink-0 rounded-full bg-gradient-to-br ${eventTypeGradient(e.eventType)} flex items-center justify-center text-base`}>
+                  {eventTypeIcon(e.eventType)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-white/90">{eventTypeLabel(e.eventType)}</p>
+                  <p className="text-xs text-white/40">{formatDateTime(e.eventTs)}</p>
+                </div>
+                {e.odometerKm != null && <span className="text-xs text-white/50 shrink-0">{formatKm(e.odometerKm)}</span>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+```
+
+---
+
+## Крок 13.5 — Створення pages/driver/EventForm.tsx
+
+`eventHelpers.ts` (Крок 5.3) уже каже, які поля показувати для якого
+типу події (`requiresOdometer`/`requiresWaybill`/`requiresPallets`) —
+`EventForm` просто читає ці прапорці й рендерить потрібні `Input`.
+Тип події приходить з URL (`?type=refuel`), яку задає кнопка на
+`DriverDashboard`.
+
+```typescript
+// src/pages/driver/EventForm.tsx
+import { useState } from "react";
+import type { FormEvent } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import type { RouteEventType, RouteEventCreate } from "../../types";
+import { useCurrentDriver } from "../../hooks/useDrivers";
+import { useCar } from "../../hooks/useCars";
+import { useDayMode } from "../../hooks/useDayMode";
+import { useCreateRouteEvent, useLastOdometer } from "../../hooks/useRouteEvents";
+import { requiresOdometer, requiresWaybill, requiresPallets, eventTypeLabel, eventTypeIcon, eventTypeGradient } from "../../utils/eventHelpers";
+import { Input, Button, ErrorBanner, Spinner } from "../../components/driver/ui";
+
+export function EventForm() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const type = (searchParams.get("type") ?? "other_cost") as RouteEventType;
+
+  const { data: driver, isLoading: driverLoading } = useCurrentDriver();
+  const { data: car, isLoading: carLoading } = useCar(driver?.idCar ?? 0);
+  const { dayMode } = useDayMode(car?.defaultTrackingMode ?? "daily");
+  const { data: lastOdometer } = useLastOdometer(car?.idCar ?? 0);
+  const createEvent = useCreateRouteEvent();
+
+  const [odometerKm, setOdometerKm] = useState("");
+  const [palletsCount, setPalletsCount] = useState("");
+  const [waybillNumber, setWaybillNumber] = useState("");
+  const [customerName, setCustomerName] = useState("");
+  const [fuelLiters, setFuelLiters] = useState("");
+  const [fuelCostUah, setFuelCostUah] = useState("");
+  const [otherCostUah, setOtherCostUah] = useState("");
+  const [otherCostComment, setOtherCostComment] = useState("");
+  const [returnClientWaybill, setReturnClientWaybill] = useState("");
+  const [extraFrom, setExtraFrom] = useState("");
+  const [extraTo, setExtraTo] = useState("");
+  const [extraWeightKg, setExtraWeightKg] = useState("");
+  const [notes, setNotes] = useState("");
+
+  if (driverLoading || carLoading) return <Spinner label="Завантаження..." />;
+  if (!driver || !car) return <ErrorBanner message="Немає закріпленого авто" />;
+
+  const needsOdometer = requiresOdometer(type);
+  const needsWaybill = requiresWaybill(type);
+  const needsPallets = requiresPallets(type, dayMode);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+
+    const data: RouteEventCreate = {
+      carId: car!.idCar,
+      driverId: driver!.idDriver,
+      trackingMode: dayMode,
+      eventType: type,
+      eventTs: new Date().toISOString(),
+      odometerKm: needsOdometer && odometerKm ? Number(odometerKm) : undefined,
+      palletsCount: needsPallets && palletsCount ? Number(palletsCount) : undefined,
+      waybillNumber: needsWaybill ? waybillNumber : undefined,
+      customerName: needsWaybill ? customerName : undefined,
+      fuelLiters: type === "refuel" && fuelLiters ? Number(fuelLiters) : undefined,
+      fuelCostUah: type === "refuel" && fuelCostUah ? Number(fuelCostUah) : undefined,
+      otherCostUah: type === "other_cost" && otherCostUah ? Number(otherCostUah) : undefined,
+      otherCostComment: type === "other_cost" ? otherCostComment : undefined,
+      returnClientWaybill: type === "return_goods" ? returnClientWaybill : undefined,
+      extraFrom: type === "extra_cargo" ? extraFrom : undefined,
+      extraTo: type === "extra_cargo" ? extraTo : undefined,
+      extraWeightKg: type === "extra_cargo" && extraWeightKg ? Number(extraWeightKg) : undefined,
+      notes: notes || undefined,
+    };
+
+    await createEvent.mutateAsync(data);
+    navigate("/driver");
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <div className="flex items-center gap-3 mb-1">
+        <div className={`h-12 w-12 rounded-full bg-gradient-to-br ${eventTypeGradient(type)} flex items-center justify-center text-2xl shadow-lg`}>
+          {eventTypeIcon(type)}
+        </div>
+        <h2 className="text-lg font-bold text-white">{eventTypeLabel(type)}</h2>
+      </div>
+
+      {needsOdometer && (
+        <Input
+          label="Одометр (км)"
+          type="number"
+          value={odometerKm}
+          onChange={(e) => setOdometerKm(e.target.value)}
+          helpText={lastOdometer != null ? `Останній: ${lastOdometer} км` : undefined}
+          required
+        />
+      )}
+
+      {needsPallets && (
+        <Input label="Кількість палет" type="number" value={palletsCount} onChange={(e) => setPalletsCount(e.target.value)} />
+      )}
+
+      {needsWaybill && (
+        <>
+          <Input label="Номер накладної" value={waybillNumber} onChange={(e) => setWaybillNumber(e.target.value)} required />
+          <Input label="Клієнт" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
+        </>
+      )}
+
+      {type === "refuel" && (
+        <>
+          <Input label="Літрів" type="number" step="0.1" value={fuelLiters} onChange={(e) => setFuelLiters(e.target.value)} required />
+          <Input label="Сума (грн)" type="number" step="0.01" value={fuelCostUah} onChange={(e) => setFuelCostUah(e.target.value)} required />
+        </>
+      )}
+
+      {type === "other_cost" && (
+        <>
+          <Input label="Сума (грн)" type="number" step="0.01" value={otherCostUah} onChange={(e) => setOtherCostUah(e.target.value)} required />
+          <Input label="Коментар" value={otherCostComment} onChange={(e) => setOtherCostComment(e.target.value)} />
+        </>
+      )}
+
+      {type === "return_goods" && (
+        <Input label="Накладна клієнта (повернення)" value={returnClientWaybill} onChange={(e) => setReturnClientWaybill(e.target.value)} />
+      )}
+
+      {type === "extra_cargo" && (
+        <>
+          <Input label="Звідки" value={extraFrom} onChange={(e) => setExtraFrom(e.target.value)} />
+          <Input label="Куди" value={extraTo} onChange={(e) => setExtraTo(e.target.value)} />
+          <Input label="Вага (кг)" type="number" value={extraWeightKg} onChange={(e) => setExtraWeightKg(e.target.value)} />
+        </>
+      )}
+
+      <Input label="Нотатки" value={notes} onChange={(e) => setNotes(e.target.value)} />
+
+      {createEvent.isError && <ErrorBanner message={(createEvent.error as Error).message} />}
+
+      <div className="flex gap-3 mt-2">
+        <Button type="button" variant="ghost" onClick={() => navigate("/driver")}>
+          Скасувати
+        </Button>
+        <Button type="submit" isLoading={createEvent.isPending} className="flex-1">
+          Зберегти
+        </Button>
+      </div>
+    </form>
+  );
+}
+```
+
+---
+
+## Крок 13.6 — Підключення до App.tsx
+
+Створи `src/pages/PlaceholderPage.tsx`, якщо ще не робив цього в
+Фазі 10 (той самий компонент, використовується і тут для `/driver/scan`
+і `/driver/history` — QRScanner і Історія це Крок 14, ще попереду).
+
+Заміни блок `/driver` у `src/App.tsx` — з flat-маршруту на вкладені
+routes через `DriverLayout`. `/` **лишається `LandingPage`** (не
+`Navigate` на `/driver`, як може здатись логічним по Фазі 10 — сайт
+одночасно обслуговує і водіїв, і офіс/маркетинг, тому лендінг має
+лишатись коренем):
+
+```typescript
+// src/App.tsx — фрагмент, що змінюється
+import { DriverLayout } from "./components/layouts/DriverLayout";
+import { DriverDashboard } from "./pages/driver/DriverDashboard";
+import { EventForm } from "./pages/driver/EventForm";
+import { PlaceholderPage } from "./pages/PlaceholderPage";
+
+// ...
+
+{/* Водій (мобільний екран) */}
+<Route path="/driver" element={<DriverLayout />}>
+  <Route index element={<DriverDashboard />} />
+  <Route path="event/new" element={<EventForm />} />
+  <Route path="scan" element={<PlaceholderPage title="Сканер QR" />} />
+  <Route path="history" element={<PlaceholderPage title="Історія" />} />
+</Route>
+
+{/* Telegram Mini App — логінить через initData, далі веде в /driver (Крок 13.0) */}
+<Route path="/driver-app" element={<DriverMiniApp />} />
+```
+
+---
+
+## Крок 13.7 — Перевірка
+
+```bash
+npm run dev
+```
+
+Із `VITE_USE_MOCK=false` і робочим бекендом (`python manage.py runserver`,
+`apps/cars` API з Фази 6-7 `DJANGO_CODING_GUIDE.md`):
+
+1. Залогинься звичайною формою (`/`, кнопка "Вхід") користувачем, чий
+   `Profile.driver` прив'язаний до картки водія в Django Admin.
+2. Перейди на `/driver` — має завантажитись картка авто, перемикач
+   режиму і кнопки типів подій (5 у `daily`, 8 у `full`).
+3. Натисни будь-яку кнопку — відкриється `EventForm` із правильним
+   набором полів для цього типу (одометр не питається для `refuel`,
+   накладна питається тільки для `delivery` тощо).
+4. Заповни й натисни "Зберегти" — має редиректнути назад на `/driver`,
+   і нова подія має з'явитись у списку "Події сьогодні".
+5. Перевір у Django Admin (`/admin/cars/routeevent/`) — рядок реально
+   створився з правильними `car`/`driver`/полями.
+
+Якщо все спрацювало — наступний крок: реальний Telegram-бот
+(`TELEGRAM_BOT_SETUP.md` у бекенд-репо) відкриє саме цей екран, а не
+заглушку.
+
+---
+
+# ═══════════════════════════════════════════════════════════
 # ЩО ДАЛІ
 # ═══════════════════════════════════════════════════════════
 
@@ -4179,11 +4960,6 @@ import { WaybillList } from "./pages/waybills/WaybillList";
 - Аналогічна структура до WaybillList
 - Фільтри: статус авто, режим трекінгу
 - CarStatusBadge у таблиці
-
-### Крок 13 — DriverDashboard (екран водія)
-- DayModeSwitch (перемикач daily/full)
-- Кнопки типів подій
-- EventForm (форма нової події)
 
 ### Крок 14 — QRScanner
 - html5-qrcode бібліотека
