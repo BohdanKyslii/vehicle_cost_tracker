@@ -220,6 +220,9 @@
 }
 
 .pane-login, .pane-signup { background: #0d0d1c; color: #fff; }
+/* Telegram-блок додає висоти формі реєстрації понад фіксовані 490px .auth-card —
+   скролимо саме цю панель, а не міняємо спільну висоту картки для всіх панелей. */
+.pane-signup { overflow-y: auto; }
 
 .pane-right-promo {
   background: linear-gradient(140deg, #6b41f0 0%, #b83ab0 55%, #f06292 100%);

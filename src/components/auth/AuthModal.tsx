@@ -9,6 +9,27 @@ interface Props {
   onSwitch: (signup: boolean) => void;
 }
 
+const TELEGRAM_BOT_USERNAME = import.meta.env.VITE_TELEGRAM_BOT_USERNAME as string | undefined;
+
+// Реєстрація водіїв відбувається в самому Telegram (бот питає номер телефону
+// кнопкою) — тут просто deep-link на бота, не форма.
+function TelegramButton() {
+  if (!TELEGRAM_BOT_USERNAME) return null;
+  return (
+    <a
+      className="btn-social"
+      href={`https://t.me/${TELEGRAM_BOT_USERNAME}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      title="Зареєструватись через Telegram-бота"
+    >
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
+        <path d="M21.5 3.5 2.5 10.9c-.9.35-.9 1.6.02 1.92l4.56 1.55 1.75 5.63c.24.77 1.22.98 1.78.4l2.55-2.65 4.6 3.4c.72.53 1.75.14 1.93-.73l3.16-15.2c.2-.96-.74-1.75-1.65-1.42Z" />
+      </svg>
+    </a>
+  );
+}
+
 export function AuthModal({ open, signup, onClose, onSwitch }: Props) {
   const { login, register, loginError, registerError } = useCurrentUser();
   const [username, setUsername] = useState('');
@@ -97,9 +118,7 @@ export function AuthModal({ open, signup, onClose, onSwitch }: Props) {
             <button type="button" className="btn-social">
               G
             </button>
-            <button type="button" className="btn-social">
-              &#9675;
-            </button>
+            <TelegramButton />
           </div>
         </div>
 
@@ -174,6 +193,14 @@ export function AuthModal({ open, signup, onClose, onSwitch }: Props) {
               Створити акаунт
             </button>
           </form>
+          {TELEGRAM_BOT_USERNAME && (
+            <>
+              <p className="pane-or">водій без пошти? реєструйтесь через</p>
+              <div className="social-row">
+                <TelegramButton />
+              </div>
+            </>
+          )}
         </div>
 
         <button type="button" className="auth-close" aria-label="Закрити" onClick={onClose}>
