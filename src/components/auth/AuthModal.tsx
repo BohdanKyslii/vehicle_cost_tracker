@@ -9,24 +9,20 @@ interface Props {
   onSwitch: (signup: boolean) => void;
 }
 
-const TELEGRAM_BOT_USERNAME = import.meta.env.VITE_TELEGRAM_BOT_USERNAME as string | undefined;
-
-// Реєстрація водіїв відбувається в самому Telegram (бот питає номер телефону
-// кнопкою) — тут просто deep-link на бота, не форма.
-function TelegramButton() {
-  if (!TELEGRAM_BOT_USERNAME) return null;
-  return (
-    <a
-      className="btn-social"
-      href={`https://t.me/${TELEGRAM_BOT_USERNAME}`}
-      target="_blank"
-      rel="noopener noreferrer"
-      title="Зареєструватись через Telegram-бота"
-    >
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
-        <path d="M21.5 3.5 2.5 10.9c-.9.35-.9 1.6.02 1.92l4.56 1.55 1.75 5.63c.24.77 1.22.98 1.78.4l2.55-2.65 4.6 3.4c.72.53 1.75.14 1.93-.73l3.16-15.2c.2-.96-.74-1.75-1.65-1.42Z" />
+function EyeIcon({ visible }: { visible: boolean }) {
+  if (visible) {
+    return (
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+        <circle cx="12" cy="12" r="3" />
       </svg>
-    </a>
+    );
+  }
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+      <line x1="1" y1="1" x2="23" y2="23" />
+    </svg>
   );
 }
 
@@ -37,6 +33,9 @@ export function AuthModal({ open, signup, onClose, onSwitch }: Props) {
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('driver');
   const [registerMessage, setRegisterMessage] = useState('');
+  const [showTerms, setShowTerms] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   async function handleLogin(e: SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -62,11 +61,13 @@ export function AuthModal({ open, signup, onClose, onSwitch }: Props) {
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key !== 'Escape') return;
+      if (showTerms) setShowTerms(false);
+      else onClose();
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [open, onClose]);
+  }, [open, onClose, showTerms]);
 
   return (
     <div
@@ -93,11 +94,19 @@ export function AuthModal({ open, signup, onClose, onSwitch }: Props) {
             <div className="field-wrap">
               <span className="field-ico">&#128274;</span>
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 placeholder="Пароль"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
+              <button
+                type="button"
+                className="field-toggle"
+                aria-label={showPassword ? 'Приховати пароль' : 'Показати пароль'}
+                onClick={() => setShowPassword((v) => !v)}
+              >
+                <EyeIcon visible={showPassword} />
+              </button>
             </div>
             <div className="field-row">
               <label>
@@ -115,10 +124,15 @@ export function AuthModal({ open, signup, onClose, onSwitch }: Props) {
           </form>
           <p className="pane-or">або продовжити через</p>
           <div className="social-row">
-            <button type="button" className="btn-social">
+            <button type="button" className="btn-social" aria-label="Google">
               G
             </button>
-            <TelegramButton />
+            <button type="button" className="btn-social" aria-label="Telegram">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <line x1="22" y1="2" x2="11" y2="13" />
+                <polygon points="22 2 15 22 11 13 2 9 22 2" />
+              </svg>
+            </button>
           </div>
         </div>
 
@@ -164,15 +178,31 @@ export function AuthModal({ open, signup, onClose, onSwitch }: Props) {
             <div className="field-wrap">
               <span className="field-ico">&#128274;</span>
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 placeholder="Пароль"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
+              <button
+                type="button"
+                className="field-toggle"
+                aria-label={showPassword ? 'Приховати пароль' : 'Показати пароль'}
+                onClick={() => setShowPassword((v) => !v)}
+              >
+                <EyeIcon visible={showPassword} />
+              </button>
             </div>
             <div className="field-wrap">
               <span className="field-ico">&#128274;</span>
-              <input type="password" placeholder="Підтвердіть пароль" />
+              <input type={showConfirmPassword ? 'text' : 'password'} placeholder="Підтвердіть пароль" />
+              <button
+                type="button"
+                className="field-toggle"
+                aria-label={showConfirmPassword ? 'Приховати пароль' : 'Показати пароль'}
+                onClick={() => setShowConfirmPassword((v) => !v)}
+              >
+                <EyeIcon visible={showConfirmPassword} />
+              </button>
             </div>
             <div className="field-wrap">
               <span className="field-ico">&#128100;</span>
@@ -184,7 +214,15 @@ export function AuthModal({ open, signup, onClose, onSwitch }: Props) {
             </div>
             <label className="terms-check">
               <input type="checkbox" /> Я погоджуюсь з{' '}
-              <button type="button" className="link-accent">
+              <button
+                type="button"
+                className="link-accent"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setShowTerms(true);
+                }}
+              >
                 умовами використання
               </button>
             </label>
@@ -193,20 +231,45 @@ export function AuthModal({ open, signup, onClose, onSwitch }: Props) {
               Створити акаунт
             </button>
           </form>
-          {TELEGRAM_BOT_USERNAME && (
-            <>
-              <p className="pane-or">водій без пошти? реєструйтесь через</p>
-              <div className="social-row">
-                <TelegramButton />
-              </div>
-            </>
-          )}
         </div>
 
         <button type="button" className="auth-close" aria-label="Закрити" onClick={onClose}>
           ✕
         </button>
       </div>
+
+      {showTerms && (
+        <div
+          className="terms-backdrop"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowTerms(false);
+          }}
+        >
+          <div className="terms-card">
+            <h3>Умови використання</h3>
+            <div className="terms-body">
+              <p>
+                Цей застосунок призначений виключно для співробітників ТОВ «ТД РУБІН»
+                і використовується для внутрішнього обліку транспортних витрат компанії.
+              </p>
+              <p>
+                Уся інформація в системі — накладні, маршрути, витрати, аналітика та інші
+                дані — є комерційною таємницею компанії. Розголошення цієї інформації
+                третім особам, а також передача власного доступу стороннім особам
+                суворо заборонені.
+              </p>
+              <p>
+                Реєструючись, ви підтверджуєте, що використовуватимете застосунок лише
+                в робочих цілях і несете відповідальність за збереження конфіденційності
+                даних, до яких отримуєте доступ.
+              </p>
+            </div>
+            <button type="button" className="btn-grad" onClick={() => setShowTerms(false)}>
+              Зрозуміло
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1312,15 +1312,44 @@ server {
     location /api/ {
         proxy_pass http://127.0.0.1:8000/api/;
         proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
     }
 
     location /admin/ {
         proxy_pass http://127.0.0.1:8000/admin/;
         proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
     }
 
     location /static/ {
         proxy_pass http://127.0.0.1:8000/static/;
+    }
+
+    # index.html і PWA service worker/маніфест — НІКОЛИ не кешувати:
+    # інакше браузер може довго показувати стару версію застосунку
+    # (стара index.html посилається на JS/CSS файли з хешем, яких вже
+    # немає на диску після наступного деплою)
+    location = /index.html {
+        add_header Cache-Control "no-cache";
+    }
+    location ~* \.(?:webmanifest|json)$ {
+        add_header Cache-Control "no-cache";
+    }
+    location = /sw.js {
+        add_header Cache-Control "no-cache";
+    }
+    location = /registerSW.js {
+        add_header Cache-Control "no-cache";
+    }
+
+    # JS/CSS з хешем у назві файлу — можна кешувати надовго,
+    # ім'я змінюється при кожному новому білді
+    location ~* \.(?:js|css)$ {
+        add_header Cache-Control "public, max-age=31536000, immutable";
     }
 
     location / {
@@ -1337,6 +1366,15 @@ server {
   якщо файлу за адресою немає (наприклад `/fleet` — це не файл,
   а React-маршрут), nginx все одно віддає `index.html`, а
   React Router вже сам розбирається, яку сторінку показати
+- Блоки `Cache-Control: no-cache` для `index.html`/`sw.js`/маніфесту —
+  без цього браузер (особливо з увімкненим PWA service worker'ом) може
+  роками показувати СТАРУ версію застосунку навіть після успішного
+  деплою: `index.html` кешується, посилається на JS/CSS файли з хешем
+  попереднього білду, яких вже немає на диску. Симптом: нові фічі не
+  з'являються в конкретному браузері, хоча сервер оновився (в іншому
+  браузері/інкогніто — все ок). Хеш-файли (`.js`/`.css`) навпаки можна
+  кешувати надовго — ім'я змінюється при кожному білді, тож старий кеш
+  просто ніколи не переприсвоюється новому файлу
 
 Створи `docker-compose.yml`:
 
@@ -4969,6 +5007,41 @@ npm run dev
 ### Крок 15 — HiredTripForm (найманий транспорт)
 ### Крок 16 — CarrierShipmentForm (служби доставки)
 ### Крок 17 — Аналітика і графіки (Recharts)
+
+### Крок 18 — Адмін: підтвердження реєстрацій користувачів
+Зараз нові акаунти (`is_active=False`) підтверджуються ВРУЧНУ через Django
+Admin бекенду (`vehicle_tracker_api`); адмін лише отримує лист-сповіщення
+(див. `apps/accounts/views.py::_notify_admin_new_registration`, ADMIN_EMAIL
+у `.env`). Цей крок — про зручний екран підтвердження прямо в застосунку,
+замість Django Admin:
+
+- **Backend** (`vehicle_tracker_api`, `apps/accounts`):
+  - `GET /api/auth/pending-users/` — список `is_active=False` користувачів
+    (username, email, role, дата реєстрації), доступ лише для ролі HEAD
+  - `POST /api/auth/pending-users/<id>/approve/` — `is_active=True`
+  - `POST /api/auth/pending-users/<id>/reject/` — видалити або позначити
+    відхиленим (вирішити на етапі реалізації)
+  - Permission-клас: тільки `Profile.role == HEAD` (НЕ Django
+    `is_superuser` — це різні речі: `is_superuser` керує доступом до
+    Django Admin, `Profile.role` — доступом до цього екрана застосунку)
+- **Frontend** (цей репозиторій): сторінка вже заведена на шляху
+  `/panel` (НЕ `/admin`!) — `App.tsx::AdminPanelRoute`, зараз показує
+  заглушку через `UnderConstruction`, з гейтом по ролі
+  (`user?.profile?.role !== 'head'` → "Доступ заборонено"). Пункт меню
+  "Адмін" у `TopNav.tsx` теж вже рендериться лише для ролі `head`.
+  Цей крок — замінити вміст `AdminPanelRoute` на таблицю заявок з
+  кнопками "Підтвердити"/"Відхилити" (React Query hook на кшталт
+  `usePendingUsers()`), логіка гейта й шлях лишаються ті самі.
+  **Чому НЕ `/admin`:** на проді nginx проксіює `/admin/` напряму на
+  Django admin (`nginx.conf`, Крок 4.3); фронтенд-роут `/admin` (без
+  слеша) перекривав би справжню адмінку заглушкою через SPA-fallback —
+  звідси вибір `/panel`.
+- Клієнтський гейт — лише UX (сховати посилання/показати "немає
+  доступу"), НЕ заміна реального захисту: справжня перевірка завжди на
+  боці бекенду (`permission_classes` вище) — фронтенд-перевірку легко
+  обійти через DevTools
+- Мій план (адмін = HEAD) — заходити в реальний застосунок, а не в Django
+  Admin, для рутинного підтвердження нових співробітників
 
 ---
 
