@@ -50,3 +50,10 @@ export function logout() {
 		method: "POST"
 		});
 }
+
+export function loginWithTelegram(initData: string) {
+	return apiFetch<CurrentUser>("/auth/telegram/", {
+		method: "POST",
+		json: { initData },
+	});
+}

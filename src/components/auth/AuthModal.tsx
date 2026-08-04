@@ -9,6 +9,29 @@ interface Props {
   onSwitch: (signup: boolean) => void;
 }
 
+const TELEGRAM_BOT_USERNAME = import.meta.env.VITE_TELEGRAM_BOT_USERNAME as string | undefined;
+
+// Реєстрація водіїв відбувається в самому Telegram (бот питає номер телефону
+// кнопкою) — тут просто deep-link на бота, не форма.
+function TelegramButton() {
+  if (!TELEGRAM_BOT_USERNAME) return null;
+  return (
+    <a
+      className="btn-social"
+      href={`https://t.me/${TELEGRAM_BOT_USERNAME}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label="Telegram"
+      title="Зареєструватись через Telegram-бота"
+    >
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <line x1="22" y1="2" x2="11" y2="13" />
+        <polygon points="22 2 15 22 11 13 2 9 22 2" />
+      </svg>
+    </a>
+  );
+}
+
 function EyeIcon({ visible }: { visible: boolean }) {
   if (visible) {
     return (
@@ -127,12 +150,7 @@ export function AuthModal({ open, signup, onClose, onSwitch }: Props) {
             <button type="button" className="btn-social" aria-label="Google">
               G
             </button>
-            <button type="button" className="btn-social" aria-label="Telegram">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <line x1="22" y1="2" x2="11" y2="13" />
-                <polygon points="22 2 15 22 11 13 2 9 22 2" />
-              </svg>
-            </button>
+            <TelegramButton />
           </div>
         </div>
 
@@ -231,6 +249,14 @@ export function AuthModal({ open, signup, onClose, onSwitch }: Props) {
               Створити акаунт
             </button>
           </form>
+          {TELEGRAM_BOT_USERNAME && (
+            <>
+              <p className="pane-or">водій без пошти? реєструйтесь через</p>
+              <div className="social-row">
+                <TelegramButton />
+              </div>
+            </>
+          )}
         </div>
 
         <button type="button" className="auth-close" aria-label="Закрити" onClick={onClose}>
