@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import { fetchCurrentUser, login, register, logout } from "../api/auth";
+import { fetchCurrentUser, login, loginWithTelegram, register, logout } from "../api/auth";
 
 export function useCurrentUser() {
 	const queryClient = useQueryClient();
@@ -28,15 +28,23 @@ export function useCurrentUser() {
 		mutationFn: logout,
 		onSuccess: () => queryClient.setQueryData(["currentUser"], null),
 	});
-	
+
+	// Той самий патерн, що й login — Mini App логінить одним викликом, без окремої форми.
+	const loginWithTelegramMutation = useMutation({
+		mutationFn: (initData: string) => loginWithTelegram(initData),
+		onSuccess: (user) => queryClient.setQueryData(["currentUser"], user),
+	});
+
 	return {
 		user: query.data,
 		isLoading: query.isLoading,
 		login: loginMutation.mutateAsync,
 		register: registerMutation.mutateAsync,
 		logout: logoutMutation.mutateAsync,
+		loginWithTelegram: loginWithTelegramMutation.mutateAsync,
 		loginError: loginMutation.error,
 		registerError: registerMutation.error,
 		logoutError: logoutMutation.error,
+		loginWithTelegramError: loginWithTelegramMutation.error,
 	};
 }

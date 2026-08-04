@@ -1,9 +1,18 @@
 import { apiFetch} from "./config";
 
+export interface Profile {
+	role: string;
+	phone: string;
+	telegram_id: number | null;
+	driver: number | null;
+}
+
 export interface CurrentUser {
 	id: number;
 	username: string;
 	email: string;
+	is_active?: boolean;
+	profile?: Profile | null;
 }
 
 // Проставляє csrftoken cookie в браузері — викликається один раз
@@ -33,6 +42,13 @@ export function register(username: string, email: string, password: string, role
 	return apiFetch<RegisterResult>("/auth/register/", {
 		method: "POST",
 		json: { username, email, password, role },
+	});
+}
+
+export function loginWithTelegram(initData: string) {
+	return apiFetch<CurrentUser>("/auth/telegram/", {
+		method: "POST",
+		json: { initData },
 	});
 }
 
