@@ -1,74 +1,83 @@
 # vehicle_cost_tracker — задачі та статус
 
-Останнє оновлення: 2026-07-12.
+Останнє оновлення: 2026-08-04.
 
 ## Зроблено (за git log / CODING_GUIDE.md)
 
 - **Фаза 1** — ініціалізація проєкту (Vite, залежності, `.env`).
 - **Фаза 2** — структура папок, TypeScript-типи (`src/types/index.ts`).
-- **Фаза 3** — лендінг: `TopNav`, `AuthModal` (без бекенда), маршрутизація,
-  `LandingPage` / `UnderConstruction`.
-- **Фаза 4** — git-репозиторій, Docker/nginx, GitHub Actions автодеплой на
-  warehouse.mom (Raspberry Pi), гілка-на-фазу воркфлоу.
-- **Фаза 4.5, кроки 4.5.1-4.5.7 (гілка `feature/faza-4-authorization`,
-  ще не змержена)** — auth-шар фронтенду реалізовано в коді:
-  - `src/api/config.ts` — `apiFetch` обгортка (credentials include,
-    CSRF-заголовок, JSON parse/204 handling)
-  - `src/api/auth.ts` — `fetchCsrf`, `fetchCurrentUser`, `login`,
-    `register`, `logout`
-  - `src/hocks/useCurrentUser.ts` — React Query хук (query + 3 мутації)
-  - `src/main.tsx` — виклик `fetchCsrf()` перед рендером
-  - `AuthModal.tsx` — контрольовані інпути, `handleLogin`/`handleRegister`
-    підключені до форм, вивід `loginError`/`registerError`
-  - `TopNav.tsx` — умовний рендер: ім'я користувача + "Вийти" замість
-    "Sign Up", коли є сесія
-  - Дорогою виправлено кілька багів: невірний шлях імпорту в `TopNav.tsx`
-    (`hooks` замість реальної теки `hocks`), тайпо `X-CRRFToken` →
-    `X-CSRFToken` у `config.ts`, інвертована умова `res.status !== 204`
-    (парсила JSON лише коли тіла нема), відсутній `onClose()` в кінці
-    `handleRegister`
-- **2026-07-10** — фікс мобільного меню: `.menu-toggle` (гамбургер) не
-  рендерився в `TopNav.tsx`, хоча CSS під нього вже існував — на мобільних
-  меню було просто приховане без способу відкрити. Додано стан
-  `isMenuOpen`, кнопка-гамбургер, мобільний dropdown у `landing.css`.
-  Закомічено (`e85ccc0`) і запушено в `main` — автодеплой запущено,
-  користувач перевірить на телефоні після викатки.
-- **2026-07-10** — налаштовано Obsidian vault sync за тим самим підходом,
-  що й для `vehicle_tracker_api`: тека `obsidian/` у корені репо +
-  Junction з vault (`projects/vehicle_cost_tracker`), замість недоступного
-  шляху `D:\Obsidian_Kisliy\...`.
+  Виправлено кілька тайпо, знайдених під час роботи над Кроком 13:
+  `Car.specs` (було `pecs`), `RouteEventType` без `depot_return`,
+  `CarStatus` без `"inactive"`, `Driver.idCar` мав тип `string` замість
+  `number`, прибрано застаріле `Driver.telegramId` (тепер живе на
+  бекенді в `Profile`, не в `Driver`).
+- **Фаза 3** — лендінг: `TopNav`, `AuthModal`, маршрутизація,
+  `LandingPage`/`UnderConstruction`. Пізніше перероблено (окрема сесія,
+  без номера фази) — новий hero з mockup-графіком, попап умов
+  використання, показ/приховання пароля.
+- **Фаза 4** — git-репозиторій, Docker/nginx, GitHub Actions автодеплой
+  на warehouse.mom (Raspberry Pi), гілка-на-фазу воркфлоу. Пізніше
+  доданий фікс кешування nginx (`Cache-Control: no-cache` для
+  `index.html`/`sw.js`, інакше старий білд міг лишатись у браузері
+  після деплою).
+- **Фаза 4.5 — ПОВНІСТЮ ЗАВЕРШЕНА, задеплоєна й перевірена** (Кроки
+  4.5.1-4.5.9, включно з бекендом у `vehicle_tracker_api`). Логін/
+  реєстрація/вихід через Django-сесію працюють на проді.
+- **Позапланово (без номера фази) — Telegram-реєстрація водіїв**:
+  - Backend (`vehicle_tracker_api`) — Telegram-бот (aiogram), вхід
+    через Mini App (`initData`), підтвердження заявки прямо в
+    Telegram із вибором ролі. Деталі —
+    `TELEGRAM_BOT_SETUP.md` у корені бекенд-репо.
+  - Frontend — `/driver-app` (`DriverMiniApp.tsx`, логінить і веде в
+    `/driver`), робоча Telegram-кнопка в `AuthModal` (deep-link на
+    бота, рендериться лише якщо задано `VITE_TELEGRAM_BOT_USERNAME`).
+  - Реального бота через @BotFather ще не створено — код готовий,
+    чекає токена.
+- **Позапланово — `/panel` (заглушка внутрішньої адмінки)**: гейтиться
+  по `user.profile.role === 'head'`, реальний бекенд-ендпоінт — це
+  "Крок 18" у гайді (описаний, ще не реалізований).
+- **CODING_GUIDE.md — дописано Крок 13 (DriverDashboard)**: DayModeSwitch,
+  тайли типів подій, EventForm — повністю написано й перевірено
+  наскрізь проти реального Django API (не mock), включно зі створенням
+  реальних `RouteEvent` записів. **Ще не набрано руками в репозиторій**
+  (окрім самого тексту гайду) — саме з цього починати Фазу 13, коли
+  дійдете. Заразом виправлено реальні баги у Фазі 6 (`api/cars.ts` тощо
+  з гайду не мапили `snake_case`→`camelCase`, не розгортали DRF-пагінацію,
+  використовували сирий `fetch()` без CSRF) і Фазі 7 (`useDayMode` мав
+  `setState` синхронно в ефекті).
 
-## В процесі / наступне
+## Наступний крок — Фаза 5
 
-- **Зараз (2026-07-12)**: перед Кроком 4.5.8 ("Перевірка .env") користувач
-  переходить у `vehicle_tracker_api` (Django) реалізувати бекенд-частину —
-  ендпоінти `/auth/csrf/`, `/auth/me/`, `/auth/login/`, `/auth/register/`,
-  `/auth/logout/`, які вже викликає `src/api/auth.ts` на фронті. Без них
-  Крок 4.5.8/4.5.9 (перевірка в браузері) не має сенсу виконувати.
+`src/utils/` майже порожній (є тільки старий `calcProduct.ts`-заглушка
+з закоментованим TODO, не з Фази 5 — не плутати). Починайте нову гілку:
 
-За `CODING_GUIDE.md`, розділ "Що далі" (актуальний порядок після бекенда):
+```bash
+git checkout main
+git pull origin main
+git checkout -b feature/faza-5-utils
+```
 
-1. **Крок 4.5.8** — перевірка `.env` (`VITE_API_BASE=http://localhost:8000/api`),
-   backend і `npm run dev` мають бути запущені одночасно.
-2. **Крок 4.5.9** — перевірка авторизації в браузері.
-3. **Фаза 5** — утиліти (`formatters.ts`, `eventHelpers.ts`,
+За `CODING_GUIDE.md`:
+1. **Фаза 5** — утиліти (`formatters.ts`, `eventHelpers.ts`,
    `calcSummary.ts`, `calcTransportCost.ts`, `parseQR.ts`,
    `clientFilter.ts`) — чиста логіка без React.
-4. **Фаза 6** — API-шар для сутностей (`cars.ts`, `drivers.ts`,
-   `waybills.ts`, `routeEvents.ts`).
-5. **Фази 8-9** — UI-компоненти (`ErrorBanner`, `Button`, `Badge`,
-   `Pagination`, `Input`) і layouts (`DriverLayout`, `MainLayout`).
-6. **Фаза 10** — App.tsx і повна маршрутизація.
-7. **Фаза 11** — перша реальна сторінка `WaybillList`.
-8. Далі (без номерів фаз ще): `WaybillDetail`, `FleetList`,
-   `DriverDashboard`, `QRScanner`, `HiredTripForm`,
+2. **Фаза 6** — API-шар (`cars.ts`, `drivers.ts`, `waybills.ts`,
+   `routeEvents.ts`) — **читайте уважно, тут щойно виправлені реальні
+   баги** (адаптери snake_case→camelCase, `apiFetch` замість сирого
+   `fetch`, правильний URL для `last_odometer`).
+3. **Фаза 7** — React Query hooks.
+4. **Фаза 8-9** — UI-компоненти й layouts.
+5. **Фаза 10** — App.tsx і повна маршрутизація (⚠️ фрагмент коду в
+   гайді повністю переписує роутер і губить `LandingPage`/`AuthModal`
+   — у гайді вже є примітка, як змержити правильно: `/` лишається
+   лендінгом, тільки `/driver` стає `DriverLayout`).
+6. **Фаза 11** — перша реальна сторінка `WaybillList`.
+7. **Фаза 13** — DriverDashboard (уже повністю описана, готова до
+   набору).
+8. Далі: `WaybillDetail`, `FleetList`, `QRScanner`, `HiredTripForm`,
    `CarrierShipmentForm`, аналітика/графіки (Recharts).
 
 ## Відкриті питання
 
-- `.env` / `.env.production` локально відсутні (не закомічені, за задумом) —
-  перевірити на Кроці 4.5.8, коли бекенд буде готовий.
-- `src/api/auth.ts` викликає `POST /auth/logout` (без кінцевого `/`), а
-  `CODING_GUIDE.md` (Крок 4.5.3) показує `/auth/logout/` — звірити з
-  реальними Django URL patterns при реалізації бекенда, щоб не зловити
-  зайвий редірект/404 через `APPEND_SLASH`.
+- `package-lock.json` — досі дрібні локальні розходження, не мої,
+  не займав жодного разу.
