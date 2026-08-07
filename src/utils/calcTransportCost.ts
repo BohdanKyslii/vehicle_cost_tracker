@@ -12,7 +12,7 @@ export function calcRepairCost(costs: MonthlyCosts, totalKm: number): number {
 	if (costs.repairActualUah !== undefined && costs.repairActualUah !== null) {
 		return costs.repairActualUah;
 	} else {
-		return costs.repairRateUahPerKm * totalKm;
+		return costs.repairRateUahKm * totalKm;
 	}
 }
 

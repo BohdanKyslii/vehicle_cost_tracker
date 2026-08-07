@@ -539,8 +539,8 @@ export interface RouteEvent {
   adBlueCostUah?: number;
 
   // Для other_cost
-  otherCostsUah?: number;
-  otherCostsComment?: string;
+  otherCostUah?: number;
+  otherCostComment?: string;
 
   // Для return_goods
   returnClientWaybill?: string;
@@ -584,9 +584,9 @@ export interface DailySummary {
   fuelCostUah: number;
   adBlueLiters: number;
   adBlueCostUah: number;
-  otherCostsUah: number;
+  otherCostUah: number;
   deliveriesCount: number;
-  returnsCount: number;
+  returnCount: number;
   extraCargoCount: number;
   waybillNumbers: string[];
   segments: RouteSegment[];   // [] для daily режиму
@@ -605,8 +605,8 @@ export interface MonthlyCosts {
   depreciationUah: number;
   repairActualUah?: number;     // якщо є — пріоритет над розрахунковим
   repairRateUahKm: number;      // default: 2.00 грн/км
-  otherCostsUah: number;
-  otherCostsComment?: string;
+  otherCostUah: number;
+  otherCostComment?: string;
 }
 
 export type MonthlyCostsForm = Omit<MonthlyCosts, "id">;
@@ -2132,13 +2132,13 @@ export function buildDailySummary(
     .filter(e => e.eventType === "refuel")
     .reduce((sum, e) => sum + (e.adBlueCostUah ?? 0), 0);
 
-  const otherCostsUah = sorted
+  const otherCostUah = sorted
     .filter(e => e.eventType === "other_cost")
-    .reduce((sum, e) => sum + (e.otherCostsUah ?? 0), 0);
+    .reduce((sum, e) => sum + (e.otherCostUah ?? 0), 0);
 
   // Підрахунок подій по типу
   const deliveriesCount = sorted.filter(e => e.eventType === "delivery").length;
-  const returnsCount = sorted.filter(e => e.eventType === "return_goods").length;
+  const returnCount = sorted.filter(e => e.eventType === "return_goods").length;
   const extraCargoCount = sorted.filter(e => e.eventType === "extra_cargo").length;
 
   // Всі накладні за день
@@ -2202,9 +2202,9 @@ export function buildDailySummary(
     fuelCostUah,
     adBlueLiters,
     adBlueCostUah,
-    otherCostsUah,
+    otherCostUah,
     deliveriesCount,
-    returnsCount,
+    returnCount,
     extraCargoCount,
     waybillNumbers,
     segments,
@@ -2272,7 +2272,7 @@ export function calcTotalMonthlyCost(costs: MonthlyCosts, totalKm: number): numb
     costs.taxesUah +
     costs.depreciationUah +
     calcRepairCost(costs, totalKm) +
-    costs.otherCostsUah
+    costs.otherCostUah
   );
 }
 

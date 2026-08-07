@@ -37,16 +37,16 @@ export function buildDailySummary(
 		.filter(e => e.eventType === "refuel")
 		.reduce((sum, e) => sum + (e.adBlueCostUah ?? 0), 0);
 	
-	const otherCostsUah = sorted
+	const otherCostUah = sorted
 		.filter(e => e.eventType === "other_cost")
-		.reduce((sum, e) => sum + (e.otherCostsUah ?? 0), 0);
+		.reduce((sum, e) => sum + (e.otherCostUah ?? 0), 0);
 	
 	// Підрахунок подій по типу
 	const deliveriesCount = sorted
 		.filter(e => e.eventType === "delivery")
 		.length;
 	
-	const returnsCount = sorted
+	const returnCount = sorted
 		.filter(e => e.eventType === "return_goods")
 		.length;
 	
@@ -119,9 +119,9 @@ export function buildDailySummary(
 		fuelCostUah,
 		adBlueLiters,
 		adBlueCostUah,
-		otherCostsUah,
+		otherCostUah,
 		deliveriesCount,
-		returnsCount,
+		returnCount,
 		extraCargoCount,
 		waybillNumbers,
 		segments,
