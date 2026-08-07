@@ -1,4 +1,5 @@
 export const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3000';
+export const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
 
 // Читає значення cookie за іменем — Django кладе CSRF-токен
 // у cookie "csrftoken", яку JS може прочитати напряму
@@ -34,4 +35,10 @@ export async function apiFetch<T>(path: string, options: FetchOptions = {}): Pro
 	// 204 No Content (logout) - немає тіла для парсингу
 	if (res.status === 204) return undefined as T;
 	return res.json();
+}
+
+// Допоміжна функція: імітує мережеву затримку у mock режимі
+// Без неї компоненти не встигають показати loading стан
+export function mockDelay(ms = 300): Promise<void> {
+	return new Promise(resolve => setTimeout(resolve, ms));
 }
