@@ -1,4 +1,4 @@
-import type { RouteEvent, DailySummary, RouteSegment, TrackingMode} from "../types";
+import type { RouteEvent, DailySummary, RouteSegment } from "../types";
 
 // Будує денний підсумок з масиву подій за один день.
 // Ключова логіка:
