@@ -1,21 +1,36 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import { BrowserRouter } from 'react-router-dom'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import './index.css'
-import App from './App.tsx'
-import { fetchCsrf } from './api/auth'
+// src/main.tsx
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
+import { BrowserRouter } from "react-router-dom";
+import App from "./App";
+import "./index.css";
 
-const queryClient = new QueryClient()
+// QueryClient — центральний об'єкт React Query
+// Зберігає кеш і конфігурацію
+const queryClient = new QueryClient({
+    defaultOptions: {
+        queries: {
+            staleTime: 1000 * 60,     // дані "свіжі" 1 хвилину (не рефетчимо зайво)
+            retry: 2,                  // при помилці — повторити 2 рази
+            throwOnError: false,       // помилки обробляємо через isError у компоненті
+        },
+    },
+});
 
-fetchCsrf()
-
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
-    </QueryClientProvider>
-  </StrictMode>,
-)
+// document.getElementById("root") — знаходить <div id="root"> в index.html
+// createRoot → render → підключає React до DOM
+createRoot(document.getElementById("root")!).render(
+    <StrictMode>
+        {/* QueryClientProvider — передає queryClient у всі дочірні компоненти */}
+        <QueryClientProvider client={queryClient}>
+            {/* BrowserRouter — дає компонентам доступ до React Router */}
+            <BrowserRouter>
+                <App />
+            </BrowserRouter>
+            {/* DevTools — панель налагодження React Query (тільки в dev режимі) */}
+            <ReactQueryDevtools initialIsOpen={false} />
+        </QueryClientProvider>
+    </StrictMode>
+);
