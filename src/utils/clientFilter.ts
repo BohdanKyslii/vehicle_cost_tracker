@@ -61,14 +61,14 @@ export function filterWaybills(
 export function sortItems<T>(items: T[], sort: SortParams): T[] {
 	return [...items].sort((a, b) => {
 		// Отримуємо значення поля за ключем
-		// as any — обходимо TypeScript перевірку (спрощення)
-		const aVal = (a as any)[sort.field] ?? "";
-		const bVal = (b as any)[sort.field] ?? "";
-		
-		let result = 0;
+		// Record<string, unknown> — динамічний доступ без any (спрощення)
+		const aVal = (a as Record<string, unknown>)[sort.field] ?? "";
+		const bVal = (b as Record<string, unknown>)[sort.field] ?? "";
+
+		let result: number;
 		if (typeof aVal === "string") {
 			// localeCompare — порівняння рядків з урахуванням мови
-			result = aVal.localeCompare(bVal, "uk");
+			result = aVal.localeCompare(bVal as string, "uk");
 		} else {
 			result = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
 		}
