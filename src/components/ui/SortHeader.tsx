@@ -1,9 +1,11 @@
+import type { SortField } from "../../types";
+
 interface SortHeaderProps {
     label: string;
-    field: string;
-    currentField: string;
+    field: SortField;
+    currentField: SortField;
     direction: "asc" | "desc";
-    onSort: (field: string) => void;
+    onSort: (field: SortField) => void;
 }
 
 export function SortHeader({
