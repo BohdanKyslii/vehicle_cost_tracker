@@ -16,7 +16,7 @@ export function Spinner({ size = "md", label = "Завантаження..." }: 
     return (
         <div className="flex flex-col items-center justify-center gap-2">
             <svg
-                className={`animate-spin text-blue-600 ${sizeClasses[size]}`}
+                className={`animate-spin text-violet-300 ${sizeClasses[size]}`}
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
@@ -36,7 +36,7 @@ export function Spinner({ size = "md", label = "Завантаження..." }: 
                     d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
                 />
             </svg>
-            {label && <span className="text-sm text-gray-500">{label}</span>}
+            {label && <span className="text-sm text-white/50">{label}</span>}
         </div>
     );
 }

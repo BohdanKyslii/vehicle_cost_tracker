@@ -25,3 +25,7 @@ dist-ssr
 
 .env
 .env.production
+
+# Excel files source data (real business data, stays local - see documents/)
+documents/*.xls
+documents/*.xlsx
