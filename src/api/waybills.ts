@@ -63,7 +63,7 @@ function aggregateToSummaries(records: WaybillRecord[]): WaybillSummary[] {
             totalWeightKg: lines.reduce((s, l) => s + (l.totalWeightKg ?? 0), 0) || undefined,
             totalVolumeCbm: lines.reduce((s, l) => s + (l.totalVolumeCbm ?? 0), 0) || undefined,
             deliveryChannel: first.deliveryChannel,
-            status: (first as any).status ?? "pending",
+            status: first.status ?? "pending",
         });
     });
 

@@ -1,9 +1,9 @@
 [
   {
     "idCar": 1,
-    "nameCar": "Mercedes Sprinter 315 CDI",
-    "numberCar": "АА1234ВВ",
-    "amountCar": 8333,
+    "nameCar": "Citroen",
+    "numberCar": "KA0458MХ",
+    "amountCar": 24987,
     "defaultTrackingMode": "full",
     "statusCar": "active",
     "isActive": true

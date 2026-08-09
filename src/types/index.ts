@@ -201,6 +201,7 @@ export interface WaybillRecord {
 	volumetricWeightKg?: number;
 	// Channel: null = not yet assigned
 	deliveryChannel?: DeliveryChannel | null;
+	status?: WaybillStatus;
 	importedAt: string;
 	importBatchId?: string;
 }
