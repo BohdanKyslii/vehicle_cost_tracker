@@ -9,7 +9,7 @@ import {
     mockDelay,
     apiFetch,
 } from "./config.ts";
-import mockEvents from "../mock/route-events.json";
+import mockEvents from "../mocks/route-events.json";
 
 interface Paginated<T> {
     results: T[];
@@ -36,8 +36,8 @@ interface RawRouteEvent {
     fuel_cost_uah: string | null;
     ad_blue_liters: string | null;
     ad_blue_cost_uah: string | null;
-    other_cost_uah: string | null;
-    other_cost_comment: string;
+    other_costs_uah: string | null;
+    other_costs_comment: string;
     return_client_waybill: string;
     extra_from: string;
     extra_to: string;
@@ -55,6 +55,7 @@ function mapRouteEvent(raw: RawRouteEvent): RouteEvent {
         driverId: raw.driver,
         trackingMode: raw.tracking_mode,
         eventType: raw.event_type,
+        eventTs: raw.event_ts,
         odometerKm: raw.odometer_km ?? undefined,
         palletsCount: raw.pallets_count ?? undefined,
         waybillNumber: raw.waybill_number || undefined,
@@ -63,16 +64,16 @@ function mapRouteEvent(raw: RawRouteEvent): RouteEvent {
         rejection: raw.rejection_full != null && raw.rejection_full !== undefined ? {
             isFull: raw.rejection_full,
             productId: raw.rejection_product_id ? Number(raw.rejection_product_id) : undefined,
-            quantity: raw.rejection_qty == null ? Number(raw.rejection_qty) : undefined,
+            quantity: raw.rejection_qty != null ? Number(raw.rejection_qty) : undefined,
             comment: raw.rejection_comment || undefined,
         } : undefined,
         fuelLiters: raw.fuel_liters != null ? Number(raw.fuel_liters) : undefined,
-        fuelCostUah: raw.fuel_cost_uah != null ? Number(raw.other_cost_uah) : undefined,
+        fuelCostUah: raw.fuel_cost_uah != null ? Number(raw.fuel_cost_uah) : undefined,
         adBlueLiters: raw.ad_blue_liters != null ? Number(raw.ad_blue_liters) : undefined,
         adBlueCostUah: raw.ad_blue_cost_uah != null ? Number(raw.ad_blue_cost_uah) : undefined,
-        // Увага: TS-поле — otherCostUah (однина), поле моделі — other_costs_uah (множина). ToDo
+        // Увага: TS-поле — otherCostUah (однина), поле моделі — other_costs_uah (множина)
         otherCostUah: raw.other_costs_uah != null ? Number(raw.other_costs_uah) : undefined,
-        otherCostComment: raw.other_cost_comment || undefined,
+        otherCostComment: raw.other_costs_comment || undefined,
         returnClientWaybill: raw.return_client_waybill || undefined,
         extraFrom: raw.extra_from || undefined,
         extraTo: raw.extra_to || undefined,
@@ -85,7 +86,7 @@ function mapRouteEvent(raw: RawRouteEvent): RouteEvent {
 }
 
 // Зворотне перетворення — camelCase форма → snake_case тіло POST-запиту
-function toRouteEventPayLoad(data: RouteEventCreate) {
+function toRouteEventPayload(data: RouteEventCreate) {
     return {
         car: data.carId,
         driver: data.driverId,
@@ -106,7 +107,7 @@ function toRouteEventPayLoad(data: RouteEventCreate) {
         ad_blue_liters: data.adBlueLiters ?? null,
         ad_blue_cost_uah: data.adBlueCostUah ?? null,
         other_costs_uah: data.otherCostUah ?? null,
-        other_cost_comment: data.otherCostComment ?? "",
+        other_costs_comment: data.otherCostComment ?? "",
         return_client_waybill: data.returnClientWaybill ?? "",
         extra_from: data.extraFrom ?? "",
         extra_to: data.extraTo ?? "",

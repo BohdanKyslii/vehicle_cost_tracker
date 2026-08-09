@@ -186,9 +186,9 @@ export interface WaybillRecord {
 	waybillNumber: string;   // 1C invoice number
 	waybillDate: string;     // 1C invoice date
 	linePosition: number;   // line item position in the invoice
-	customerId: number;
+	customerId: string;
 	customerName: string;
-	storedId?: number;
+	storeId?: string;
 	productId: number;
 	productName: string;
 	quantity: number;

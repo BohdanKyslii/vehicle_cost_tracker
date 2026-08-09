@@ -1,0 +1,91 @@
+[
+  {
+    "id": 1,
+    "carId": 1,
+    "driverId": 1,
+    "trackingMode": "full",
+    "eventType": "depot_start",
+    "eventTs": "2026-06-27T07:45:00+03:00",
+    "odometerKm": 87450,
+    "createdAt": "2026-06-27T07:45:05+03:00"
+  },
+  {
+    "id": 2,
+    "carId": 1,
+    "driverId": 1,
+    "trackingMode": "full",
+    "eventType": "delivery",
+    "eventTs": "2026-06-27T09:30:00+03:00",
+    "odometerKm": 87523,
+    "palletsCount": 3,
+    "waybillNumber": "НН-000101",
+    "waybillDate": "2026-06-27",
+    "customerName": "ТОВ Сонячна торгівля",
+    "createdAt": "2026-06-27T09:30:10+03:00"
+  },
+  {
+    "id": 3,
+    "carId": 1,
+    "driverId": 1,
+    "trackingMode": "full",
+    "eventType": "delivery",
+    "eventTs": "2026-06-27T11:15:00+03:00",
+    "odometerKm": 87561,
+    "palletsCount": 2,
+    "waybillNumber": "НН-000102",
+    "waybillDate": "2026-06-27",
+    "customerName": "ФОП Петренко В.М.",
+    "rejection": {
+      "isFull": false,
+      "productId": 4,
+      "quantity": 24,
+      "comment": "Відмовились від пива"
+    },
+    "createdAt": "2026-06-27T11:15:10+03:00"
+  },
+  {
+    "id": 4,
+    "carId": 1,
+    "driverId": 1,
+    "trackingMode": "full",
+    "eventType": "refuel",
+    "eventTs": "2026-06-27T12:00:00+03:00",
+    "fuelLiters": 55.4,
+    "fuelCostUah": 3158.0,
+    "adBlueLiters": 2.0,
+    "adBlueCostUah": 90.0,
+    "createdAt": "2026-06-27T12:00:05+03:00"
+  },
+  {
+    "id": 5,
+    "carId": 1,
+    "driverId": 1,
+    "trackingMode": "full",
+    "eventType": "return_goods",
+    "eventTs": "2026-06-27T13:00:00+03:00",
+    "returnClientWaybill": "НН-000098",
+    "createdAt": "2026-06-27T13:00:05+03:00"
+  },
+  {
+    "id": 6,
+    "carId": 1,
+    "driverId": 1,
+    "trackingMode": "full",
+    "eventType": "parking_end",
+    "eventTs": "2026-06-27T17:30:00+03:00",
+    "odometerKm": 87648,
+    "createdAt": "2026-06-27T17:30:05+03:00"
+  },
+  {
+    "id": 7,
+    "carId": 2,
+    "driverId": 2,
+    "trackingMode": "daily",
+    "eventType": "depot_start",
+    "eventTs": "2026-06-28T08:00:00+03:00",
+    "odometerKm": 54478,
+    "palletsCount": 6,
+    "notes": "НН-000204, НН-000205, НН-000206 — на різні магазини",
+    "createdAt": "2026-06-28T08:00:05+03:00"
+  }
+]

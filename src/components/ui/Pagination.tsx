@@ -48,7 +48,7 @@ export function Pagination({ total, page, pageSize, onChange }: PaginationProps)
 
                 <button
                     onClick={() => onChange(page + 1)}
-                    disabled={page === totalPages}
+                    disabled={page === totalPage}
                     className="px-2 py-1 rounded text-sm disabled:opacity-40 hover:bg-gray-100"
                 >
                     ›

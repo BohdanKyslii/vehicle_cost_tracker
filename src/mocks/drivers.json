@@ -1,0 +1,23 @@
+[
+  {
+    "idDriver": 1,
+    "nameDriver": "Коваленко Іван Петрович",
+    "phoneDriver": "+380501234567",
+    "idCar": 1,
+    "isActive": true
+  },
+  {
+    "idDriver": 2,
+    "nameDriver": "Мельник Сергій Олексійович",
+    "phoneDriver": "+380677654321",
+    "idCar": 2,
+    "isActive": true
+  },
+  {
+    "idDriver": 3,
+    "nameDriver": "Бондаренко Олег Миколайович",
+    "phoneDriver": "+380639876543",
+    "idCar": 3,
+    "isActive": true
+  }
+]

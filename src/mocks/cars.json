@@ -1,0 +1,29 @@
+[
+  {
+    "idCar": 1,
+    "nameCar": "Mercedes Sprinter 315 CDI",
+    "numberCar": "АА1234ВВ",
+    "amountCar": 8333,
+    "defaultTrackingMode": "full",
+    "statusCar": "active",
+    "isActive": true
+  },
+  {
+    "idCar": 2,
+    "nameCar": "Volkswagen Crafter 35",
+    "numberCar": "АА5678СС",
+    "amountCar": 10417,
+    "defaultTrackingMode": "daily",
+    "statusCar": "active",
+    "isActive": true
+  },
+  {
+    "idCar": 3,
+    "nameCar": "Ford Transit 350",
+    "numberCar": "АА9012КК",
+    "amountCar": 6806,
+    "defaultTrackingMode": "daily",
+    "statusCar": "repair",
+    "isActive": true
+  }
+]

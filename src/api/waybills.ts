@@ -12,7 +12,7 @@ import {
     API_BASE,
     mockDelay,
 } from "./config.ts";
-import mockwaybills from "../mocks/waybills.json";
+import mockWaybills from "../mocks/waybills.json";
 import {
     filterWaybills,
     sortItems,
@@ -47,7 +47,7 @@ function aggregateToSummaries(records: WaybillRecord[]): WaybillSummary[] {
             .reduce((sum, l) => sum + l.totalUah, 0);
 
         const returnsUah = lines
-            .filter(l => l.quantity > 0)
+            .filter(l => l.quantity < 0)
             .reduce((sum, l) => sum + l.totalUah, 0);
 
         summaries.push({
