@@ -11,12 +11,17 @@ const navItems = [
 
 export function MainLayout() {
     return (
-        <div className="min-h-screen bg-gray-50 flex">
+        <div
+            className="min-h-screen flex text-white"
+            style={{ background: "linear-gradient(180deg, #2b1330 0%, #0f1724 100%)" }}
+        >
             {/* Sidebar — тільки на великих екранах (hidden на мобільному) */}
-            <aside className="hidden md:flex w-56 bg-white border-r border-gray-200 flex-col">
-                <div className="p-4 border-b border-gray-200">
-                    <h1 className="font-bold text-gray-800">Vehicle Tracker</h1>
-                    <p className="text-xs text-gray-500 mt-0.5">Облік витрат</p>
+            <aside className="hidden md:flex w-56 backdrop-blur-md bg-white/5 border-r border-white/10 flex-col">
+                <div className="p-4 border-b border-white/10">
+                    <h1 className="font-bold bg-gradient-to-r from-violet-300 to-pink-300 bg-clip-text text-transparent">
+                        Vehicle Tracker
+                    </h1>
+                    <p className="text-xs text-white/50 mt-0.5">Облік витрат</p>
                 </div>
                 <nav className="flex-1 p-2 space-y-1">
                     {navItems.map(({ to, label, icon }) => (
@@ -26,8 +31,8 @@ export function MainLayout() {
                             className={({ isActive }) =>
                                 `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors
                 ${isActive
-                                    ? "bg-blue-50 text-blue-700 font-medium"
-                                    : "text-gray-600 hover:bg-gray-50"
+                                    ? "bg-white/10 text-violet-300 font-medium"
+                                    : "text-white/60 hover:bg-white/5 hover:text-white"
                                 }`
                             }
                         >
