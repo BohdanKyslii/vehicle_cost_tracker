@@ -4,6 +4,7 @@ import { DriverLayout } from "./components/layouts/DriverLayout";
 import { MainLayout } from "./components/layouts/MainLayout";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
 import { WaybillList } from "./components/waybills/WaybillList";
+import { DriverMiniApp } from "./pages/DriverMiniApp";
 
 // Далі будемо замінювати PlaceholderPage на реальні компоненти
 
@@ -65,6 +66,14 @@ export default function App() {
                 <Route path="stores" element={<PlaceholderPage title="Магазини" />} />
                 <Route path="monthly-costs" element={<PlaceholderPage title="Місячні витрати" />} />
             </Route>
+
+            {/* ⚠️ НЕ ВИДАЛЯТИ при рефакторингу роутів (вже двічі губили при
+                переписуванні App.tsx — d792cfa, 2026-08-10 фікс). Це реальний
+                продакшн-маршрут: BotFather Menu Button у @driver_car_bot
+                веде саме сюди. Telegram Mini App — логінить через initData,
+                окремо від DriverLayout (без TopNav). Деталі — TELEGRAM_BOT_SETUP.md
+                у vehicle_tracker_api. */}
+            <Route path="/driver-app" element={<DriverMiniApp />} />
 
             {/* Редирект з / на /driver */}
             <Route path="/" element={<Navigate to="/driver" replace />} />
