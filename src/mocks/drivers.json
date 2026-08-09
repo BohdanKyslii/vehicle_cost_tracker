@@ -1,23 +1,30 @@
 [
   {
     "idDriver": 1,
-    "nameDriver": "Коваленко Іван Петрович",
-    "phoneDriver": "+380501234567",
+    "nameDriver": "Акулов Олександр",
+    "phoneDriver": "+380980122469",
     "idCar": 1,
     "isActive": true
   },
   {
     "idDriver": 2,
-    "nameDriver": "Мельник Сергій Олексійович",
-    "phoneDriver": "+380677654321",
+    "nameDriver": "Піндюр Валентин",
+    "phoneDriver": "+380963990001",
     "idCar": 2,
     "isActive": true
   },
   {
     "idDriver": 3,
-    "nameDriver": "Бондаренко Олег Миколайович",
-    "phoneDriver": "+380639876543",
+    "nameDriver": "Стужнєв Ігор Вікторович",
+    "phoneDriver": "+380676206282",
     "idCar": 3,
+    "isActive": true
+  },
+  {
+    "idDriver": 4,
+    "nameDriver": "Гусєв Андрій Анатолійович",
+    "phoneDriver": "+380675071743",
+    "idCar": 4,
     "isActive": true
   }
 ]

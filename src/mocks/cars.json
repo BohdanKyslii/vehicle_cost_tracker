@@ -1,7 +1,7 @@
 [
   {
     "idCar": 1,
-    "nameCar": "Citroen",
+    "nameCar": "Citroen Jumpy",
     "numberCar": "KA0458MХ",
     "amountCar": 24987,
     "defaultTrackingMode": "full",
@@ -10,20 +10,29 @@
   },
   {
     "idCar": 2,
-    "nameCar": "Volkswagen Crafter 35",
-    "numberCar": "АА5678СС",
-    "amountCar": 10417,
-    "defaultTrackingMode": "daily",
+    "nameCar": "Renault Trafic",
+    "numberCar": "АІ8822СІ",
+    "amountCar": 15000,
+    "defaultTrackingMode": "full",
     "statusCar": "active",
     "isActive": true
   },
   {
     "idCar": 3,
-    "nameCar": "Ford Transit 350",
-    "numberCar": "АА9012КК",
-    "amountCar": 6806,
+    "nameCar": "DAF XF 460",
+    "numberCar": "КА2579НС",
+    "amountCar": 29400,
     "defaultTrackingMode": "daily",
-    "statusCar": "repair",
+    "statusCar": "active",
+    "isActive": true
+  },
+  {
+    "idCar": 4,
+    "nameCar": "MAN TGL 12.220",
+    "numberCar": "KA8634MO",
+    "amountCar": 40600,
+    "defaultTrackingMode": "daily",
+    "statusCar": "active",
     "isActive": true
   }
 ]
