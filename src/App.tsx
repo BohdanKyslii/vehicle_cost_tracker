@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { DriverLayout } from "./components/layouts/DriverLayout";
 import { MainLayout } from "./components/layouts/MainLayout";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
+import { WaybillList } from "./components/waybills/WaybillList";
 
 // Далі будемо замінювати PlaceholderPage на реальні компоненти
 
@@ -25,7 +26,7 @@ export default function App() {
 
             {/* ── Накладні ─────────────────────────────────── */}
             <Route path="/waybills" element={<MainLayout />}>
-                <Route index element={<PlaceholderPage title="Реєстр накладних" />} />
+                <Route index element={<WaybillList />} />
                 <Route path=":waybillNumber" element={<PlaceholderPage title="Деталі накладної" />} />
                 <Route path="import" element={<PlaceholderPage title="Імпорт із 1С" />} />
                 <Route path="unassigned" element={<PlaceholderPage title="Не призначені" />} />

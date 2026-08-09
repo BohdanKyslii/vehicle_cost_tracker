@@ -12,55 +12,55 @@ interface WaybillTableProps {
 
 export function WaybillTable({ items, sort, onSort }: WaybillTableProps) {
 	return (
-		<div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+		<div className="bg-white/5 backdrop-blur-md rounded-lg border border-white/10 overflow-hidden">
 			<table className="w-full text-sm">
-				<thead className="bg-gray-50 border-b border-gray-200">
+				<thead className="bg-white/5 border-b border-white/10">
 				<tr>
 					<SortHeader label="Дата" field="date" currentField={sort.field} direction={sort.direction} onSort={onSort} />
-					<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Накладна</th>
-					<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ЮО</th>
+					<th className="px-4 py-3 text-left text-xs font-medium text-white/50 uppercase">Накладна</th>
+					<th className="px-4 py-3 text-left text-xs font-medium text-white/50 uppercase">Компанія</th>
 					<SortHeader label="Клієнт" field="customer" currentField={sort.field} direction={sort.direction} onSort={onSort} />
-					<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Канал</th>
+					<th className="px-4 py-3 text-left text-xs font-medium text-white/50 uppercase">Канал</th>
 					<SortHeader label="Сума" field="total" currentField={sort.field} direction={sort.direction} onSort={onSort} />
 					<SortHeader label="Вага" field="weight" currentField={sort.field} direction={sort.direction} onSort={onSort} />
-					<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Статус</th>
+					<th className="px-4 py-3 text-left text-xs font-medium text-white/50 uppercase">Статус</th>
 				</tr>
 				</thead>
-				<tbody className="divide-y divide-gray-100">
+				<tbody className="divide-y divide-white/10">
 				{items.map(item => (
-					<tr key={item.waybillNumber} className="hover:bg-gray-50 transition-colors">
-						<td className="px-4 py-3 text-gray-600 whitespace-nowrap">
+					<tr key={item.waybillNumber} className="hover:bg-white/5 transition-colors">
+						<td className="px-4 py-3 text-white/70 whitespace-nowrap">
 							{formatDate(item.waybillDate)}
 						</td>
 						<td className="px-4 py-3">
 							{/* Link — навігація без перезавантаження сторінки */}
 							<Link
 								to={`/waybills/${item.waybillNumber}`}
-								className="text-blue-600 hover:underline font-medium"
+								className="text-violet-300 hover:underline font-medium"
 							>
 								{item.waybillNumber}
 							</Link>
-							<div className="text-xs text-gray-400">{item.linesCount} поз.</div>
+							<div className="text-xs text-white/40">{item.linesCount} поз.</div>
 						</td>
 						<td className="px-4 py-3">
 							<LegalEntityBadge entity={item.legalEntity} />
 						</td>
 						<td className="px-4 py-3">
-							<div className="font-medium text-gray-800">{item.customerName}</div>
+							<div className="font-medium text-white">{item.customerName}</div>
 							{item.storeName && (
-								<div className="text-xs text-gray-500">{item.storeName}</div>
+								<div className="text-xs text-white/50">{item.storeName}</div>
 							)}
 						</td>
 						<td className="px-4 py-3">
 							<ChannelBadge channel={item.deliveryChannel} />
 						</td>
-						<td className="px-4 py-3 text-gray-800 font-medium whitespace-nowrap">
+						<td className="px-4 py-3 text-white font-medium whitespace-nowrap">
 							{formatUah(item.totalUah)}
 							{item.returnsUah < 0 && (
-								<div className="text-xs text-red-500">{formatUah(item.returnsUah)}</div>
+								<div className="text-xs text-red-400">{formatUah(item.returnsUah)}</div>
 							)}
 						</td>
-						<td className="px-4 py-3 text-gray-600 whitespace-nowrap">
+						<td className="px-4 py-3 text-white/70 whitespace-nowrap">
 							{item.totalWeightKg ? formatKg(item.totalWeightKg) : "—"}
 						</td>
 						<td className="px-4 py-3">

@@ -19,13 +19,13 @@ export function SortHeader({
 
     return (
         <th
-            className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+            className="px-4 py-3 text-left text-xs font-medium text-white/50 uppercase tracking-wider cursor-pointer hover:bg-white/5 select-none"
             onClick={() => onSort(field)}
         >
             <div className="flex items-center gap-1">
                 {label}
                 {/* Іконка сортування */}
-                <span className={`text-xs ${isActive ? "text-blue-600" : "text-gray-300"}`}>
+                <span className={`text-xs ${isActive ? "text-violet-300" : "text-white/20"}`}>
           {isActive ? (direction === "asc" ? "▲" : "▼") : "⇅"}
         </span>
             </div>

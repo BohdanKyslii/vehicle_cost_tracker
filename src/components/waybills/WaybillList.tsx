@@ -25,17 +25,17 @@ export function WaybillList() {
 		<div className="p-6 space-y-4">
 			{/* Заголовок і кнопка імпорту */}
 			<div className="flex items-center justify-between">
-				<h1 className="text-xl font-bold text-gray-800">Реєстр накладних</h1>
+				<h1 className="text-xl font-bold text-white">Реєстр накладних</h1>
 				<div className="flex gap-2">
 					<Link
 						to="/waybills/unassigned"
-						className="px-3 py-2 text-sm rounded-lg bg-orange-50 text-orange-700 hover:bg-orange-100"
+						className="px-3 py-2 text-sm rounded-lg bg-orange-500/10 text-orange-300 hover:bg-orange-500/20"
 					>
 						⚠️ Не призначені
 					</Link>
 					<Link
 						to="/waybills/import"
-						className="px-3 py-2 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+						className="px-3 py-2 text-sm rounded-lg bg-violet-600 text-white hover:bg-violet-500"
 					>
 						Імпорт із 1С
 					</Link>
@@ -74,7 +74,7 @@ export function WaybillList() {
 			{!isLoading && !isError && data && data.items.length > 0 && (
 				<>
 					{/* Лічильник результатів */}
-					<p className="text-sm text-gray-500">
+					<p className="text-sm text-white/50">
 						Знайдено: {data.total} накладних
 					</p>
 					

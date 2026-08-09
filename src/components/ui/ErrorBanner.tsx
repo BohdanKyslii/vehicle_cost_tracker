@@ -8,14 +8,14 @@ export function ErrorBanner({
                                 onRetry,
                             }: ErrorBannerProps) {
     return (
-        <div className="rounded-lg bg-red-50 border border-red-200 p-4 flex items-start gap-3">
-            <span className="text-red-500 text-xl">⚠️</span>
+        <div className="rounded-lg bg-red-500/10 border border-red-500/30 p-4 flex items-start gap-3">
+            <span className="text-red-400 text-xl">⚠️</span>
             <div className="flex-1">
-                <p className="text-sm text-red-700">{message}</p>
+                <p className="text-sm text-red-300">{message}</p>
                 {onRetry && (
                     <button
                         onClick={onRetry}
-                        className="mt-2 text-sm text-red-600 underline hover:text-red-800"
+                        className="mt-2 text-sm text-red-300 underline hover:text-red-100"
                     >
                         Повторити
                     </button>
