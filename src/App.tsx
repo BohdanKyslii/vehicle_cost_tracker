@@ -1,9 +1,12 @@
 // src/App.tsx
 import { Routes, Route, Navigate } from "react-router-dom";
 import { DriverLayout } from "./components/layouts/DriverLayout";
+import { DriverDashboard } from "./pages/driver/DriverDashboard";
+import { EventForm } from "./pages/driver/EventForm";
 import { MainLayout } from "./components/layouts/MainLayout";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
 import { WaybillList } from "./components/waybills/WaybillList";
+import {DriverMiniApp} from "./pages/DriverMiniApp.tsx";
 
 // Далі будемо замінювати PlaceholderPage на реальні компоненти
 
@@ -12,11 +15,14 @@ export default function App() {
         <Routes>
             {/* ── Водій (мобільний) ────────────────────────── */}
             <Route path="/driver" element={<DriverLayout />}>
-                <Route index element={<PlaceholderPage title="Маршрут водія" />} />
-                <Route path="event/new" element={<PlaceholderPage title="Нова подія" />} />
+                <Route index element={<DriverDashboard />} />
+                <Route path="event/new" element={<EventForm />} />
                 <Route path="scan" element={<PlaceholderPage title="Сканер QR" />} />
                 <Route path="history" element={<PlaceholderPage title="Історія" />} />
             </Route>
+            
+            {/* Telegram Mini App — логінить через initData, далі веде в /driver (Крок 13.0) */}
+            <Route path="/driver-app" element={<DriverMiniApp />} />
 
             {/* ── Автопарк ─────────────────────────────────── */}
             <Route path="/fleet" element={<MainLayout />}>
