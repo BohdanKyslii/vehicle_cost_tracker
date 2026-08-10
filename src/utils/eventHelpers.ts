@@ -37,13 +37,35 @@ export function requiresOdometer(type: RouteEventType): boolean {
 }
 
 // Чи потрібне сканування накладної?
-export function requiredWaybill(type: RouteEventType): boolean {
+export function requiresWaybill(type: RouteEventType): boolean {
 	return type === "delivery";
 }
 
 // Чи потрібне поле кількості палет?
 // daily depot_start = завжди (загальна к-сть на день)
 // full delivery = завжди (к-сть на точку)
+export function requiresPallets(type: RouteEventType, mode: TrackingMode): boolean {
+	if (type === "depot_start" && mode === "daily") return true;
+	if (type === "delivery" && mode === "full") return true;
+	return false;
+}
+
+// Українська назва типу події для відображення у UI
+export function eventTypeLabel(type: RouteEventType): string {
+	const labels: Record<RouteEventType, string> = {
+		depot_start: "Старт зі складу",
+		delivery: "Вивантаження",
+		parking_end: "Кінець маршруту",
+		depot_return: "Повернення на склад",
+		refuel: "Заправка",
+		other_cost: "Інші витрати",
+		return_goods: "Повернення товару",
+		extra_cargo: "Додатковий вантаж",
+	};
+	return labels[type];
+}
+
+// Emoji іконка для типу події
 export function eventTypeIcon(type: RouteEventType): string {
 	const icons: Record<RouteEventType, string> = {
 		depot_start: "🏭",
