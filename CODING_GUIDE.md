@@ -3814,13 +3814,18 @@ export function Input({ label, error, helpText, id, className = "", ...rest }: I
 
 ## Крок 9.2 — Створення components/layouts/DriverLayout.tsx
 
-> 🎨 На відміну від `MainLayout` (Крок 9.3, світла офісна тема),
-> `DriverLayout` продовжує темну фіолетово-рожеву мову лендінгу
-> (`src/styles/landing.css`, `.landing`) — водій відкриває це у
-> Telegram WebView, і бренд має одразу впізнаватись. Дизайн-система тут
-> навмисно ІНША, ніж `ui/`-компоненти Фази 8 (ті лишаються світлими й
-> нейтральними для офісних сторінок) — окремі driver-версії кнопок,
-> полів тощо йдуть окремо у Кроці 13.
+> 🎨 Задумувалось як відмінність від `MainLayout` (Крок 9.3, спершу
+> світла офісна тема) — `DriverLayout` продовжує темну
+> фіолетово-рожеву мову лендінгу (`src/styles/landing.css`, `.landing`),
+> бо водій відкриває це у Telegram WebView і бренд має одразу
+> впізнаватись. **У реальному коді `MainLayout` пізніше теж перефарбували
+> в той самий темний градієнт** (Крок 9.3 нижче показує актуальний
+> варіант) — тож зараз відмінність DriverLayout/MainLayout лише в
+> компоновці (bottom nav vs sidebar, max-w-md vs full-width), не в
+> кольоровій темі. `ui/`-компоненти Фази 8 і досі лишаються світлими й
+> нейтральними — вони не використовуються ні в DriverLayout, ні в
+> MainLayout, а в сторінках-нащадках `MainLayout` (`WaybillList` тощо).
+> Driver-версії кнопок/полів — окремо у Кроці 13 (`components/driver/ui.tsx`).
 
 ```typescript
 // src/components/layouts/DriverLayout.tsx
@@ -3885,6 +3890,10 @@ export function DriverLayout() {
 
 ## Крок 9.3 — Створення components/layouts/MainLayout.tsx
 
+> Нижче — актуальний варіант (темний градієнт, як у `DriverLayout`).
+> Перша версія тут була світлою (`bg-gray-50`/`bg-white`, сині акценти) —
+> якщо в тебе в проєкті ще та, звір з файлом і онови на цю.
+
 ```typescript
 // src/components/layouts/MainLayout.tsx
 import { Outlet, NavLink } from "react-router-dom";
@@ -3900,12 +3909,17 @@ const navItems = [
 
 export function MainLayout() {
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div
+      className="min-h-screen flex text-white"
+      style={{ background: "linear-gradient(180deg, #2b1330 0%, #0f1724 100%)" }}
+    >
       {/* Sidebar — тільки на великих екранах (hidden на мобільному) */}
-      <aside className="hidden md:flex w-56 bg-white border-r border-gray-200 flex-col">
-        <div className="p-4 border-b border-gray-200">
-          <h1 className="font-bold text-gray-800">Vehicle Tracker</h1>
-          <p className="text-xs text-gray-500 mt-0.5">Облік витрат</p>
+      <aside className="hidden md:flex w-56 backdrop-blur-md bg-white/5 border-r border-white/10 flex-col">
+        <div className="p-4 border-b border-white/10">
+          <h1 className="font-bold bg-gradient-to-r from-violet-300 to-pink-300 bg-clip-text text-transparent">
+            Vehicle Tracker
+          </h1>
+          <p className="text-xs text-white/50 mt-0.5">Облік витрат</p>
         </div>
         <nav className="flex-1 p-2 space-y-1">
           {navItems.map(({ to, label, icon }) => (
@@ -3915,8 +3929,8 @@ export function MainLayout() {
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors
                 ${isActive
-                  ? "bg-blue-50 text-blue-700 font-medium"
-                  : "text-gray-600 hover:bg-gray-50"
+                  ? "bg-white/10 text-violet-300 font-medium"
+                  : "text-white/60 hover:bg-white/5 hover:text-white"
                 }`
               }
             >
@@ -3935,6 +3949,11 @@ export function MainLayout() {
   );
 }
 ```
+
+Це sidebar (ліве меню), НЕ верхнє меню — те, що на скріншотах виглядає
+"меню зверху", це `TopNav.tsx` (Крок 3.x, лендінг), окремий компонент
+для `LandingPage`/`UnderConstruction`, не для сторінок під `MainLayout`.
+Детальніше, чому вони досі не з'єднані в одну навігацію — Фаза 14.
 
 ---
 
@@ -4940,10 +4959,7 @@ export function EventForm() {
 і `/driver/history` — QRScanner і Історія це Крок 14, ще попереду).
 
 Заміни блок `/driver` у `src/App.tsx` — з flat-маршруту на вкладені
-routes через `DriverLayout`. `/` **лишається `LandingPage`** (не
-`Navigate` на `/driver`, як може здатись логічним по Фазі 10 — сайт
-одночасно обслуговує і водіїв, і офіс/маркетинг, тому лендінг має
-лишатись коренем):
+routes через `DriverLayout`:
 
 ```typescript
 // src/App.tsx — фрагмент, що змінюється
@@ -4965,6 +4981,18 @@ import { PlaceholderPage } from "./pages/PlaceholderPage";
 {/* Telegram Mini App — логінить через initData, далі веде в /driver (Крок 13.0) */}
 <Route path="/driver-app" element={<DriverMiniApp />} />
 ```
+
+> ⚠️ **Розходження з фактичним кодом:** ідея цього кроку була лишити
+> `/` на `LandingPage` (сайт обслуговує і водіїв, і офіс/маркетинг,
+> лендінг мав лишатись коренем) — але в реальному `App.tsx` `/` досі
+> `<Navigate to="/driver" replace />` зі старої Фази 10, і його ніхто не
+> повернув на `LandingPage`. Через це `LandingPage`/`TopNav`/`AuthModal`
+> зараз "осиротілі" — код є, жоден route на них не веде. Не виправляй
+> це тут вручну — Фаза 14 (нижче) робить це правильно одразу з
+> рольовим редиректом (не просто "`/` = LandingPage", а
+> "неавторизований → LandingPage, водій → `/driver`, логіст/менеджер/head
+> → `/fleet`"), заодно прибирає дублікат `<Route path="/driver-app">`
+> (у поточному `App.tsx` він задекларований ДВІЧІ — лишиться один).
 
 ---
 
@@ -4996,6 +5024,687 @@ npm run dev
 ---
 
 # ═══════════════════════════════════════════════════════════
+# ФАЗА 14 — РОЛЬОВА МАРШРУТИЗАЦІЯ
+# ═══════════════════════════════════════════════════════════
+
+> Навіщо: зараз `/` жорстко веде на `/driver` (Крок 10.3), а
+> `LandingPage`/`TopNav`/`AuthModal` — код є, але жоден route на нього
+> не веде (Крок 13.6). Через це водій і логіст/офіс бачать одну й ту
+> саму точку входу лише випадково — сайт відкривається одразу мобільним
+> екраном водія, навіть для тих, хто заходить з десктопу як логіст.
+> Ця фаза не "зливає" `DriverLayout` і `MainLayout` в одну навігацію —
+> вони навмисно різні (мобільний Telegram Mini App vs офісний
+> desktop-застосунок, різна аудиторія й контекст використання). Замість
+> цього вона: (а) повертає `LandingPage` на `/` як спільну точку входу,
+> (б) після логіну кожен потрапляє одразу у СВІЙ layout за роллю, без
+> ручного переходу, (в) закриває сторінки від чужих ролей — не лише в
+> UI (Крок 15 у "Що далі" вже це робить для `/panel`), а системно для
+> всіх маршрутів.
+
+## Крок 14.1 — RequireRole
+
+Компонент-охоронець route — не пускає далі, якщо роль користувача не
+підходить. Створи `src/components/auth/RequireRole.tsx`:
+
+```typescript
+// src/components/auth/RequireRole.tsx
+import type { ReactNode } from "react";
+import { Navigate } from "react-router-dom";
+import { useCurrentUser } from "../../hocks/useCurrentUser";
+import type { UserProfile } from "../../api/auth";
+
+interface RequireRoleProps {
+  roles: UserProfile["role"][];
+  children: ReactNode;
+}
+
+export function RequireRole({ roles, children }: RequireRoleProps) {
+  const { user, isLoading } = useCurrentUser();
+
+  if (isLoading) {
+    return <div className="p-8 text-center text-white/40">Завантаження…</div>;
+  }
+  // Не залогинений — на лендінг, а не на 404
+  if (!user) {
+    return <Navigate to="/" replace />;
+  }
+  if (!user.profile || !roles.includes(user.profile.role)) {
+    return (
+      <div className="p-8 text-center">
+        <h2 className="text-xl font-bold text-white">Доступ заборонено</h2>
+        <p className="mt-2 text-white/50">
+          Ваша роль ({user.profile?.role ?? "невідома"}) не має доступу
+          до цієї сторінки.
+        </p>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
+}
+```
+
+> ⚠️ Це UX-гейт (сховати сторінку, показати повідомлення), НЕ заміна
+> реального захисту — справжня перевірка ролі завжди на бекенді
+> (`DJANGO_CODING_GUIDE.md`, Фаза 9.2: `IsManagerOrHead`/`IsLogistOrAbove`
+> на запис). Той самий принцип уже сформульований у "Що далі" → Крок 15.
+
+---
+
+## Крок 14.2 — RoleRedirect для `/`
+
+`/` більше не жорсткий `Navigate`, а компонент, що вирішує куди вести
+залежно від стану авторизації:
+
+```typescript
+// src/pages/RoleRedirect.tsx
+import { Navigate } from "react-router-dom";
+import { useCurrentUser } from "../hocks/useCurrentUser";
+import { LandingPage } from "./LandingPage";
+
+export function RoleRedirect() {
+  const { user, isLoading } = useCurrentUser();
+
+  if (isLoading) return null;
+  if (!user) return <LandingPage />;
+
+  // Водій — одразу в мобільний екран; решта ролей — в офісний застосунок
+  return user.profile?.role === "driver"
+    ? <Navigate to="/driver" replace />
+    : <Navigate to="/fleet" replace />;
+}
+```
+
+---
+
+## Крок 14.3 — Підключення в App.tsx
+
+Онови `src/App.tsx`: заміни `<Route path="/" ...>` і обгорни `/driver`
+та офісні маршрути в `RequireRole`. Заодно прибери дублікат
+`<Route path="/driver-app">` — у поточному коді він задекларований
+двічі (Крок 13.6):
+
+```typescript
+// src/App.tsx — фрагмент
+import { RequireRole } from "./components/auth/RequireRole";
+import { RoleRedirect } from "./pages/RoleRedirect";
+
+// ...
+
+<Route path="/" element={<RoleRedirect />} />
+
+{/* Водій — мобільний, лишається доступним і для head (тестування/підтримка) */}
+<Route
+  path="/driver"
+  element={
+    <RequireRole roles={["driver", "head"]}>
+      <DriverLayout />
+    </RequireRole>
+  }
+>
+  <Route index element={<DriverDashboard />} />
+  <Route path="event/new" element={<EventForm />} />
+  <Route path="scan" element={<PlaceholderPage title="Сканер QR" />} />
+  <Route path="history" element={<PlaceholderPage title="Історія" />} />
+</Route>
+
+{/* Офісні розділи — logist/manager/head, той самий гейт на кожен */}
+<Route
+  path="/fleet"
+  element={
+    <RequireRole roles={["logist", "manager", "head"]}>
+      <MainLayout />
+    </RequireRole>
+  }
+>
+  <Route index element={<PlaceholderPage title="Автопарк" />} />
+  <Route path=":carId" element={<PlaceholderPage title="Деталі авто" />} />
+</Route>
+{/* /waybills, /hired, /carriers, /analytics, /admin — та сама обгортка RequireRole */}
+
+{/* Telegram Mini App — залишається ЄДИНИМ маршрутом, без RequireRole
+    (сам логінить через initData ще до того, як роль відома) */}
+<Route path="/driver-app" element={<DriverMiniApp />} />
+```
+
+---
+
+## Крок 14.4 — Перевірка
+
+```bash
+npm run dev
+```
+
+1. Розлогинений → `/` показує `LandingPage` (не мобільний екран водія).
+2. Логін користувачем з `role="driver"` → редирект на `/driver`.
+3. Логін користувачем з `role="logist"` (або `manager`/`head`) →
+   редирект на `/fleet`.
+4. Спроба відкрити `/driver` під логістом напряму в адресному рядку →
+   "Доступ заборонено" (логіст в списку `roles` для `/driver` не
+   значиться — якщо треба інакше, онач список ролей у Кроці 14.3).
+5. Спроба відкрити `/fleet` водієм → так само заборонено.
+
+---
+
+# ═══════════════════════════════════════════════════════════
+# ФАЗА 15 — QR-СКАНЕР НАКЛАДНИХ ДЛЯ ВОДІЯ
+# ═══════════════════════════════════════════════════════════
+
+> Навіщо: `parseQRCode()` (`src/utils/parseQR.ts`, Фаза 5) вже вміє
+> розпізнати текст QR-коду накладної (формати ESP/OPT/Rubin:
+> `"номер:ДД.ММ.РР"`, плюс запасний JSON) у `{waybillNumber, waybillDate}`.
+> `html5-qrcode` вже стоїть у `package.json` (Фаза 1). Не вистачає лише
+> одного — компонента камери, який зчитує кадр і віддає сирий текст у
+> `parseQRCode`. Ніякого нового бекенд-функціоналу це не потребує
+> (`DJANGO_CODING_GUIDE.md`, Крок 10.4) — форма `EventForm` уже
+> відправляє `waybillNumber`/`waybillDate` в `POST /api/route-events/`,
+> сканер лише позбавляє водія ручного набору цих двох полів.
+
+## Крок 15.1 — Компонент QRScanner
+
+```typescript
+// src/components/driver/QRScanner.tsx
+import { useEffect, useRef, useState } from "react";
+import { Html5Qrcode } from "html5-qrcode";
+
+interface QRScannerProps {
+  onScan: (rawValue: string) => void;
+  onClose: () => void;
+}
+
+const CONTAINER_ID = "qr-reader";
+
+export function QRScanner({ onScan, onClose }: QRScannerProps) {
+  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const scanner = new Html5Qrcode(CONTAINER_ID);
+    scannerRef.current = scanner;
+
+    scanner
+      .start(
+        { facingMode: "environment" },  // задня камера
+        { fps: 10, qrbox: 250 },
+        (decodedText) => onScan(decodedText),
+        () => {}, // помилки розпізнавання окремого кадру — норма, ігноруємо
+      )
+      .catch(() => setError("Не вдалося увімкнути камеру — перевір дозвіл у браузері"));
+
+    // Cleanup — зупиняємо камеру при закритті/розмонтуванні компонента,
+    // інакше вона лишиться увімкненою у фоні
+    return () => {
+      scannerRef.current?.stop().catch(() => {});
+    };
+  }, [onScan]);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-4">
+      <div id={CONTAINER_ID} className="w-full max-w-sm rounded-xl overflow-hidden" />
+      {error && <p className="text-red-300 text-sm mt-3 text-center">{error}</p>}
+      <button
+        onClick={onClose}
+        className="mt-5 px-4 py-2 text-sm text-white/70 underline underline-offset-4"
+      >
+        Закрити
+      </button>
+    </div>
+  );
+}
+```
+
+> Мульти-скан (з "Що далі" у старій версії гайду — камера не
+> закривається після скану) свідомо НЕ тут: у `EventForm` один скан =
+> одна накладна на подію `delivery`, і закриття сканера одразу після
+> успішного розпізнавання (Крок 15.2) — очікуваніша поведінка. Якщо
+> згодом з'явиться окремий екран "відсканувати пачку накладних одразу"
+> (наприклад, приймання на складі) — `onScan` тут не викликає `stop()`
+> сам, тому компонент і без змін підтримає виклик `onScan` кілька разів
+> поспіль, просто екран, що його використовує, не повинен закривати
+> `QRScanner` після першого спрацювання.
+
+---
+
+## Крок 15.2 — Підключення в EventForm
+
+У `src/pages/driver/EventForm.tsx` — додай стан для видимості сканера
+й обробник, який парсить сирий текст і підставляє поля лише для
+`type === "delivery"`:
+
+```typescript
+// src/pages/driver/EventForm.tsx — доповнення
+import { useState } from "react";
+import { QRScanner } from "../../components/driver/QRScanner";
+import { parseQRCode } from "../../utils/parseQR";
+
+// ... всередині компонента, поруч з іншими useState:
+const [scannerOpen, setScannerOpen] = useState(false);
+
+function handleScan(raw: string) {
+  const parsed = parseQRCode(raw);
+  if (parsed) {
+    setWaybillNumber(parsed.waybillNumber);
+    setWaybillDate(parsed.waybillDate);
+  }
+  setScannerOpen(false);
+}
+
+// ... у розмітці, у блоці type === "delivery", ПЕРЕД полем "Номер накладної":
+{type === "delivery" && (
+  <>
+    <Button type="button" variant="ghost" onClick={() => setScannerOpen(true)}>
+      📷 Сканувати QR накладної
+    </Button>
+    <Input label="Номер накладної" value={waybillNumber} onChange={(e) => setWaybillNumber(e.target.value)} required />
+    {/* ...решта полів delivery без змін... */}
+  </>
+)}
+
+{scannerOpen && <QRScanner onScan={handleScan} onClose={() => setScannerOpen(false)} />}
+```
+
+Поле лишається редагованим вручну й після скану — якщо `parseQRCode`
+не розпізнав формат (повертає `null` при "чужому" QR), водій просто
+вводить номер сам, як і зараз.
+
+---
+
+## Крок 15.3 — Реальна /driver/history
+
+Зараз `/driver/history` — заглушка. Потрібен ще один спосіб дістати
+події водія: усі за весь час (не лише "сьогодні", як `fetchTodayEvents`).
+Додай у `src/api/routeEvents.ts`:
+
+```typescript
+// src/api/routeEvents.ts — новий експорт поруч з fetchTodayEvents
+export async function fetchDriverEvents(carId: number): Promise<RouteEvent[]> {
+  if (USE_MOCK) {
+    await mockDelay(200);
+    return (mockEvents as RouteEvent[])
+      .filter(e => e.carId === carId)
+      .sort((a, b) => b.eventTs.localeCompare(a.eventTs)); // нові зверху
+  }
+  const data = await apiFetch<Paginated<RawRouteEvent>>(`/route-events/?car_id=${carId}`);
+  return data.results.map(mapRouteEvent).sort((a, b) => b.eventTs.localeCompare(a.eventTs));
+}
+```
+
+Хук у `src/hocks/useRouteEvents.ts`:
+
+```typescript
+export function useDriverEvents(carId: number) {
+  return useQuery({
+    queryKey: ["route-events", carId, "all"],
+    queryFn: () => fetchDriverEvents(carId),
+    enabled: !!carId,
+  });
+}
+```
+
+Сторінка `src/pages/driver/DriverHistory.tsx` — та сама структура
+списку подій, що вже є в `DriverDashboard` ("Події сьогодні"), лише
+без фільтра по даті:
+
+```typescript
+// src/pages/driver/DriverHistory.tsx
+import { useCurrentDriver } from "../../hocks/useDrivers";
+import { useCar } from "../../hocks/useCars";
+import { useDriverEvents } from "../../hocks/useRouteEvents";
+import { eventTypeLabel, eventTypeIcon, eventTypeGradient } from "../../utils/eventHelpers";
+import { formatKm, formatDateTime } from "../../utils/formatters";
+import { Spinner, EmptyState, ErrorBanner } from "../../components/driver/ui";
+
+export function DriverHistory() {
+  const { data: driver, isLoading: driverLoading } = useCurrentDriver();
+  const { data: car } = useCar(driver?.idCar ?? 0);
+  const { data: events, isLoading, isError } = useDriverEvents(car?.idCar ?? 0);
+
+  if (driverLoading || isLoading) return <Spinner label="Завантаження історії..." />;
+  if (isError) return <ErrorBanner message="Не вдалось завантажити історію" />;
+  if (!events || events.length === 0) {
+    return <EmptyState title="Подій ще немає" subtitle="Зареєстровані події з'являться тут" />;
+  }
+
+  return (
+    <ul className="flex flex-col gap-2">
+      {events.map((e) => (
+        <li key={e.id} className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur-sm">
+          <div className={`h-9 w-9 shrink-0 rounded-full bg-gradient-to-br ${eventTypeGradient(e.eventType)} flex items-center justify-center text-base`}>
+            {eventTypeIcon(e.eventType)}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-white/90">{eventTypeLabel(e.eventType)}</p>
+            <p className="text-xs text-white/40">{formatDateTime(e.eventTs)}</p>
+          </div>
+          {e.odometerKm != null && <span className="text-xs text-white/50 shrink-0">{formatKm(e.odometerKm)}</span>}
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+У `App.tsx` заміни `<Route path="history" element={<PlaceholderPage .../>} />`
+на `<Route path="history" element={<DriverHistory />} />`.
+
+---
+
+## Крок 15.4 — Перевірка
+
+1. `npm run dev`, зайди на `/driver`, натисни тип події "Доставка".
+2. У формі — кнопка "📷 Сканувати QR накладної", відкриває камеру
+   (браузер попросить дозвіл).
+3. Наведи на QR у форматі `"12345:15.03.26"` (або згенеруй тестовий
+   QR із таким текстом) — номер і дата мають підставитись у поля,
+   сканер закриється.
+4. Збережи подію, перейди на "Історія" (bottom nav) — подія має бути
+   в списку, найновіші зверху.
+
+---
+
+# ═══════════════════════════════════════════════════════════
+# ФАЗА 16 — АВТОПАРК ДЛЯ ЛОГІСТА (Fleet CRUD)
+# ═══════════════════════════════════════════════════════════
+
+> Навіщо: `src/api/cars.ts`/`drivers.ts` зараз лише читають дані
+> (`fetchCars`, `fetchCar`, `fetchDrivers`, `fetchCurrentDriver`) — на
+> бекенді CRUD уже є (`DJANGO_CODING_GUIDE.md`, Фаза 6-7, з nested
+> `specs`/`trailer` записом — Фаза 10), а на фронтенді немає ЖОДНОЇ
+> сторінки для логіста, щоб додати авто. `src/pages/fleet/` і
+> `src/components/fleet/` — порожні заготовки з Фази 2. Ця фаза їх
+> наповнює.
+
+## Крок 16.1 — CRUD-методи в src/api/cars.ts
+
+Додай поруч із наявними `fetchCars`/`fetchCar`:
+
+```typescript
+// src/api/cars.ts — нові експорти
+export interface CarPayload {
+  nameCar: string;
+  numberCar: string;
+  fuelCardNumber?: number;
+  amountCar: number;
+  defaultTrackingMode: TrackingMode;
+  statusCar: CarStatus;
+  isActive: boolean;
+  specs?: {
+    vinCode?: string;
+    yearManufactured?: number;
+    weightKg?: number;
+    payloadKg?: number;
+    lengthCm?: number;
+    widthCm?: number;
+    heightCm?: number;
+    hasTailLift: boolean;
+    hasTrailer: boolean;
+  };
+}
+
+function toCarPayload(data: CarPayload) {
+  return {
+    name_car: data.nameCar,
+    number_car: data.numberCar,
+    fuel_card_number: data.fuelCardNumber ?? null,
+    amount_car: data.amountCar,
+    default_tracking_mode: data.defaultTrackingMode,
+    status_car: data.statusCar,
+    is_active: data.isActive,
+    ...(data.specs && {
+      specs: {
+        vin_code: data.specs.vinCode ?? "",
+        year_manufactured: data.specs.yearManufactured ?? null,
+        weight_kg: data.specs.weightKg ?? null,
+        payload_kg: data.specs.payloadKg ?? null,
+        length_cm: data.specs.lengthCm ?? null,
+        width_cm: data.specs.widthCm ?? null,
+        height_cm: data.specs.heightCm ?? null,
+        has_tail_lift: data.specs.hasTailLift,
+        has_trailer: data.specs.hasTrailer,
+      },
+    }),
+  };
+}
+
+export async function createCar(data: CarPayload): Promise<Car> {
+  const raw = await apiFetch<RawCar>("/cars/", { method: "POST", json: toCarPayload(data) });
+  return mapCar(raw);
+}
+
+export async function updateCar(id: number, data: CarPayload): Promise<Car> {
+  const raw = await apiFetch<RawCar>(`/cars/${id}/`, { method: "PATCH", json: toCarPayload(data) });
+  return mapCar(raw);
+}
+
+export async function deleteCar(id: number): Promise<void> {
+  await apiFetch<void>(`/cars/${id}/`, { method: "DELETE" });
+}
+```
+
+> У `USE_MOCK` режимі create/update/delete немає сенсу емулювати
+> повноцінно (мокові дані статичні, `mocks/cars.json` не файл БД) —
+> якщо потрібно перевіряти форму без бекенда, досить, щоб функція не
+> кидала виняток; реальна перевірка запису — тільки з `VITE_USE_MOCK=false`
+> і робочим Django.
+
+Аналогічно доповни `src/api/drivers.ts` — `createDriver`/`updateDriver`
+(той самий патерн: `toPayload` snake_case + `apiFetch` POST/PATCH на
+`/drivers/`), вони знадобляться в `CarForm` для призначення водія.
+
+---
+
+## Крок 16.2 — React Query хуки для запису
+
+`src/hocks/useCars.ts` — додай мутації поруч із наявними `useCars`/`useCar`:
+
+```typescript
+// src/hocks/useCars.ts — доповнення
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { createCar, updateCar, deleteCar } from "../api/cars.ts";
+import type { CarPayload } from "../api/cars.ts";
+
+export function useCreateCar() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: CarPayload) => createCar(data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["cars"] }),
+  });
+}
+
+export function useUpdateCar(id: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: CarPayload) => updateCar(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["cars"] });
+      queryClient.invalidateQueries({ queryKey: ["cars", id] });
+    },
+  });
+}
+
+export function useDeleteCar() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => deleteCar(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["cars"] }),
+  });
+}
+```
+
+---
+
+## Крок 16.3 — FleetList
+
+Та сама структура, що й `WaybillList` (Фаза 11) — фільтри/стани
+завантаження зверху, таблиця знизу, лише простіша (без сортування по
+колонках для першої версії):
+
+```typescript
+// src/pages/fleet/FleetList.tsx
+import { Link } from "react-router-dom";
+import { useCars } from "../../hocks/useCars";
+import { Spinner } from "../../components/ui/Spinner";
+import { EmptyState } from "../../components/ui/EmptyState";
+import { ErrorBanner } from "../../components/ui/ErrorBanner";
+import { Badge } from "../../components/ui/Badge";
+
+export function FleetList() {
+  const { data: cars, isLoading, isError, refetch } = useCars();
+
+  return (
+    <div className="p-6 space-y-4">
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold text-white">Автопарк</h1>
+        <Link to="/fleet/new" className="px-3 py-2 text-sm rounded-lg bg-violet-600 text-white hover:bg-violet-500">
+          + Додати авто
+        </Link>
+      </div>
+
+      {isLoading && <Spinner size="lg" label="Завантаження автопарку..." />}
+      {isError && !isLoading && <ErrorBanner message="Не вдалось завантажити автопарк" onRetry={refetch} />}
+      {!isLoading && !isError && cars?.length === 0 && (
+        <EmptyState title="Авто ще немає" subtitle="Натисніть «Додати авто», щоб завести перше" />
+      )}
+
+      {!isLoading && !isError && cars && cars.length > 0 && (
+        <table className="w-full text-sm">
+          <thead className="text-left text-white/50 border-b border-white/10">
+            <tr>
+              <th className="py-2">Номер</th>
+              <th className="py-2">Назва</th>
+              <th className="py-2">Статус</th>
+              <th className="py-2">Водій</th>
+            </tr>
+          </thead>
+          <tbody>
+            {cars.map((car) => (
+              <tr key={car.idCar} className="border-b border-white/5 hover:bg-white/5">
+                <td className="py-2">
+                  <Link to={`/fleet/${car.idCar}`} className="text-violet-300 hover:underline">
+                    {car.numberCar}
+                  </Link>
+                </td>
+                <td className="py-2">{car.nameCar}</td>
+                <td className="py-2"><Badge status={car.statusCar} /></td>
+                <td className="py-2">{car.trailer ? "—" : "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+```
+
+> `Badge` (Фаза 8) очікує певний набір статусів залежно від того, як
+> ти його типізував — якщо `CarStatus` (`active`/`repair`/`inactive`)
+> туди ще не додано, розшир `Badge` або зроби окремий `CarStatusBadge`
+> (саме так і планувалось у старому пункті "Крок 12 — FleetList" в
+> "Що далі" нижче).
+
+---
+
+## Крок 16.4 — CarForm (створення і редагування)
+
+Одна форма на обидва випадки — `create` без `carId` в URL, `edit` з ним:
+
+```typescript
+// src/pages/fleet/CarForm.tsx
+import { useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { useCar, useCreateCar, useUpdateCar } from "../../hocks/useCars";
+import { Input } from "../../components/ui/Input";
+import { Button } from "../../components/ui/Button";
+import { ErrorBanner } from "../../components/ui/ErrorBanner";
+import type { CarPayload } from "../../api/cars";
+
+export function CarForm() {
+  const { carId } = useParams();
+  const navigate = useNavigate();
+  const isEdit = !!carId;
+  const { data: existing } = useCar(isEdit ? Number(carId) : 0);
+
+  const [nameCar, setNameCar] = useState(existing?.nameCar ?? "");
+  const [numberCar, setNumberCar] = useState(existing?.numberCar ?? "");
+  const [amountCar, setAmountCar] = useState(String(existing?.amountCar ?? ""));
+  const [vinCode, setVinCode] = useState(existing?.specs?.vinCode ?? "");
+
+  const createCar = useCreateCar();
+  const updateCar = useUpdateCar(Number(carId));
+  const mutation = isEdit ? updateCar : createCar;
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const payload: CarPayload = {
+      nameCar,
+      numberCar,
+      amountCar: Number(amountCar),
+      defaultTrackingMode: "daily",
+      statusCar: "active",
+      isActive: true,
+      specs: vinCode ? { vinCode, hasTailLift: false, hasTrailer: false } : undefined,
+    };
+    mutation.mutate(payload, { onSuccess: () => navigate("/fleet") });
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="p-6 max-w-lg space-y-4">
+      <h1 className="text-xl font-bold text-white">{isEdit ? "Редагувати авто" : "Нове авто"}</h1>
+      <Input label="Назва (модель)" value={nameCar} onChange={(e) => setNameCar(e.target.value)} required />
+      <Input label="Держ. номер" value={numberCar} onChange={(e) => setNumberCar(e.target.value)} required />
+      <Input label="Місячна амортизація (грн)" type="number" value={amountCar} onChange={(e) => setAmountCar(e.target.value)} required />
+      <Input label="VIN (необов'язково)" value={vinCode} onChange={(e) => setVinCode(e.target.value)} />
+
+      {mutation.isError && <ErrorBanner message={(mutation.error as Error).message} />}
+
+      <div className="flex gap-3">
+        <Button type="button" variant="ghost" onClick={() => navigate("/fleet")}>Скасувати</Button>
+        <Button type="submit" isLoading={mutation.isPending} className="flex-1">Зберегти</Button>
+      </div>
+    </form>
+  );
+}
+```
+
+Це мінімальний набір полів (назва, номер, амортизація, VIN) —
+розшир формою повністю під `CarSpecs`/`Trailer`/призначення водія
+(`useDrivers`, `<select>` зі списком) за тим самим принципом умовних
+блоків, що й у `EventForm` (Фаза 13.5) для різних `event_type`.
+
+---
+
+## Крок 16.5 — Підключення в App.tsx
+
+```typescript
+// src/App.tsx — фрагмент /fleet
+<Route
+  path="/fleet"
+  element={
+    <RequireRole roles={["logist", "manager", "head"]}>
+      <MainLayout />
+    </RequireRole>
+  }
+>
+  <Route index element={<FleetList />} />
+  <Route path="new" element={<CarForm />} />
+  <Route path=":carId" element={<CarForm />} />
+</Route>
+```
+
+## Крок 16.6 — Перевірка
+
+1. Залогинься користувачем з `role="logist"` (або `manager`/`head`).
+2. `/fleet` → таблиця авто, кнопка "+ Додати авто".
+3. Заповни форму, збережи → редирект на `/fleet`, нове авто в таблиці.
+4. Клік по номеру авто → `CarForm` у режимі редагування з
+   передзаповненими полями, зміни зберігаються через `PATCH`.
+5. Перевір у Django Admin (`/admin/cars/car/`) — запис реально
+   з'явився/оновився в БД.
+
+---
+
+# ═══════════════════════════════════════════════════════════
 # ЩО ДАЛІ
 # ═══════════════════════════════════════════════════════════
 
@@ -5006,21 +5715,18 @@ npm run dev
 - Кнопка "← Назад"
 - Підсумки: сума, вага, об'єм
 
-### Крок 12 — FleetList (реєстр авто)
-- Аналогічна структура до WaybillList
-- Фільтри: статус авто, режим трекінгу
-- CarStatusBadge у таблиці
+~~Крок 12 — FleetList~~ і ~~Крок 14 — QRScanner~~ — виконано, дивись
+Фазу 16 (`FleetList`/`CarForm`) і Фазу 15 (`QRScanner`) вище.
+`CarStatusBadge` (фільтри по статусу авто/режиму трекінгу в таблиці) —
+залишається доробити поверх `FleetList` із Фази 16.3, як окрема
+косметична ітерація (за зразком `WaybillFiltersBar`/`SortHeader` з
+Фази 11).
 
-### Крок 14 — QRScanner
-- html5-qrcode бібліотека
-- Мульти-скан (камера не закривається)
-- Channel guard перевірка
+### Крок 12 — HiredTripForm (найманий транспорт)
+### Крок 13 — CarrierShipmentForm (служби доставки)
+### Крок 14 — Аналітика і графіки (Recharts)
 
-### Крок 15 — HiredTripForm (найманий транспорт)
-### Крок 16 — CarrierShipmentForm (служби доставки)
-### Крок 17 — Аналітика і графіки (Recharts)
-
-### Крок 18 — Адмін: підтвердження реєстрацій користувачів
+### Крок 15 — Адмін: підтвердження реєстрацій користувачів
 Зараз нові акаунти (`is_active=False`) підтверджуються ВРУЧНУ через Django
 Admin бекенду (`vehicle_tracker_api`); адмін лише отримує лист-сповіщення
 (див. `apps/accounts/views.py::_notify_admin_new_registration`, ADMIN_EMAIL
