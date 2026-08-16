@@ -1,10 +1,23 @@
 import { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useCurrentUser } from '../hocks/useCurrentUser';
+import type { UserProfile } from '../api/auth';
 
 const BOT_USERNAME = import.meta.env.VITE_TELEGRAM_BOT_USERNAME as string | undefined;
 
 type Status = 'loading' | 'not_registered' | 'pending_approval' | 'error' | 'ready';
+
+// Куди веде кожна роль після логіну через Mini App. driver — єдина роль з
+// повноцінним готовим екраном (DriverDashboard, Фаза 13); logist/manager/head
+// ведуть на /fleet — правильний за змістом розділ (авто + водії), навіть
+// поки він сам ще PlaceholderPage (Фаза 16 CODING_GUIDE.md не набрана
+// руками) — головне, щоб адмін/логіст більше не потрапляв на екран водія.
+const ROLE_LANDING: Record<UserProfile['role'], string> = {
+	driver: '/driver',
+	logist: '/fleet',
+	manager: '/fleet',
+	head: '/fleet',
+};
 
 // Рендериться всередині Telegram WebView (кнопка бота), не сайту — тому без TopNav/AuthModal.
 export function DriverMiniApp() {
@@ -14,6 +27,7 @@ export function DriverMiniApp() {
 	const [status, setStatus] = useState<Status>(() =>
 		window.Telegram?.WebApp?.initData ? 'loading' : 'error',
 	);
+	const [landing, setLanding] = useState('/driver');
 
 	useEffect(() => {
 		const tg = window.Telegram?.WebApp;
@@ -23,7 +37,10 @@ export function DriverMiniApp() {
 		if (!initData) return;
 
 		loginWithTelegram(initData)
-			.then(() => setStatus('ready'))
+			.then((user) => {
+				setLanding(user.profile ? ROLE_LANDING[user.profile.role] : '/driver');
+				setStatus('ready');
+			})
 			.catch((err: Error) => {
 				if (err.message === 'not_registered') setStatus('not_registered');
 				else if (err.message === 'pending_approval') setStatus('pending_approval');
@@ -58,8 +75,7 @@ export function DriverMiniApp() {
 				</Centered>
 			);
 		case 'ready':
-			// Далі — реальний екран водія (Крок 13 CODING_GUIDE.md), не заглушка тут.
-			return <Navigate to="/driver" replace />;
+			return <Navigate to={landing} replace />;
 	}
 }
 

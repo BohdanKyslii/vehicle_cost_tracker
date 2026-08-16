@@ -21,9 +21,6 @@ export default function App() {
                 <Route path="history" element={<PlaceholderPage title="Історія" />} />
             </Route>
             
-            {/* Telegram Mini App — логінить через initData, далі веде в /driver (Крок 13.0) */}
-            <Route path="/driver-app" element={<DriverMiniApp />} />
-
             {/* ── Автопарк ─────────────────────────────────── */}
             <Route path="/fleet" element={<MainLayout />}>
                 <Route index element={<PlaceholderPage title="Автопарк" />} />
