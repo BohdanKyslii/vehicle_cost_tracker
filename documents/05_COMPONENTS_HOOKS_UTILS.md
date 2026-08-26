@@ -1,157 +1,110 @@
 # Vehicle Cost Tracker — Компоненти, Hooks, Utils
 
+> ✅ Резинхронізовано 2026-08-24 з реальним кодом. ⏳ позначає те, що
+> лишається планом (функція/файл не існує). Реальна тека хуків
+> називається **`src/hocks/`** (не `hooks/`) — це не помилка в документі,
+> це реальна назва теки в репозиторії; лишено як є свідомо.
+
 ---
 
 ## `api/` — шар отримання даних
 
 ```typescript
-// api/config.ts
+// api/config.ts — ✅ реалізовано
+export const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3000';
 export const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
-export const API_BASE = import.meta.env.VITE_API_BASE ?? "/api";
+export function apiFetch<T>(path: string, options?: FetchOptions): Promise<T>;
+// credentials:'include' + X-CSRFToken header — сесійна авторизація, не JWT
+export function mockDelay(ms?: number): Promise<void>;
 
-// api/cars.ts
+// api/auth.ts — ✅ реалізовано, НЕ було в оригінальному плані
+export interface UserProfile { role: 'driver'|'logist'|'manager'|'head'; phone: string; telegram_id: number|null; driver: number|null; }
+export interface CurrentUser { id: number; username: string; email: string; is_active: boolean; profile: UserProfile | null; }
+export function fetchCsrf(): Promise<{ csrfToken: string }>;
+export function fetchCurrentUser(): Promise<{ user: CurrentUser | null }>;
+export function login(username: string, password: string): Promise<CurrentUser>;
+export function register(username: string, email: string, password: string, role: string): Promise<RegisterResult>;
+export function logout(): Promise<void>;
+export function loginWithTelegram(initData: string): Promise<CurrentUser>;  // Mini App
+
+// api/cars.ts — ✅ частково (тільки читання)
 export async function fetchCars(): Promise<Car[]>
 export async function fetchCar(id: number): Promise<Car>
-export async function updateCar(id: number, data: Partial<Car>): Promise<Car>
+// ⏳ createCar/updateCar/deleteCar — заплановані на Фазу 16, ще НЕ написані
 
-// api/drivers.ts
-export async function fetchCurrentDriver(): Promise<Driver>
+// api/drivers.ts — ✅ частково
 export async function fetchDrivers(): Promise<Driver[]>
+export async function fetchCurrentDriver(): Promise<Driver>
+// ⏳ createDriver/updateDriver — заплановані (Фаза 16), ще НЕ написані
 
-// api/routeEvents.ts
+// api/routeEvents.ts — ✅ реалізовано
 export async function fetchTodayEvents(carId: number): Promise<RouteEvent[]>
-export async function fetchEventsByDate(carId: number, date: string): Promise<RouteEvent[]>
-export async function fetchEventsByRange(carId: number, from: string, to: string): Promise<RouteEvent[]>
-export async function createRouteEvent(data: RouteEventCreate): Promise<RouteEvent>
 export async function fetchLastOdometer(carId: number): Promise<number | null>
+export async function createRouteEvent(data: RouteEventCreate): Promise<RouteEvent>
+// ⏳ fetchEventsByDate/fetchEventsByRange — з оригінального плану, ще НЕ написані
 
-// api/waybills.ts
-export async function fetchWaybills(
-  filters: WaybillFilters,
-  sort: SortParams,
-  pagination: PaginationParams,
-): Promise<PaginatedResponse<WaybillSummary>>
+// api/waybills.ts — ✅ частково
+export async function fetchWaybills(filters, sort, pagination): Promise<PaginatedResponse<WaybillSummary>>
 export async function fetchWaybillDetail(number: string): Promise<WaybillRecord[]>
-export async function importWaybillsCsv(rows: Partial<WaybillRecord>[]): Promise<ImportResult>
-export async function checkWaybillChannel(number: string): Promise<{
-  waybillNumber: string;
-  deliveryChannel: DeliveryChannel | null;
-}>
-export async function fetchUnassignedWaybills(filters: {
-  dateFrom?: string; dateTo?: string; customerId?: string;
-}): Promise<WaybillSummary[]>
-export async function fetchReturnsPending(): Promise<RouteEvent[]>
+export async function checkWaybillChannel(number: string): Promise<{ waybillNumber: string; deliveryChannel: DeliveryChannel | null }>
+export async function fetchUnassignedWaybills(): Promise<WaybillSummary[]>
+// ⏳ importWaybillsCsv/fetchReturnsPending — з оригінального плану, ще НЕ написані
 
-// api/stores.ts
-export async function fetchStores(): Promise<Store[]>
-export async function fetchStore(id: string): Promise<Store>
-export async function fetchStoresByCustomer(customerId: string): Promise<Store[]>
-
-// api/hiredTransport.ts
-export async function fetchHiredTrips(filters: {
-  dateFrom?: string; dateTo?: string; carNumber?: string;
-}): Promise<HiredTransportTrip[]>
-export async function fetchHiredTrip(id: number): Promise<HiredTransportTrip>
-export async function createHiredTrip(data: HiredTransportTripCreate & {
-  waybillNumbers: string[];
-}): Promise<HiredTransportTrip>
-
-// api/carriers.ts
-export async function fetchCarrierShipments(filters: {
-  carrierName?: string; dateFrom?: string; dateTo?: string;
-}): Promise<CarrierShipment[]>
-export async function createCarrierShipment(data: CarrierShipmentCreate & {
-  waybillNumbers: string[];
-}): Promise<CarrierShipment>
-export async function importCarrierCosts(
-  carrierName: string,
-  rows: Partial<CarrierCost>[],
-): Promise<ImportResult>
-
-// api/monthlyCosts.ts
-export async function fetchMonthlyCosts(carId: number, month: string): Promise<MonthlyCosts | null>
-export async function saveMonthlyCosts(data: MonthlyCostsForm): Promise<MonthlyCosts>
-
-// api/analytics.ts
-export async function fetchTransportCosts(params: {
-  carId?: number; month?: string; legalEntity?: LegalEntity;
-}): Promise<TransportCostPerWaybill[]>
-export async function fetchCustomerAnalytics(params: {
-  month?: string; legalEntity?: LegalEntity;
-}): Promise<TransportCostPerCustomer[]>
-export async function fetchChannelComparison(months: number): Promise<ChannelComparison[]>
-export async function fetchCarMonthlySummary(carId: number, month: string): Promise<CarMonthlySummary>
+// ⏳ api/stores.ts, api/hiredTransport.ts, api/carriers.ts, api/monthlyCosts.ts,
+//    api/analytics.ts — ЖОДЕН з цих файлів ще не існує (весь оригінальний
+//    план для них лишається планом)
 ```
 
 ---
 
-## `hooks/` — React Query хуки
+## `hocks/` — React Query хуки
 
 ```typescript
-// hooks/useCars.ts
+// hocks/useCars.ts — ✅
 export function useCars()
 export function useCar(id: number)
 
-// hooks/useCurrentDriver.ts
+// hocks/useDrivers.ts — ✅ (частково: лише поточний водій)
 export function useCurrentDriver()
+// ⏳ useDrivers() (список) — з оригінального плану useCurrentDriver.ts, ще НЕ написано
 
-// hooks/useRouteEvents.ts
-export function useTodayEvents(carId: number)
-export function useEventsByDate(carId: number, date: string)
+// hocks/useRouteEvents.ts — ✅
+export function useTodayEvents(carId: number)      // refetchInterval: 60_000
 export function useLastOdometer(carId: number)
 export function useCreateRouteEvent()
-// Інвалідує: ["route-events", carId], ["last-odometer", carId], ["daily-summary", carId, date]
+// ⏳ useEventsByDate — з оригінального плану, ще НЕ написано
 
-// hooks/useDayMode.ts
-// Зберігає вибір режиму водія в localStorage (ключ: "dayMode:{carId}:{date}")
+// hocks/useDayMode.ts — ✅
+// Зберігає вибір режиму водія в localStorage, ключ "dayMode:{дата}"
+// (⚠️ без carId у ключі — відрізняється від опису в оригінальному плані,
+// але й дефолт кожен раз береться з поточного carDefaultMode)
 export function useDayMode(carDefaultMode: TrackingMode): {
-  dayMode: TrackingMode;
-  setDayMode: (mode: TrackingMode) => void;
-  isOverridden: boolean;
+  dayMode: TrackingMode; setDayMode: (mode: TrackingMode) => void; isOverridden: boolean;
 }
 
-// hooks/useWaybills.ts
+// hocks/useWaybills.ts — ✅ частково
 export function useWaybills(filters, sort, pagination)
 export function useWaybillDetail(waybillNumber: string)
 export function useCheckWaybillChannel(waybillNumber: string)
-export function useUnassignedWaybills(filters)
-export function useImportWaybills()
-export function useReturnsPending()
+export function useUnassignedWaybills()
+// ⏳ useImportWaybills/useReturnsPending — з оригінального плану, ще НЕ написані
 
-// hooks/useWaybillFilters.ts
-// Стан фільтрів у URL search params — включає deliveryChannel, storeId
+// hocks/useWaybillFilters.ts — ✅
+// Стан фільтрів/сортування/сторінки в URL search params
 export function useWaybillFilters()
 
-// hooks/useDailySummary.ts
-export function useDailySummary(carId: number, date: string): DailySummary | null
-
-// hooks/useHiredTransport.ts
-export function useHiredTrips(filters)
-export function useHiredTrip(id: number)
-export function useCreateHiredTrip()
-
-// hooks/useCarriers.ts
-export function useCarrierShipments(filters)
-export function useCarrierShipment(id: number)
-export function useCreateCarrierShipment()
-export function useImportCarrierCosts()
-
-// hooks/useMonthlyCosts.ts
-export function useMonthlyCosts(carId: number, month: string)
-export function useSaveMonthlyCosts()
-
-// hooks/useWaybillChannelGuard.ts
-// Утилітний хук — перевірка ексклюзивності перед додаванням накладної
-export function useWaybillChannelGuard() {
-  return async (waybillNumber: string): Promise<boolean> => {
-    const result = await checkWaybillChannel(waybillNumber);
-    if (result.deliveryChannel !== null) {
-      toast.error(`Накладна ${waybillNumber} вже в каналі: ${channelLabel(result.deliveryChannel)}`);
-      return false;
-    }
-    return true;
-  };
+// hocks/useCurrentUser.ts — ✅ реалізовано, НЕ було в оригінальному плані
+export function useCurrentUser(): {
+  user, isLoading, login, register, logout, loginWithTelegram,
+  loginError, registerError, logoutError, loginWithTelegramError,
 }
+
+// hocks/useAuthModal.ts — ✅ реалізовано, НЕ було в оригінальному плані
+export function useAuthModal(): { isOpen, isSignup, openLogin, openSignup, close, switchTo }
+
+// ⏳ Жоден з цих хуків з оригінального плану ще не існує:
+//    useDailySummary, useHiredTransport, useCarriers, useMonthlyCosts,
+//    useWaybillChannelGuard, useTransportCosts
 ```
 
 ---
@@ -159,56 +112,37 @@ export function useWaybillChannelGuard() {
 ## `utils/` — Бізнес-логіка
 
 ```typescript
-// utils/calcSummary.ts
-// daily: mileage = depot_start сьогодні − depot_start вчора.
-// full: mileage = сума відрізків; порожній пробіг = parking_end − остання delivery.
-// palletsCount береться з depot_start (daily) або SUM по delivery (full).
-
-export function buildDailySummary(
-  events: RouteEvent[],
-  prevDayLastOdometer: number | null,
-): DailySummary
-
+// utils/calcSummary.ts — ✅ реалізовано
+// daily: пробіг = depot_start сьогодні − lastOdometer вчора.
+// full: пробіг = одометр parking_end − одометр depot_start;
+//       порожній пробіг = від останнього delivery до parking_end.
+// palletsCount: depot_start (daily) або SUM по delivery (full).
+export function buildDailySummary(events: RouteEvent[], prevDayLastOdometer: number | null): DailySummary
 export function buildRouteSegments(events: RouteEvent[]): RouteSegment[]
-export function calcEmptyMileage(events: RouteEvent[]): number | null
-export function calcTotalPallets(events: RouteEvent[], mode: TrackingMode): number
+// ⏳ calcEmptyMileage/calcTotalPallets як ОКРЕМІ експорти з оригінального
+//    плану — логіка є, але інлайнена всередину buildDailySummary, не
+//    винесена окремими функціями
 
-// utils/calcProduct.ts
-export function calcLineWeight(logistics: ProductLogistics, quantity: number): number
-export function calcLineVolume(logistics: ProductLogistics, quantity: number): number
-export function calcVolumetricWeight(volumeCbm: number): number
+// utils/calcProduct.ts — ⏳ ПОРОЖНІЙ файл, лише закоментований TODO
+// (calcUnitVolumeCbm/calcBoxVolumeCbm/calcBoxWeightKg — план, коду немає)
 
-// utils/calcTransportCost.ts
-// Власний автопарк: пропорція від місячних витрат.
-// Найманий: cost_per_waybill = trip.cost_uah / trip.waybills_count.
-// Служби: cost = carrier_costs.cost_uah для конкретного ТТН.
-
-export function allocateMonthlyCosts(
-  waybills: WaybillSummary[],
-  costs: MonthlyCostsSummary,
-): TransportCostPerWaybill[]
-
-export function allocateHiredTripCost(
-  trip: HiredTransportTrip,
-): { waybillNumber: string; costUah: number }[]
-
-export function aggregateByCustomer(
-  perWaybill: TransportCostPerWaybill[],
-  customers: Customer[],
-): TransportCostPerCustomer[]
-
+// utils/calcTransportCost.ts — ✅ реалізовано
 export function calcRepairCost(costs: MonthlyCosts, totalKm: number): number
 export function calcTotalMonthlyCost(costs: MonthlyCosts, totalKm: number): number
+export function allocateMonthlyCosts(waybills: WaybillSummary[], costs: MonthlyCostsSummary, carNumber: string): TransportCostPerWaybill[]
+export function allocateHiredTripCost(trip: HiredTransportTrip): { waybillNumber: string; costUah: number }[]
+// ⏳ aggregateByCustomer — з оригінального плану, ще НЕ написано
 
-// utils/parseQR.ts
+// utils/parseQR.ts — ✅ реалізовано (формат ІНШИЙ, ніж в оригінальному плані)
+// Реальний формат з ESP/OPT/Rubin: "номер:ДД.ММ.РР", напр. "0000391877:06.07.26"
+// (не JSON, як спочатку планувалось — JSON лишено як запасний варіант парсингу)
+export interface QRResult { waybillNumber: string; waybillDate: string; }
 export function parseQRCode(raw: string): QRResult | null
 
-// utils/parseCsv.ts
-// Для реєстру 1С (waybill_records) і реєстру служб доставки (carrier_costs).
-export function parseCsvToWaybills(csvText, columnMap): { rows; errors }
-export function parseCsvToCarrierCosts(csvText, carrierName): { rows: Partial<CarrierCost>[]; errors }
+// ⏳ utils/parseCsv.ts — файл ще НЕ існує (ні parseCsvToWaybills,
+//    ні parseCsvToCarrierCosts)
 
-// utils/formatters.ts
+// utils/formatters.ts — ✅ реалізовано, збігається з планом
 export function formatUah(v: number): string
 export function formatKm(v: number): string
 export function formatLiters(v: number): string
@@ -219,17 +153,18 @@ export function formatDateTime(iso: string): string
 export function formatMonth(iso: string): string
 export function formatPct(v: number): string
 export function formatLegalEntity(e: LegalEntity): string
-export function channelLabel(ch: DeliveryChannel): string  // «Власне авто» / «Найманий» / «Служба»
+export function channelLabel(ch: DeliveryChannel | null | undefined): string
 
-// utils/eventHelpers.ts
+// utils/eventHelpers.ts — ✅ реалізовано (+ 1 функція понад план)
 export function getAvailableEventTypes(mode: TrackingMode): RouteEventType[]
 export function requiresOdometer(type: RouteEventType): boolean
 export function requiresWaybill(type: RouteEventType): boolean
 export function requiresPallets(type: RouteEventType, mode: TrackingMode): boolean
 export function eventTypeLabel(type: RouteEventType): string
 export function eventTypeIcon(type: RouteEventType): string
+export function eventTypeGradient(type: RouteEventType): string  // ⚠️ нове, не було в плані — колір тайла на DriverDashboard/EventForm
 
-// utils/clientFilter.ts
+// utils/clientFilter.ts — ✅ реалізовано, збігається з планом
 export function filterWaybills(items: WaybillSummary[], filters: WaybillFilters): WaybillSummary[]
 export function sortItems<T>(items: T[], sort: SortParams): T[]
 export function paginate<T>(items: T[], pagination: PaginationParams): PaginatedResponse<T>
@@ -239,25 +174,45 @@ export function paginate<T>(items: T[], pagination: PaginationParams): Paginated
 
 ## `components/ui/` — Атомарні компоненти
 
+> ⚠️ **Реальне дублювання, варте уваги:** той самий набір
+> (`Button`/`Input`/`Spinner`/`EmptyState`/`ErrorBanner`) визначений
+> ДВІЧІ — окремими файлами в `components/ui/` (використовуються
+> `WaybillList`/`WaybillTable` через іменовані імпорти
+> `../../components/ui/Spinner` тощо) і ще раз усередині одного файлу
+> `components/ui/ui.tsx` **та** `components/driver/ui.tsx` (майже
+> ідентичний вміст, використовується `DriverDashboard`/`EventForm` через
+> `../../components/driver/ui`). Функціонально ідентичні, різні файли —
+> варто мати на увазі при правках стилю, щоб не редагувати лише одну копію.
+
 ```
-Button.tsx            — primary/secondary/ghost/danger; sm/md/lg
-Badge.tsx             — статуси накладних
-LegalEntityBadge.tsx  — ESP=синій, OPT=зелений, Rubin=червоний
-ChannelBadge.tsx      — own=сірий, hired=жовтий, carrier=фіолетовий, null=помаранчевий⚠️
-CarStatusBadge.tsx    — active=зелений, repair=жовтий, inactive=сірий
-Spinner.tsx
-SkeletonRow.tsx
-EmptyState.tsx
-ErrorBanner.tsx
-Pagination.tsx
-SortHeader.tsx
-Modal.tsx
-Input.tsx
-Select.tsx
-Textarea.tsx
-DatePicker.tsx
-MonthPicker.tsx
-Toast.tsx
+Button.tsx             — ✅ variant: primary/ghost (⚠️ план мав ще secondary/danger, sm/md/lg — не реалізовано)
+Badge.tsx               — ✅ StatusBadge + ChannelBadge + LegalEntityBadge + CarStatusBadge, всі в ОДНОМУ файлі
+                           (план мав окремі LegalEntityBadge.tsx/ChannelBadge.tsx/CarStatusBadge.tsx файли)
+Spinner.tsx             — ✅ size: sm/md/lg
+EmptyState.tsx          — ✅
+ErrorBanner.tsx         — ✅ + onRetry (використовує WaybillList)
+Pagination.tsx          — ✅ ковзне вікно сторінок (WINDOW_SIZE=5)
+SortHeader.tsx           — ✅
+Input.tsx               — ✅ label/error/helpText
+ui.tsx                  — ⚠️ дублює Button/Input/Spinner/EmptyState/ErrorBanner (див. вище)
+
+⏳ Не існує: SkeletonRow.tsx, Modal.tsx, Select.tsx, Textarea.tsx,
+   DatePicker.tsx, MonthPicker.tsx, Toast.tsx
+```
+
+---
+
+## `components/auth/` — ✅ реалізовано, НЕ було в оригінальному плані
+
+```
+AuthModal.tsx
+  — вхід/реєстрація, чотири панелі (pane-login/pane-left-promo/
+    pane-right-promo/pane-signup), перемикання класом .is-signup
+  — реєстрація НЕ логінить одразу: акаунт is_active=False до підтвердження
+    адміном (Django Admin) — форма показує повідомлення й перемикає на вхід
+  — Telegram deep-link (TelegramButton) як альтернатива email-реєстрації
+    для водіїв без пошти
+  — модалка умов використання (showTerms) — окремий inline-backdrop
 ```
 
 ---
@@ -265,76 +220,53 @@ Toast.tsx
 ## `components/driver/`
 
 ```
-DayModeSwitch.tsx       — toggle daily/full + індикатор «відрізняється від дефолту»
-RouteTimeline.tsx       — timeline подій + палети на точках
-EventTypeButtons.tsx    — кнопки за режимом (8 типів)
-ScannedWaybillList.tsx  — чіпи + customerName + storeName + видалення
-PalletsInput.tsx        — число палет з +/- кнопками (великий tap target)
-RejectionForm.tsx       — повна / часткова відмова
-ReturnGoodsForm.tsx     — номер накладної клієнта
-ExtraCargoForm.tsx      — звідки, куди, вага, накладна
+DayModeSwitch.tsx       — ✅ toggle daily/full + індикатор "змінено вручну на сьогодні"
+ui.tsx                  — ✅ (дублікат components/ui/ui.tsx, див. попередження вище)
+
+⏳ Не існує: RouteTimeline.tsx, EventTypeButtons.tsx, ScannedWaybillList.tsx,
+   PalletsInput.tsx, StoreConfirmModal.tsx, RejectionForm.tsx,
+   ReturnGoodsForm.tsx, ExtraCargoForm.tsx
+   (їхня логіка зараз інлайнена прямо в DriverDashboard.tsx/EventForm.tsx)
 ```
 
 ---
 
-## `components/hired/`
+## `components/hired/`, `components/carriers/`, `components/fleet/` — ⏳ порожні теки
+
+Жоден файл з оригінального плану (`HiredTripCard`, `CarrierShipmentCard`,
+`CarCard`, `CarTable`, `DailyCostsChart`, `CostBreakdownPie` тощо) ще не
+написаний.
+
+---
+
+## `components/waybills/` — ✅ частково (Фаза 11)
 
 ```
-HiredTripCard.tsx
-  Props: { trip: HiredTransportTrip }
-  — картка рейсу: номер авто, маршрут, дата, палети, сума
+WaybillFiltersBar.tsx   — ✅ search + status + channel + legalEntity + lineType + dates
+                           (⏳ store-фільтр типізований, контролу в UI ще немає)
+WaybillTable.tsx        — ✅ + ChannelBadge + LegalEntityBadge + StatusBadge
+WaybillList.tsx         — ✅ сама сторінка живе тут, не в pages/waybills/
 
-HiredWaybillList.tsx
-  Props: { waybills: HiredTripWaybill[]; onRemove? }
-  — список прив'язаних накладних + видалення (якщо в режимі редагування)
+⏳ Не існує: WaybillLineTable.tsx, CsvPreview.tsx, ReturnMatchRow.tsx, UnassignedRow.tsx
 ```
 
 ---
 
-## `components/carriers/`
+## `components/analystics/` — ⏳ порожня тека
 
-```
-CarrierShipmentCard.tsx
-  Props: { shipment: CarrierShipment }
-  — картка відправлення: служба, ТТН, дата, к-сть накладних, сума
-
-CarrierCostStatus.tsx
-  Props: { cost?: CarrierCost }
-  — badge «Витрати отримані: X грн» або «Очікується реєстр»
-```
+> ⚠️ Назва теки в реальному коді — `analystics` (не `analytics`). Якщо
+> колись почнеться робота над аналітикою — варто вирішити свідомо,
+> перейменовувати чи лишати: наразі тека порожня, тож перейменування
+> нічого не зламає.
 
 ---
 
-## `components/fleet/`
+## `components/layouts/` — ✅ реалізовано
 
 ```
-CarCard.tsx             — мобільна картка авто
-CarTable.tsx            — таблиця з CarStatusBadge і TrackingModeBadge
-DailyCostsChart.tsx     — recharts BarChart: пробіг + витрати по днях + палети
-CostBreakdownPie.tsx    — recharts PieChart: структура місячних витрат
-```
-
----
-
-## `components/waybills/`
-
-```
-WaybillFiltersBar.tsx   — search + status + channel + legalEntity + lineType + store + dates
-WaybillTable.tsx        — + ChannelBadge + LegalEntityBadge + store column
-WaybillLineTable.tsx    — від'ємна кількість = повернення (червоний колір)
-CsvPreview.tsx          — preview + маппінг колонок
-ReturnMatchRow.tsx      — рядок матчингу повернень
-UnassignedRow.tsx       — рядок з кнопкою «Призначити канал»
-```
-
----
-
-## `components/analytics/`
-
-```
-KpiCard.tsx
-MileageLineChart.tsx
-TransportCostTable.tsx     — + ChannelBadge
-CustomerCostTable.tsx      — + розбивка по каналах
-ChannelComparisonChart.tsx — recharts BarChart: 3 канали по місяцях
+DriverLayout.tsx  — glass-хедер + bottom nav (Маршрут/Сканер/Історія)
+MainLayout.tsx     — sidebar (Автопарк/Накладні/Найманий/Служби/Аналітика/Адміністрування)
+TopNav.tsx         — верхнє меню лендінгу (⚠️ див. 04_PAGES_AND_ROUTING.md —
+                     LandingPage/UnderConstruction, які його використовують,
+                     наразі не підключені в App.tsx)
 ```

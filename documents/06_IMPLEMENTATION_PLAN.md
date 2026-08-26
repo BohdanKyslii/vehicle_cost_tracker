@@ -1,5 +1,13 @@
 # Vehicle Cost Tracker — Покроковий план реалізації
 
+> ⚠️ **Статус (резинхронізовано 2026-08-24):** цей файл — оригінальний
+> тижневий план, написаний ДО старту кодингу. Реальна розробка пішла не
+> по тижнях, а по "Фазах" — детальний, актуальний покроковий запис того,
+> що реально набрано руками, живе в **`CODING_GUIDE.md`** (корінь репо),
+> не тут. План нижче лишено як історичний контекст (WHY саме такий
+> порядок); чеклист у самому кінці файлу — переписано на реальний стан,
+> решта тексту не чіпалась.
+
 ---
 
 ## Загальний таймлайн
@@ -350,45 +358,51 @@ button, a[role="button"] { min-height: 44px; touch-action: manipulation; }
 
 ## Чеклист перед demo
 
+> ⚠️ Оригінально цей чеклист був написаний з усіма пунктами позначеними
+> ✅ — це малось на увазі як "definition of done" (ціль), не як фактичний
+> звіт про виконане (файл писався до старту кодингу). Нижче — реальний
+> стан на 2026-08-24, звірений з кодом.
+
 ```
 Foundation
-  ✅ types: DeliveryChannel, Car, Store, HiredTransportTrip, CarrierShipment
-  ✅ mocks: cars, stores, hired-trips, carrier-shipments, carrier-costs
-  ✅ utils: channelLabel, requiresPallets, allocateHiredTripCost, parseCsvToCarrierCosts
+  ✅ types: DeliveryChannel, Car (+ CarSpecs/Trailer, нове), HiredTransportTrip, CarrierShipment
+  ⏳ mocks: є лише cars, drivers, route-events, waybills
+     (stores/hired-trips/carrier-shipments/carrier-costs — не створені)
+  ⏳ utils: requiresPallets ✅; channelLabel ✅; allocateHiredTripCost ✅;
+     parseCsvToCarrierCosts — файл parseCsv.ts не існує взагалі
 
 Driver UI
   ✅ DayModeSwitch
-  ✅ PalletsInput на depot_start (daily) і delivery (full)
-  ✅ Підтвердження магазину при першому QR скані (daily)
-  ✅ Channel guard при кожному скані
+  ⏳ PalletsInput — поле є, окремого компонента з +/- кнопками немає
+     (звичайний number input в EventForm)
+  ⏳ Підтвердження магазину при першому QR скані (daily) — немає QR-сканера
+  ⏳ Channel guard при кожному скані — немає (номер накладної вводиться вручну)
   ✅ Всі 8 типів подій
 
 WaybillList (оцінка!)
   ✅ Фільтр по deliveryChannel (own/hired/carrier/unassigned/all)
-  ✅ Фільтр по storeId
+  ⏳ Фільтр по storeId — типізований, контролу в UI немає
   ✅ ChannelBadge у таблиці
   ✅ Сортування, пагінація, стани
 
 FleetList (оцінка!)
-  ✅ CarStatusBadge
-  ✅ Колонка палет/міс
+  ⏳ Сторінка взагалі не написана — /fleet рендерить PlaceholderPage
+     (CarStatusBadge-компонент існує й готовий, просто нікуди не підключений)
 
 Найманий транспорт
-  ✅ HiredTripList з фільтрами
-  ✅ HiredTripForm з channel guard
-  ✅ HiredTripDetail
+  ⏳ Нічого не реалізовано (HiredTripList/HiredTripForm/HiredTripDetail)
 
 Служби доставки
-  ✅ CarrierShipmentList
-  ✅ CarrierShipmentForm з channel guard
-  ✅ CarrierCostsImport (CSV парсинг)
+  ⏳ Нічого не реалізовано (CarrierShipmentList/Form/CarrierCostsImport)
 
 Аналітика
-  ✅ ChannelComparison (3 канали по місяцях)
-  ✅ CustomerAnalytics з розбивкою по каналах
-  ✅ MonthlyCosts — auto-fill з cars.amount_car
+  ⏳ Нічого не реалізовано на рівні UI
+     (allocateMonthlyCosts/allocateHiredTripCost — розрахунки вже готові в utils/)
 
-PWA
-  ✅ Installable на телефон
-  ✅ font-size 16px на inputs
+Мобільний доступ водія
+  ✅ Telegram Mini App (/driver-app, DriverMiniApp.tsx) — НЕ було в
+     оригінальному плані, з'явилось пізніше як production-шлях водія
+  ⏳ font-size 16px на inputs — не перевірено окремо в цій сесії
+  ⏳ "Installable на телефон" (PWA) — плагін підключений (Фаза 1),
+     але не є основним шляхом доступу в проді (див. 01_PROJECT_OVERVIEW.md)
 ```

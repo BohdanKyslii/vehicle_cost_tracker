@@ -2,99 +2,191 @@
 
 Файл: `src/types/index.ts`
 
+> ✅ Резинхронізовано 2026-08-24 напряму з реального файлу (раніше цей
+> документ описував ранній варіант типів, написаний до кодингу — з тих
+> пір типи розійшлись помітно: кілька ID-полів стали `number` замість
+> `string`, з'явились `CarSpecs`/`Trailer`/`CarStatusLog`, назви кількох
+> полів не збігаються з backend-серіалізаторами один-в-один). Коментарі
+> в реальному файлі — англійською; тут перекладено заголовки розділів,
+> сам код — як у джерелі.
+
 ---
 
 ## Довідники
 
 ```typescript
-// ── Категорії товарів ──────────────────────────────────────
+// ── Категорія товару ──────────────────────────────────────
 export interface ProductCategory {
   idCategory: number;
   nameCategory: string;
+  parentID: number | null;    // ієрархія категорій — нове відносно плану
+  description: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
-// ── Товар ─────────────────────────────────────────────────
+// Константи для зручності в коді
+export const CATEGORY_DEFAULTS = {
+  ROOT_OTHER: 3,
+  CHILD_OTHER: 15,
+};
+
+// ── Товар (з 1С) ──────────────────────────────────────────
 export interface Product {
-  idProduct: string;
+  idProduct: number;           // ⚠️ number, не string як в оригінальному плані
   nameProduct: string;
-  idCategory: number | null;
-  isActive: boolean;
+  idCategory: number;          // default: 15 ("Інше" → "Аксесуари")
+  isActive: boolean;           // default: true
+  description?: string;
+  createdAt: string;
+  updatedAt: string;
   category?: ProductCategory;
   logistics?: ProductLogistics;
 }
 
+// Дефолти для форми створення нового товару
+export const PRODUCT_DEFAULTS: Partial<Product> = {
+  idCategory: CATEGORY_DEFAULTS.CHILD_OTHER,
+  isActive: true,
+};
+
 // ── Логістичні дані товару ────────────────────────────────
+// ⚠️ Відносно плану: немає boxWeightKg, і немає розрахункових
+// unitVolumeCbm/boxVolumeCbm як полів типу (лишились закоментовані
+// формули в utils/calcProduct.ts — TODO, ще не ввімкнено).
 export interface ProductLogistics {
-  idProduct: string;
+  idProduct: number;
   unitWeightKg?: number;
   unitLengthCm?: number;
   unitWidthCm?: number;
   unitHeightCm?: number;
   unitsPerBox?: number;
-  boxWeightKg?: number;
   boxLengthCm?: number;
   boxWidthCm?: number;
   boxHeightCm?: number;
-  unitVolumeCbm?: number;   // розрахунковий
-  boxVolumeCbm?: number;    // розрахунковий
 }
 
 // ── Клієнт ────────────────────────────────────────────────
 export interface Customer {
-  idCustomer: string;
+  idCustomer: number;          // ⚠️ number, не string як в оригінальному плані
   nameCustomer: string;
   networkCustomer?: string;
   isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 // ── Магазин / торгова точка ───────────────────────────────
 export interface Store {
-  idStore: string;
-  idCustomer: string;
+  idStore: number;             // ⚠️ number, не string як в оригінальному плані
+  idCustomer: number;
   nameStore: string;
   storeAddress?: string;
   isActive: boolean;
   customer?: Customer;
-  deliveryAddresses?: StoreDeliveryAddress[];
+  deliveryAddress?: StoreDeliveryAddress[];  // ⚠️ однина в назві поля, масив
 }
 
 export interface StoreDeliveryAddress {
   id: number;
-  idStore: string;
+  idStore: number;
   deliveryAddress: string;
   isPrimary: boolean;
   notes?: string;
 }
+```
 
-// ── Авто власного автопарку ───────────────────────────────
-export type TrackingMode = "daily" | "full";
+⏳ Жоден з цих типів ще не має ні mock-даних, ні `api/`-виклику, ні UI —
+`Product`/`Customer`/`Store` існують лише як TS-типи.
+
+---
+
+## Автопарк
+
+```typescript
+export type TrackingMode = 'daily' | 'full';
 export type CarStatus = "active" | "repair" | "inactive";
 
+// ── Авто власного автопарку ───────────────────────────────
 export interface Car {
   idCar: number;
-  nameCar: string;
-  numberCar: string;
+  nameCar: string;              // "Mercedes Sprinter 315 CDI"
+  numberCar: string;            // держ. номер, "АА1234ВВ"
+  fuelCardNumber?: number;      // ⚠️ нове відносно плану: номер паливної картки
   amountCar: number;            // амортизація грн/міс
-  defaultTrackingMode: TrackingMode;
+  defaultTrackingMode?: TrackingMode;  // ⚠️ опційне (не обов'язкове, як у плані)
   statusCar: CarStatus;
   isActive: boolean;
+  specs?: CarSpecs;             // ⚠️ нове відносно плану
+  trailer?: Trailer;            // ⚠️ нове відносно плану
+}
+
+// ⚠️ Повністю нове відносно оригінального плану — технічні характеристики авто
+export interface CarSpecs {
+  idCar: number;
+  vinCode?: string;
+  yearManufactured?: number;
+  weightKg?: number;
+  payloadKg?: number;
+  lengthCm?: number;
+  widthCm?: number;
+  heightCm?: number;
+  hasTailLift: boolean;         // гідравлічний борт, default: false
+  hasTrailer: boolean;          // default: false
+  trailer?: Trailer;            // заповнюється лише якщо hasTrailer = true
+}
+
+// ⚠️ Повністю нове відносно оригінального плану — причіп
+export interface Trailer {
+  idTrailer: number;
+  vinCode?: string;
+  yearManufactured?: number;
+  nameTrailer: string;
+  idCar: number;
+  model: string;
+  numberTrailer: string;
+  isActive: boolean;
+}
+
+// ⚠️ Типізовано, але жоден api/-виклик ще не читає/пише цей тип
+export interface CarStatusLog {
+  id: number;
+  idCar: number;
+  status: CarStatus;
+  reason?: string;
+  changedAt: string;
+  changedBy?: number;
 }
 
 // ── Водій ─────────────────────────────────────────────────
 export interface Driver {
   idDriver: number;
   nameDriver: string;
-  phone?: string;
+  phoneDriver?: string;         // ⚠️ phoneDriver, не phone як у плані
+  driversLicense?: string;      // ⚠️ нове відносно плану
   idCar: number | null;
   isActive: boolean;
   car?: Car;
 }
+```
 
-// ── Юридична особа ────────────────────────────────────────
-export type LegalEntity = "ESP" | "OPT" | "Rubin";
+✅ `Car`/`Driver` активно використовуються (Фаза 13, `useCars`, `useDrivers`).
+`CarSpecs`/`Trailer`/`CarStatusLog` — реальні поля API (`RawCarSpecs`/
+`RawTrailer` у `src/api/cars.ts`), але ще без форми редагування на фронтенді
+(Фаза 16 — CRUD для `FleetList`/`CarForm` — не набрана, див.
+`04_PAGES_AND_ROUTING.md`).
 
-// ── Канал доставки ────────────────────────────────────────
-export type DeliveryChannel = "own" | "hired" | "carrier";
+---
+
+## Канал доставки
+
+```typescript
+export type LegalEntity = 'ESP' | 'OPT' | 'Rubin';
+
+// own     = власне авто (водій сканує QR)
+// hired   = найманий транспорт (логіст вносить)
+// carrier = служба доставки (Нова Пошта, Міст Експрес)
+export type DeliveryChannel = 'own' | 'hired' | 'carrier';
 ```
 
 ---
@@ -111,8 +203,8 @@ export interface WaybillRecord {
   linePosition: number;
   customerId: string;
   customerName: string;
-  storeId?: string;             // нове поле
-  productId: string;
+  storeId?: string;
+  productId: number;            // ⚠️ number, не string як у плані
   productName: string;
   quantity: number;             // + відвантаження, − повернення
   priceUah: number;
@@ -121,12 +213,11 @@ export interface WaybillRecord {
   totalWeightKg?: number;
   totalVolumeCbm?: number;
   volumetricWeightKg?: number;
-  deliveryChannel?: DeliveryChannel | null;  // null = ще не призначено
+  deliveryChannel?: DeliveryChannel | null;
+  status?: WaybillStatus;       // ⚠️ нове поле прямо в рядку (не тільки в Summary)
   importedAt: string;
   importBatchId?: string;
 }
-
-export type WaybillLineType = "shipment" | "return";
 
 // ── Агрегована накладна ───────────────────────────────────
 export interface WaybillSummary {
@@ -136,49 +227,49 @@ export interface WaybillSummary {
   customerId: string;
   customerName: string;
   storeId?: string;
+  storeName?: string;
   linesCount: number;
   totalUah: number;
   returnsUah: number;
   totalWeightKg?: number;
   totalVolumeCbm?: number;
   deliveryChannel?: DeliveryChannel | null;
-  // деталі каналу (залежно від deliveryChannel)
-  carId?: number;               // own
-  carNumber?: string;           // own
-  tripId?: number;              // hired
-  tripRouteName?: string;       // hired
-  shipmentId?: number;          // carrier
-  carrierName?: string;         // carrier
+  carId?: number;
+  carNumber?: string;
+  tripId?: number;
+  tripRouteName?: string;
+  shipmentId?: number;
+  carrierName?: string;
   status: WaybillStatus;
 }
 
-export type WaybillStatus =
-  | "pending"     // не призначено до каналу
-  | "scanned"     // відскановано
-  | "delivered"
-  | "cancelled";
+export type WaybillStatus = "pending" | "scanned" | "delivered" | "cancelled";
 ```
+
+✅ `WaybillRecord`/`WaybillSummary` активно в роботі (Фаза 11, `WaybillList`,
+`aggregateToSummaries` в `src/api/waybills.ts`). `storeId`/`storeName`
+типізовані, але ще не заповнюються реальними даними (немає mock/API для
+`stores`).
 
 ---
 
 ## Трекінг — власний автопарк
 
 ```typescript
-// ── Тип події ─────────────────────────────────────────────
 export type RouteEventType =
-  | "depot_start"
-  | "delivery"
-  | "parking_end"
-  | "depot_return"
-  | "refuel"
-  | "other_cost"
-  | "return_goods"
-  | "extra_cargo";
+  | 'depot_start'
+  | 'delivery'
+  | 'parking_end'
+  | 'depot_return'
+  | 'refuel'
+  | 'other_cost'
+  | 'return_goods'
+  | 'extra_cargo';
 
 // ── Відмова від поставки ──────────────────────────────────
 export interface DeliveryRejection {
   isFull: boolean;
-  productId?: string;
+  productId?: number;           // ⚠️ number, не string як у плані
   quantity?: number;
   comment?: string;
 }
@@ -188,11 +279,11 @@ export interface RouteEvent {
   id: number;
   carId: number;
   driverId: number;
-  trackingMode: TrackingMode;
+  trackingMode?: TrackingMode;  // ⚠️ опційне (не обов'язкове, як у плані)
   eventType: RouteEventType;
   eventTs: string;
   odometerKm?: number;
-  palletsCount?: number;        // нове поле
+  palletsCount?: number;
 
   // delivery
   waybillNumber?: string;
@@ -206,9 +297,9 @@ export interface RouteEvent {
   adBlueLiters?: number;
   adBlueCostUah?: number;
 
-  // other_cost
-  otherCostsUah?: number;
-  otherCostsComment?: string;
+  // other_cost — ⚠️ ОДНИНА (otherCostUah), не otherCostsUah як у плані
+  otherCostUah?: number;
+  otherCostComment?: string;
 
   // return_goods
   returnClientWaybill?: string;
@@ -224,7 +315,7 @@ export interface RouteEvent {
   createdAt: string;
 }
 
-export type RouteEventCreate = Omit<RouteEvent, "id" | "createdAt">;
+export type RouteEventCreate = Omit<RouteEvent, 'id' | 'createdAt'>;
 
 // ── Відрізок маршруту ─────────────────────────────────────
 export interface RouteSegment {
@@ -245,19 +336,28 @@ export interface DailySummary {
   totalMileageKm: number;
   loadedMileageKm: number | null;
   emptyMileageKm: number | null;
-  palletsCount: number | null;  // нове поле
+  palletsCount: number | null;
   fuelLiters: number;
   fuelCostUah: number;
   adBlueLiters: number;
   adBlueCostUah: number;
-  otherCostsUah: number;
+  otherCostUah: number;
   deliveriesCount: number;
-  returnsCount: number;
+  returnCount: number;          // ⚠️ returnCount, не returnsCount як у плані
   extraCargoCount: number;
   waybillNumbers: string[];
   segments: RouteSegment[];
 }
 ```
+
+> ⚠️ **Реальна пастка (задокументована прямо в коді, `src/api/routeEvents.ts`):**
+> TS-поле — `otherCostUah` (однина), поле Django-моделі — `other_costs_uah`
+> (множина). `toRouteEventPayload`/`mapRouteEvent` вручну мапують це
+> розходження — якщо додаєш нове поле за аналогією, звір назву з моделлю,
+> не покладайся на "дзеркальність" camelCase↔snake_case.
+
+✅ Весь цей блок активно в роботі — Фаза 13 (`DriverDashboard`, `EventForm`),
+`buildDailySummary`/`buildRouteSegments` в `src/utils/calcSummary.ts`.
 
 ---
 
@@ -267,14 +367,14 @@ export interface DailySummary {
 export interface MonthlyCosts {
   id: number;
   carId: number;
-  month: string;
+  month: string;                // формат YYYY-MM
   salaryUah: number;
   taxesUah: number;
   depreciationUah: number;
   repairActualUah?: number;
-  repairRateUahKm: number;
-  otherCostsUah: number;
-  otherCostsComment?: string;
+  repairRateUahKm: number;      // default: 2.00
+  otherCostUah: number;         // ⚠️ однина, не otherCostsUah як у плані
+  otherCostComment?: string;
 }
 
 export type MonthlyCostsForm = Omit<MonthlyCosts, "id">;
@@ -286,26 +386,31 @@ export interface MonthlyCostsSummary extends MonthlyCosts {
 }
 ```
 
+✅ Розрахункові функції (`calcRepairCost`, `calcTotalMonthlyCost`) готові в
+`src/utils/calcTransportCost.ts`. ⏳ Немає ні mock-даних, ні форми внесення
+(`MonthlyCostsAdmin`).
+
 ---
 
 ## Найманий транспорт
 
 ```typescript
-// ── Рейс найманого транспорту ─────────────────────────────
 export interface HiredTransportTrip {
   id: number;
-  carNumber: string;            // вільний ввід
-  routeName: string;            // «Пирятин, Полтава, Харків»
+  carNumber: string;
+  routeName: string;
   tripDate: string;
   palletsCount?: number;
   costUah: number;
   comment?: string;
   createdAt: string;
-  // прив'язані накладні (join)
   waybills?: HiredTripWaybill[];
 }
 
-export type HiredTransportTripCreate = Omit<HiredTransportTrip, "id" | "createdAt" | "waybills">;
+export type HiredTransportTripCreate = Omit<
+  HiredTransportTrip,
+  "id" | "createdAt" | "waybills"
+>;
 
 export interface HiredTripWaybill {
   id: number;
@@ -313,37 +418,31 @@ export interface HiredTripWaybill {
   waybillNumber: string;
   scannedAt: string;
 }
-
-// ── Форма внесення рейсу (логіст) ────────────────────────
-export interface HiredTripFormState {
-  carNumber: string;
-  routeName: string;
-  tripDate: string;
-  palletsCount: string;
-  costUah: string;
-  comment: string;
-  scannedWaybills: ScannedWaybill[];
-}
 ```
+
+✅ Типи готові й не змінились відносно плану. ⏳ Немає ні mock-даних, ні
+`api/hiredTransport.ts`, ні UI.
 
 ---
 
 ## Служби доставки
 
 ```typescript
-// ── Відправлення через службу ─────────────────────────────
 export interface CarrierShipment {
   id: number;
-  carrierName: string;          // «Нова Пошта», «Міст Експрес»
-  ttn: string;                  // номер ТТН
+  carrierName: string;
+  ttn: string;
   shipmentDate: string;
   comment?: string;
   createdAt: string;
   waybills?: CarrierWaybill[];
-  cost?: CarrierCost;           // після імпорту реєстру
+  cost?: CarrierCost;
 }
 
-export type CarrierShipmentCreate = Omit<CarrierShipment, "id" | "createdAt" | "waybills" | "cost">;
+export type CarrierShipmentCreate = Omit<
+  CarrierShipment,
+  "id" | "createdAt" | "waybills" | "cost"
+>;
 
 export interface CarrierWaybill {
   id: number;
@@ -352,7 +451,6 @@ export interface CarrierWaybill {
   scannedAt: string;
 }
 
-// ── Рядок реєстру витрат від служби ──────────────────────
 export interface CarrierCost {
   id: number;
   shipmentId?: number;
@@ -366,12 +464,14 @@ export interface CarrierCost {
 }
 ```
 
+✅ Типи готові й не змінились відносно плану. ⏳ Немає ні mock-даних, ні
+`api/carriers.ts`, ні UI.
+
 ---
 
 ## Аналітика
 
 ```typescript
-// ── Транспортна собівартість по накладній (власний автопарк)
 export interface TransportCostPerWaybill {
   legalEntity: LegalEntity;
   waybillNumber: string;
@@ -388,7 +488,6 @@ export interface TransportCostPerWaybill {
   costPctOfSale: number;
 }
 
-// ── Транспортна собівартість по клієнту ──────────────────
 export interface TransportCostPerCustomer {
   customerId: string;
   customerName: string;
@@ -396,8 +495,6 @@ export interface TransportCostPerCustomer {
   waybillsCount: number;
   saleUah: number;
   totalWeightKg?: number;
-  totalVolumeCbm?: number;
-  // розбивка по каналах
   ownCostUah: number;
   hiredCostUah: number;
   carrierCostUah: number;
@@ -405,7 +502,6 @@ export interface TransportCostPerCustomer {
   costPctOfSale: number;
 }
 
-// ── Місячний підсумок по авто ─────────────────────────────
 export interface CarMonthlySummary {
   carId: number;
   carNumber: string;
@@ -419,10 +515,8 @@ export interface CarMonthlySummary {
   fuelLitersPer100Km: number;
   totalCostUah: number;
   costPerKmUah: number;
-  totalWeightKg?: number;
 }
 
-// ── Порівняння каналів доставки ───────────────────────────
 export interface ChannelComparison {
   month: string;
   ownWaybillsCount: number;
@@ -435,6 +529,10 @@ export interface ChannelComparison {
   carrierTotalCostUah: number;
 }
 ```
+
+⏳ Типи готові, `allocateMonthlyCosts`/`allocateHiredTripCost` рахують
+`TransportCostPerWaybill[]` в `utils/`, але жоден `api/analytics.ts` чи
+сторінка аналітики ще не існують.
 
 ---
 
@@ -484,6 +582,20 @@ export interface ScannedWaybill {
   scannedAt: string;
   customerName?: string;
   storeName?: string;
-  deliveryChannel?: DeliveryChannel;  // перевірка ексклюзивності при скануванні
+  deliveryChannel?: DeliveryChannel;
 }
 ```
+
+✅ Активно в роботі: `WaybillFilters`/`SortParams`/`PaginatedResponse` —
+Фаза 11 (`useWaybillFilters`, `WaybillList`). `ScannedWaybill`/`ImportResult`/
+`ImportError` — типізовані про запас, ще без коду що їх використовує
+(QR-сканер і CSV-імпорт не набрані).
+
+---
+
+## Що ще НЕ типізовано, хоч і присутнє в реальному коді
+
+- `UserProfile`/`CurrentUser` (авторизація, `src/api/auth.ts`) — живуть
+  окремо від `src/types/index.ts`, не задокументовані в оригінальному плані
+  взагалі (авторизації там не було). `UserProfile.role` — `'driver' |
+  'logist' | 'manager' | 'head'`.

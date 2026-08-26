@@ -1,5 +1,16 @@
 # Vehicle Cost Tracker — Схема бази даних (PostgreSQL)
 
+> ⚠️ **Статус (резинхронізовано 2026-08-24):** це оригінальний план схеми,
+> написаний до старту кодингу. Реальна БД живе в окремому репозиторії
+> **`vehicle_tracker_api`** (Django + DRF), її джерело правди —
+> `DJANGO_CODING_GUIDE.md` там, не цей файл — з цього репо міграції не
+> видно. Судячи з фронтенд-типів (`src/types/index.ts`, розбір у
+> `03_TYPESCRIPT_TYPES.md`), реальна схема вже розійшлась зі схемою
+> нижче в кількох місцях (див. розділ "Відомі розширення" в кінці файлу).
+> Таблиці `products`/`customers`/`stores`/`hired_transport_trips`/
+> `carrier_shipments` і пов'язані з ними — досі лише план: на фронтенді
+> для них немає ні mock-даних, ні UI (`07_MOCK_DATA.md`).
+
 ---
 
 ## Діаграма зв'язків
@@ -571,3 +582,35 @@ GROUP BY wr.legal_entity, wr.waybill_number, wr.waybill_date,
          wr.customer_id, wr.customer_name, wr.store_id,
          re.car_id, mt.total_sales_uah, me.total_cost_uah;
 ```
+
+---
+
+## Відомі розширення в реальному коді (за даними фронтенд-типів)
+
+> Це НЕ офіційна схема бекенду (її тут ніхто не перевіряв) — лише те, що
+> видно опосередковано з `src/types/index.ts` і `src/api/cars.ts`
+> (`RawCar`/`RawCarSpecs`/`RawTrailer` — форма реальних відповідей API).
+> Якщо потрібна точна схема — дивитись міграції в `vehicle_tracker_api`.
+
+- **`cars`** отримала поле `fuel_card_number` (номер паливної картки),
+  якого не було в оригінальному плані.
+- **`car_specs`** (1-до-1 з `cars`) — нова таблиця, не в оригінальному
+  плані: `vin_code`, `year_manufactured`, `weight_kg`, `payload_kg`,
+  `length_cm`/`width_cm`/`height_cm`, `has_tail_lift`, `has_trailer`.
+  DRF повертає числові поля рядками (`DecimalField` → JSON string) —
+  фронтенд явно робить `Number(...)` при мапінгу (`src/api/cars.ts`).
+- **`trailers`** — нова таблиця (причіп до авто): `vin_code`,
+  `year_manufactured`, `name_trailer`, `model`, `number_trailer`,
+  `is_active`, `car_id`.
+- **`car_status_log`** — типізовано на фронтенді (`CarStatusLog`,
+  `src/types/index.ts`) як лог зміни статусу авто (`reason`, `changed_at`,
+  `changed_by`), але жоден `api/`-виклик його ще не читає/не пише.
+- **`products`/`product_categories`**: `id_product`/`id_category` на
+  фронтенді типізовані як `number`, не `string`/`VARCHAR` як у плані
+  нижче; `ProductCategory` отримала `parent_id`/`description` (ієрархія
+  категорій, якої не було в плані).
+- **`customers`/`stores`**: `id_customer`/`id_store` так само `number`
+  на фронтенді, не `VARCHAR`.
+- Немає жодного фронтенд mock/UI-доказу для `hired_transport_trips`,
+  `carrier_shipments`, `carrier_costs`, `monthly_costs` — ці частини
+  плану нижче лишаються не перевіреними реальним кодом.

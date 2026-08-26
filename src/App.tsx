@@ -9,6 +9,7 @@ import { WaybillList } from "./components/waybills/WaybillList";
 import {DriverMiniApp } from "./pages/DriverMiniApp.tsx";
 import { RequireRole } from "./components/auth/RequireRole";
 import { RoleRedirect } from "./pages/RoleRedirect";
+import { DriverHistory } from "./pages/driver/DriverHistory";
 
 // Далі будемо замінювати PlaceholderPage на реальні компоненти
 
@@ -71,7 +72,7 @@ export default function App() {
                 <Route index element={<DriverDashboard />} />
                 <Route path="event/new" element={<EventForm />} />
                 <Route path="scan" element={<PlaceholderPage title="Сканер QR" />} />
-                <Route path="history" element={<PlaceholderPage title="Історія" />} />
+                <Route path="history" element={<DriverHistory />} />
             </Route>
             
             {/* Офісні розділи — logist/manager/head, той самий гейт на кожен */}

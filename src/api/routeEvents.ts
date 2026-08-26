@@ -131,6 +131,18 @@ export async function fetchTodayEvents(carId: number): Promise<RouteEvent[]> {
     return data.results.map(mapRouteEvent);
 }
 
+// Дістати усі події водія
+export async function fetchDriverEvents(carId: number): Promise<RouteEvent[]> {
+    if (USE_MOCK) {
+        await mockDelay(200);
+        return (mockEvents as RouteEvent[])
+            .filter(e => e.carId === carId)
+            .sort((a, b) => b.eventTs.localeCompare(a.eventTs));    // нові зверху
+    }
+    const data = await apiFetch<Paginated<RawRouteEvent>>(`/route-events/?car_id=${carId}`);
+    return data.results.map(mapRouteEvent).sort((a, b) => b.eventTs.localeCompare(a.eventTs));
+}
+
 // Останній одометр авто (для розрахунку пробігу daily режиму)
 export async function fetchLastOdometer(carId: number): Promise<number | null> {
     if (USE_MOCK) {
