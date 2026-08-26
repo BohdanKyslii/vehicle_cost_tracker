@@ -1,135 +1,190 @@
 # Vehicle Cost Tracker — Сторінки та маршрутизація
 
+> ✅ Резинхронізовано 2026-08-24 з реальним `src/App.tsx`. Оригінальний
+> план (нижче) мав інші компоненти на кожному маршруті — фактичний код
+> зараз рендерить `PlaceholderPage` майже скрізь, крім водія й накладних.
+> ⏳-позначки вказують що ще не набрано.
+
 ---
 
-## Структура маршрутів (React Router v6)
+## Реальна структура маршрутів (`src/App.tsx`)
 
 ```tsx
-<BrowserRouter>
-  <Routes>
-    {/* ── Водій (мобільний PWA) ─────────────────────── */}
-    <Route path="/driver" element={<DriverLayout />}>
-      <Route index element={<DriverDashboard />} />
-      <Route path="event/new" element={<EventForm />} />
-      <Route path="scan" element={<QRScanner />} />
-      <Route path="history" element={<DriverHistory />} />
-    </Route>
+<Routes>
+  {/* ── Водій (мобільний), Фаза 13 ✅ ────────────────── */}
+  <Route path="/driver" element={<DriverLayout />}>
+    <Route index element={<DriverDashboard />} />          {/* ✅ реалізовано */}
+    <Route path="event/new" element={<EventForm />} />     {/* ✅ реалізовано */}
+    <Route path="scan" element={<PlaceholderPage title="Сканер QR" />} />   {/* ⏳ Фаза 15 */}
+    <Route path="history" element={<PlaceholderPage title="Історія" />} /> {/* ⏳ */}
+  </Route>
 
-    {/* ── Автопарк ──────────────────────────────────── */}
-    <Route path="/fleet" element={<MainLayout />}>
-      <Route index element={<FleetList />} />
-      <Route path=":carId" element={<CarDetail />} />
-      <Route path=":carId/month/:month" element={<CarMonth />} />
-    </Route>
+  {/* ── Автопарк — ⏳ Фаза 16 не набрана ─────────────── */}
+  <Route path="/fleet" element={<MainLayout />}>
+    <Route index element={<PlaceholderPage title="Автопарк" />} />
+    <Route path=":carId" element={<PlaceholderPage title="Деталі авто" />} />
+  </Route>
 
-    {/* ── Накладні ──────────────────────────────────── */}
-    <Route path="/waybills" element={<MainLayout />}>
-      <Route index element={<WaybillList />} />
-      <Route path=":waybillNumber" element={<WaybillDetail />} />
-      <Route path="import" element={<WaybillImport />} />
-      <Route path="returns" element={<ReturnMatchingList />} />
-      <Route path="unassigned" element={<UnassignedWaybills />} />
-    </Route>
+  {/* ── Накладні — Фаза 11 ✅ (частково) ─────────────── */}
+  <Route path="/waybills" element={<MainLayout />}>
+    <Route index element={<WaybillList />} />               {/* ✅ реалізовано */}
+    <Route path=":waybillNumber" element={<PlaceholderPage title="Деталі накладної" />} />
+    <Route path="import" element={<PlaceholderPage title="Імпорт із 1С" />} />
+    <Route path="unassigned" element={<PlaceholderPage title="Не призначені" />} />
+    <Route path="returns" element={<PlaceholderPage title="Матчинг повернень" />} />
+  </Route>
 
-    {/* ── Найманий транспорт ─────────────────────────── */}
-    <Route path="/hired" element={<MainLayout />}>
-      <Route index element={<HiredTripList />} />
-      <Route path="new" element={<HiredTripForm />} />
-      <Route path=":tripId" element={<HiredTripDetail />} />
-    </Route>
+  {/* ── Найманий транспорт — ⏳ нічого не набрано ────── */}
+  <Route path="/hired" element={<MainLayout />}>
+    <Route index element={<PlaceholderPage title="Найманий транспорт" />} />
+    <Route path="new" element={<PlaceholderPage title="Новий рейс" />} />
+    <Route path=":tripId" element={<PlaceholderPage title="Деталі рейсу" />} />
+  </Route>
 
-    {/* ── Служби доставки ────────────────────────────── */}
-    <Route path="/carriers" element={<MainLayout />}>
-      <Route index element={<CarrierShipmentList />} />
-      <Route path="new" element={<CarrierShipmentForm />} />
-      <Route path=":shipmentId" element={<CarrierShipmentDetail />} />
-      <Route path="import-costs" element={<CarrierCostsImport />} />
-    </Route>
+  {/* ── Служби доставки — ⏳ нічого не набрано ───────── */}
+  <Route path="/carriers" element={<MainLayout />}>
+    <Route index element={<PlaceholderPage title="Служби доставки" />} />
+    <Route path="new" element={<PlaceholderPage title="Нове відправлення" />} />
+    <Route path="import-costs" element={<PlaceholderPage title="Імпорт реєстру витрат" />} />
+  </Route>
 
-    {/* ── Аналітика ─────────────────────────────────── */}
-    <Route path="/analytics" element={<MainLayout />}>
-      <Route index element={<AnalyticsDashboard />} />
-      <Route path="transport-costs" element={<TransportCosts />} />
-      <Route path="customers" element={<CustomerAnalytics />} />
-      <Route path="channels" element={<ChannelComparison />} />
-      <Route path="car/:carId" element={<CarAnalytics />} />
-    </Route>
+  {/* ── Аналітика — ⏳ нічого не набрано ──────────────── */}
+  <Route path="/analytics" element={<MainLayout />}>
+    <Route index element={<PlaceholderPage title="Аналітика" />} />
+    <Route path="transport-costs" element={<PlaceholderPage title="Транспортна собівартість" />} />
+    <Route path="customers" element={<PlaceholderPage title="По клієнтах" />} />
+    <Route path="channels" element={<PlaceholderPage title="Порівняння каналів" />} />
+  </Route>
 
-    {/* ── Адміністрування ───────────────────────────── */}
-    <Route path="/admin" element={<MainLayout />}>
-      <Route index element={<AdminDashboard />} />
-      <Route path="cars" element={<CarAdmin />} />
-      <Route path="drivers" element={<DriverAdmin />} />
-      <Route path="products" element={<ProductAdmin />} />
-      <Route path="customers" element={<CustomerAdmin />} />
-      <Route path="stores" element={<StoreAdmin />} />
-      <Route path="monthly-costs" element={<MonthlyCostsAdmin />} />
-    </Route>
+  {/* ── Адміністрування — ⏳ нічого не набрано ────────── */}
+  <Route path="/admin" element={<MainLayout />}>
+    <Route index element={<PlaceholderPage title="Адміністрування" />} />
+    <Route path="cars" element={<PlaceholderPage title="Авто" />} />
+    <Route path="drivers" element={<PlaceholderPage title="Водії" />} />
+    <Route path="products" element={<PlaceholderPage title="Товари" />} />
+    <Route path="customers" element={<PlaceholderPage title="Клієнти" />} />
+    <Route path="stores" element={<PlaceholderPage title="Магазини" />} />
+    <Route path="monthly-costs" element={<PlaceholderPage title="Місячні витрати" />} />
+  </Route>
 
-    <Route path="/" element={<Navigate to="/driver" replace />} />
-    <Route path="*" element={<NotFound />} />
-  </Routes>
-</BrowserRouter>
+  {/* ── Telegram Mini App — ✅ реалізовано, НОВЕ ──────── */}
+  {/* Не видаляти при рефакторингу роутів (вже двічі губили — d792cfa,
+      2026-08-10). Реальний production-маршрут: кнопка в @driver_car_bot
+      веде саме сюди. Без TopNav/AuthModal — рендериться всередині
+      Telegram WebView. */}
+  <Route path="/driver-app" element={<DriverMiniApp />} />
+
+  {/* Редирект з / на /driver */}
+  <Route path="/" element={<Navigate to="/driver" replace />} />
+
+  {/* 404 */}
+  <Route path="*" element={<div className="p-8 text-center">...</div>} />
+</Routes>
 ```
+
+> ⚠️ **Реальна неузгодженість, варта уваги:** `src/pages/LandingPage.tsx`
+> і `src/pages/UnderConstruction.tsx` (з TopNav, AuthModal, hero-секцією,
+> списком фіч і ролей) — повністю збудовані компоненти, але **ніде не
+> імпортуються в `App.tsx`**. `/` зараз веде прямо на `/driver`, минаючи
+> лендінг. Якщо це не навмисно — варто підключити `LandingPage` на `/`
+> замість `Navigate to="/driver"`.
+
+⏳ Жодного `RequireRole`-гейту немає — всі маршрути в `MainLayout` доступні
+без перевірки ролі (гейт по ролі — Фаза 14, не набрана, `CODING_GUIDE.md`).
+
+---
+
+## `/driver-app` — DriverMiniApp ✅ (НОВЕ, не було в оригінальному плані)
+
+**Файл:** `src/pages/DriverMiniApp.tsx`
+
+Вхідна точка для водія в проді — кнопка в Telegram-боті (`@driver_car_bot`,
+Menu Button), не прямий URL і не інстальований PWA. Рендериться всередині
+Telegram WebView, тому без `TopNav`/`AuthModal` — власний мінімальний UI.
+
+**Логіка:**
+```
+1. window.Telegram.WebApp.initData відсутній (відкрито поза Telegram)
+   → одразу стан "error", без запиту на бекенд
+2. initData є → tg.ready() → loginWithTelegram(initData) (POST /auth/telegram/)
+3. За результатом:
+   ├── успіх → визначаємо landing за роллю (ROLE_LANDING) → редирект
+   ├── 'not_registered'    → "Ви ще не зареєстровані" + посилання на бота
+   ├── 'pending_approval'  → "Заявку надіслано. Очікуйте підтвердження"
+   └── інша помилка        → загальний "Сталася помилка"
+```
+
+**Редирект за роллю (`ROLE_LANDING`):**
+
+| Роль | Куди веде |
+|------|-----------|
+| `driver` | `/driver` — єдина роль з повноцінним готовим екраном (DriverDashboard) |
+| `logist` / `manager` / `head` | `/fleet` — правильний за змістом розділ, навіть якщо сам він поки `PlaceholderPage` |
+
+> Реєстрація нового користувача відбувається НЕ через цю сторінку —
+> водій реєструється прямо в самому Telegram-боті (бот питає номер
+> телефону кнопкою), звідси й посилання "напишіть боту" у стані
+> `not_registered`.
 
 ---
 
 ## Сторінки детально
 
----
-
-### `/driver` — DriverDashboard
-
-**Що відображає:**
-- Ім'я водія, авто (номер + назва), поточна дата
-- `DayModeSwitch` — перемикач daily/full з дефолтом від логіста
-- Поточний одометр
-- Кнопки дій за режимом
-- Timeline подій поточного дня (з іконками палет де є)
-- FAB «Сканувати QR»
+> Розділ нижче — здебільшого ще ОРИГІНАЛЬНИЙ ПЛАН для того, що не
+> збудовано (компоненти на кшталт `FleetList`, `CarDetail`,
+> `HiredTripForm` в описах — ще не написані файли, лише орієнтир того,
+> якими вони мають стати). Розділи, де є реальний код, позначені ✅ і
+> описують те, що фактично працює зараз, не план.
 
 ---
 
-### `/driver/event/new` — EventForm
+### `/driver` — DriverDashboard ✅ реалізовано
 
-**Query param:** `?type=depot_start|delivery|refuel|...`
+**Файл:** `src/pages/driver/DriverDashboard.tsx`
 
-**Поля за типом події:**
+**Що реально відображає:**
+- Картку авто (назва, номер) + останній одометр
+- `DayModeSwitch` — перемикач daily/full з індикатором "змінено вручну"
+- Сітку кнопок доступних типів подій (залежно від режиму,
+  `getAvailableEventTypes`) — кожна веде на `/driver/event/new?type=...`
+- Список подій сьогодні (timeline), кожна з іконкою/градієнтом за типом
 
-| Тип | Режим | Поля |
-|-----|-------|------|
-| `depot_start` | daily | Одометр*, **Кількість палет***, накладні (QR-список)*, заправка (опц.), AdBlue (опц.), інші витрати (опц.), повернення (опц.), доп. вантаж (опц.) |
-| `depot_start` | full | Одометр*, накладні (QR-список)* |
-| `delivery` | full | Одометр*, **Кількість палет на точці***, QR накладної*, відмова (опц.) |
-| `refuel` | обидва | Літри*, сума*, AdBlue л (опц.), AdBlue грн (опц.) |
-| `other_cost` | обидва | Сума*, коментар* |
-| `return_goods` | обидва | Номер накладної клієнта* |
-| `extra_cargo` | обидва | Звідки*, куди*, вага*, накладна (опц.), коментар |
-| `parking_end` | full | Одометр* |
-
-**Логіка QR для `daily` depot_start:**
-```
-1. Сканування першої накладної
-2. Система знаходить store_id → показує «Точка вивантаження: {name_store}»
-3. «Це вірна точка? [Так / Ні]»
-4. Підтверджено → продовжуємо сканування без запиту
-5. Кожна наступна накладна приєднується до тієї ж точки або нової
-```
-
-**Перевірка ексклюзивності при скануванні:**
-```typescript
-// При додаванні накладної до списку
-const check = await checkWaybillChannel(waybillNumber);
-if (check.deliveryChannel !== null) {
-  toast.error(`Накладна ${waybillNumber} вже призначена: ${check.deliveryChannel}`);
-  return; // не додаємо
-}
-```
+⏳ Не реалізовано з оригінального плану: FAB "Сканувати QR" (сканера ще
+немає), іконки палет прямо в timeline.
 
 ---
 
-### `/driver/scan` — QRScanner
+### `/driver/event/new` — EventForm ✅ реалізовано
 
+**Файл:** `src/pages/driver/EventForm.tsx`
+
+**Query param:** `?type=depot_start|delivery|refuel|other_cost|return_goods|extra_cargo|parking_end|depot_return`
+
+Умовний рендеринг полів за типом (через `requiresOdometer`/`requiresWaybill`/
+`requiresPallets` з `utils/eventHelpers.ts`):
+
+| Тип | Поля, що реально показуються |
+|-----|-------------------------------|
+| `depot_start`, `delivery`, `parking_end`, `depot_return` | Одометр (якщо `requiresOdometer`) |
+| `depot_start` (daily) / `delivery` (full) | + Кількість палет |
+| `delivery` | + Номер накладної, Клієнт (текстові поля — не QR) |
+| `refuel` | Літри, Сума (грн) |
+| `other_cost` | Сума (грн), Коментар |
+| `return_goods` | Накладна клієнта (повернення) |
+| `extra_cargo` | Звідки, Куди, Вага (кг) |
+| Усі типи | Нотатки (опційно) |
+
+⏳ Не реалізовано з оригінального плану: QR-сканування накладних (номер
+вводиться вручну), логіка "перша накладна → підтвердження точки"
+(`StoreConfirmModal`), перевірка ексклюзивності каналу
+(`checkWaybillChannel`/channel guard), форма відмови від поставки
+(`RejectionForm`).
+
+---
+
+### `/driver/scan` — QRScanner ⏳ план, не набрано (Фаза 15)
+
+Зараз `PlaceholderPage`. План лишається як був:
 - Мульти-скан без закриття камери
 - Для кожної відсканованої накладної: показати `customerName` + `storeName`
 - При duplicate: попередження «Вже відскановано»
@@ -137,7 +192,12 @@ if (check.deliveryChannel !== null) {
 
 ---
 
-### `/fleet` — FleetList ⭐
+### `/fleet` — FleetList ⏳ план, не набрано (Фаза 16)
+
+Зараз `PlaceholderPage` для будь-якої ролі, включно з `logist`/`manager`/
+`head`, які редиректяться сюди з Mini App після логіну — це поточний
+головний UX-розрив (`CODING_GUIDE.md`, розділ "ЩО ДАЛІ"). План лишається
+як був:
 
 **Фільтри:** `search` (номер/назва), `statusCar`, `trackingMode`, `isActive`
 
@@ -156,211 +216,119 @@ if (check.deliveryChannel !== null) {
 
 ---
 
-### `/fleet/:carId` — CarDetail
+### `/fleet/:carId` — CarDetail ⏳ план, не набрано
 
 **Tabs:** `route` (timeline дня) | `month` (графік + таблиця) | `waybills`
 
 ---
 
-### `/waybills` — WaybillList ⭐
+### `/waybills` — WaybillList ✅ реалізовано (Фаза 11)
 
-**Фільтри:**
+**Файли:** `src/components/waybills/WaybillList.tsx` (сторінка живе в
+`components/`, не в `pages/waybills/` як в оригінальному плані),
+`WaybillFiltersBar.tsx`, `WaybillTable.tsx`.
+
+**Фільтри, що реально працюють** (стан — в URL query string через
+`useWaybillFilters`):
 ```typescript
 interface WaybillFilters {
-  search?: string;              // customer / waybill number
+  search?: string;
   status?: WaybillStatus;
   deliveryChannel?: DeliveryChannel | "unassigned" | "all";
-  carId?: number;
   legalEntity?: LegalEntity;
   lineType?: "shipment" | "return" | "all";
-  storeId?: string;
   dateFrom?: string;
   dateTo?: string;
+  // carId, storeId — типізовані, але ще не мають контролу у WaybillFiltersBar
 }
 ```
 
-**Нові колонки порівняно з v2:**
+**Колонки таблиці:** дата, накладна (+ к-сть позицій), юр. особа
+(`LegalEntityBadge`), клієнт (+ магазин, якщо є `storeName`), канал
+(`ChannelBadge`), сума (+ повернення червоним), вага, статус
+(`StatusBadge`). Сортування (`SortHeader`) по: дата/сума/клієнт/вага.
+Пагінація — `Pagination.tsx`, 10 на сторінку.
 
-| Колонка | Примітка |
-|---------|----------|
-| Канал | badge: own/hired/carrier/⚠️ не призначено |
-| Магазин | `store.name_store` |
+⏳ Кнопки "⚠️ Не призначені" й "Імпорт із 1С" вже є в UI, обидві ведуть
+на `PlaceholderPage`.
 
 ---
 
-### `/waybills/unassigned` — UnassignedWaybills
+### `/waybills/unassigned` — UnassignedWaybills ⏳ план, не набрано
 
 **Призначення:** Список накладних без каналу доставки (`delivery_channel IS NULL`).
-
-**Що відображає:**
-- Накладні, які є в реєстрі 1С, але ще не відскановані жодним каналом
-- Дата, номер, клієнт, магазин, сума
-- Фільтр по даті / клієнту
-
-**Дії:**
-- «Призначити вручну» → модальне вікно: вибір каналу (own/hired/carrier)
+`api/waybills.ts::fetchUnassignedWaybills` вже готовий (mock-режим працює),
+самої сторінки немає.
 
 ---
 
-### `/hired` — HiredTripList
+### `/hired` — HiredTripList ⏳ план, не набрано
 
 **Призначення:** Список рейсів найманого транспорту.
-
-**Колонки:**
-
-| Колонка | |
-|---------|--|
-| Дата | |
-| Номер авто | |
-| Маршрут | «Пирятин, Полтава, Харків» |
-| Палет | |
-| Накладних | кількість прив'язаних |
-| Вартість (грн) | |
 
 **Фільтри:** дата від/до, номер авто (текст), маршрут
 
 ---
 
-### `/hired/new` — HiredTripForm
-
-**Призначення:** Форма внесення рейсу найманого транспорту (логіст).
+### `/hired/new` — HiredTripForm ⏳ план, не набрано
 
 **Поля:**
 ```typescript
 interface HiredTripFormFields {
-  carNumber: string;            // вільний ввід
-  routeName: string;            // «Пирятин, Полтава, Харків»
+  carNumber: string;
+  routeName: string;
   tripDate: string;
   palletsCount: number;
   costUah: number;
   comment?: string;
-  waybills: ScannedWaybill[];  // QR-скан або ручний ввід
+  waybills: ScannedWaybill[];
 }
 ```
 
-**Логіка:**
-- При додаванні накладної → перевірка `delivery_channel IS NULL`
-- Якщо вже призначена → показати помилку «Накладна {N} вже у {канал}»
-- Submit → зберегти trip + `hired_trip_waybills` + оновити `waybill_records.delivery_channel = 'hired'`
+---
 
-**Кнопка Back** → `/hired`
+### `/carriers` — CarrierShipmentList ⏳ план, не набрано
+
+**Колонки:** дата, служба, ТТН, к-сть накладних, вартість.
 
 ---
 
-### `/hired/:tripId` — HiredTripDetail
+### `/carriers/new` — CarrierShipmentForm ⏳ план, не набрано
 
-- Деталі рейсу
-- Таблиця прив'язаних накладних (з клієнтом, магазином, сумою)
-- KPI: загальна сума, к-сть палет, вартість/палета
-- Кнопка Back → `/hired`
+Аналогічна структура до HiredTripForm, без `carNumber`/`palletsCount`/
+`costUah`; натомість `carrierName` (select) і `ttn`.
 
 ---
 
-### `/carriers` — CarrierShipmentList
+### `/carriers/import-costs` — CarrierCostsImport ⏳ план, не набрано
 
-**Призначення:** Список відправлень через служби доставки.
-
-**Колонки:**
-
-| Колонка | |
-|---------|--|
-| Дата | |
-| Служба | НП / Міст Експрес |
-| ТТН | |
-| Накладних | |
-| Вартість (грн) | із реєстру або «Очікується» |
-
-**Фільтри:** служба, дата, ТТН
+**Очікувані колонки реєстру:** `TTN, дата, вага (кг), вартість (грн)`
 
 ---
 
-### `/carriers/new` — CarrierShipmentForm
+### `/analytics/channels` — ChannelComparison ⏳ план, не набрано
 
-**Призначення:** Прив'язка накладних до відправлення службою.
-
-**Поля:**
-```typescript
-interface CarrierShipmentFormFields {
-  carrierName: string;          // «Нова Пошта» / «Міст Експрес»
-  ttn: string;                  // номер ТТН
-  shipmentDate: string;
-  comment?: string;
-  waybills: ScannedWaybill[];  // QR-скан або ручний ввід
-}
-```
-
-**Логіка:** аналогічна HiredTripForm — перевірка ексклюзивності каналу.
+Розрахунок вже частково готовий (`allocateHiredTripCost`,
+`src/utils/calcTransportCost.ts`), UI немає.
 
 ---
 
-### `/carriers/import-costs` — CarrierCostsImport
+### `/admin/*` — CarAdmin / StoreAdmin / MonthlyCostsAdmin тощо ⏳ план, не набрано
 
-**Призначення:** Імпорт реєстру витрат від служби доставки.
-
-**Кроки:**
-1. Вибір служби (НП / Міст Експрес)
-2. Завантаження CSV / Excel реєстру
-3. Попередній перегляд (перші 5 рядків)
-4. Маппінг колонок → поля `carrier_costs`
-5. «Імпортувати» → матч по (carrier_name, ttn) з `carrier_shipments`
-6. Підсумок: імпортовано / не знайдено TTN / помилки
-
-**Очікувані колонки реєстру:**
-```
-TTN, дата, вага (кг), вартість (грн)
-```
+> Не плутати з `/panel` (Крок 15, `CODING_GUIDE.md`) — це окремий,
+> пізніше запланований екран підтвердження реєстрацій для ролі `head`,
+> навмисно НЕ на `/admin` (той шлях nginx проксіює напряму на Django
+> admin, `nginx.conf`). Пункт меню "Адмін" у `TopNav.tsx` зараз веде на
+> `/panel`, видимий лише для `role === 'head'`.
 
 ---
 
-### `/analytics/channels` — ChannelComparison
+## Layouts, що реально є
 
-**Призначення:** Порівняння каналів доставки.
+| Layout | Файл | Використовується для |
+|--------|------|----------------------|
+| `DriverLayout` | `src/components/layouts/DriverLayout.tsx` | `/driver/*` — glass-хедер + bottom nav (Маршрут/Сканер/Історія) |
+| `MainLayout` | `src/components/layouts/MainLayout.tsx` | `/fleet`, `/waybills`, `/hired`, `/carriers`, `/analytics`, `/admin` — sidebar на десктопі |
+| `TopNav` | `src/components/layouts/TopNav.tsx` | Верхнє меню на `LandingPage`/`UnderConstruction` (⚠️ обидва наразі не підключені до жодного маршруту в `App.tsx`) |
 
-**Що відображає:**
-- Таблиця по місяцях: власний / найманий / служби — к-сть накладних, сума, вартість/палета
-- BarChart: структура витрат по каналах
-- KPI: найдешевший канал для поточного місяця
-
----
-
-### `/admin/stores` — StoreAdmin
-
-**Що відображає:**
-- Список магазинів з клієнтом і адресою
-- Форма редагування: назва, основна адреса, додаткові адреси (список з + / -)
-- Прив'язка клієнта
-
----
-
-### `/admin/cars` — CarAdmin
-
-**Що відображає:**
-- Список авто: номер, назва, амортизація, режим, статус
-- Форма: всі поля + `default_tracking_mode` + `status_car` + `amount_car`
-
----
-
-### `/admin/monthly-costs` — MonthlyCostsAdmin
-
-**Форма:**
-```typescript
-interface MonthlyCostsFormFields {
-  carId: number;                // select із cars
-  month: string;
-  salaryUah: number;
-  taxesUah: number;
-  depreciationUah: number;      // підставляється з cars.amount_car, редагується
-  repairActualUah?: number;
-  repairRateUahKm: number;      // default 2.00
-  otherCostsUah: number;
-  otherCostsComment?: string;
-}
-```
-
-**Підказка по ремонту:**
-```
-Якщо repairActualUah порожній →
-  «Розрахункове: {km} км × {rate} грн/км = {result} грн»
-Якщо заповнений →
-  Зелений badge «Фактичні витрати»
-```
+`DriverMiniApp` — без layout, власний мінімальний рендер.

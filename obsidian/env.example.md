@@ -9,6 +9,7 @@
 |-----------------|-------------|
 | `VITE_USE_MOCK` | `true`/`false` — використовувати mock JSON-дані замість реального API (поки Django-бекенд не готовий/не запущений локально) |
 | `VITE_API_BASE` | Базовий URL API, напр. `http://localhost:8000/api` — адреса Django-бекенда (`vehicle_tracker_api`) для dev-режиму |
+| `VITE_TELEGRAM_BOT_USERNAME` | Username Telegram-бота без `@` (напр. `driver_car_bot`) — використовується в `AuthModal.tsx` і `DriverMiniApp.tsx`, щоб показати незареєстрованому користувачу посилання `https://t.me/{username}` на бота реєстрації. Виявлено в коді 2026-08-24, раніше ніде не документувався. |
 
 ## `.env.production`
 
@@ -16,6 +17,7 @@
 |-----------------|-------------|
 | `VITE_USE_MOCK` | `false` — у продакшні завжди реальний API |
 | `VITE_API_BASE` | Продакшн URL API (домен `warehouse.mom`) |
+| `VITE_TELEGRAM_BOT_USERNAME` | Те саме, що в dev — username продакшн-бота |
 
 ## GitHub Actions secrets (не `.env`, а `Settings → Secrets and variables → Actions`)
 

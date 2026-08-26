@@ -8,9 +8,10 @@ Frontend-репозиторій застосунку обліку транспо
 логіста — ще НЕ набрані руками в репозиторій, це наступний крок).
 
 Пов'язаний репозиторій: **vehicle_tracker_api** (Django-бекенд,
-`C:\Users\b.kysliy\PycharmProjects\vehicle_tracker_api\`) — один застосунок,
-розділений на два репо. Vault-контекст бекенду: тека `vehicle_tracker_api`
-поруч із цією в `projects/`.
+`C:\Users\b.kisliy\PycharmProjects\DjangoProject\vehicle_tracker_api\`) —
+один застосунок, розділений на два репо. Vault-контекст бекенду: тека
+`vehicle_tracker_api` поруч із цією в `projects/` (Junction на
+`task_description/` у бекенд-репо).
 
 ## Стек
 
@@ -52,7 +53,14 @@ src/
     fleet/, hired/, carriers/, analystics/ — ПОРОЖНІ заготовки (Фаза 2)
   pages/
     driver/DriverDashboard.tsx, EventForm.tsx — реальні, живі
-    DriverMiniApp.tsx         — Telegram Mini App логін-екран
+    DriverMiniApp.tsx         — Telegram Mini App логін-екран; після
+                                 логіну сама редіректить за роллю
+                                 (ROLE_LANDING: driver→/driver,
+                                 logist/manager/head→/fleet) — це вже
+                                 набрано (коміт d82b5eb), окремо від
+                                 Фази 14 (`RequireRole`, захист самих
+                                 роутів для прямих переходів в URL —
+                                 досі не набрано)
     LandingPage.tsx, UnderConstruction.tsx — код є, route відсутній
     PlaceholderPage.tsx
     fleet/, waybills/, hired/, carriers/, admin/, analystics/ — порожні
@@ -68,8 +76,16 @@ src/
                                   CarrierShipment/аналітичні типи
   mocks/ — cars.json, drivers.json, route-events.json, waybills.json
 
-documents/                    — початкове ТЗ/специфікація проєкту (01-08)
-CODING_GUIDE.md                — покроковий навчальний гайд, Фази 1-16
+documents/                    — ТЗ/специфікація проєкту (01-08), 2026-08-24
+                                 повністю ресинхронізована з фактичним
+                                 кодом (кожен розділ позначено ✅
+                                 реалізовано / ⏳ заплановано) — досі
+                                 pre-dev дизайн-документ, НЕ джерело
+                                 правди по факту імплементації, для
+                                 цього CODING_GUIDE.md
+CODING_GUIDE.md                — покроковий навчальний гайд, Фази 1-16,
+                                 джерело правди по тому, що реально
+                                 набрано в код (крок за кроком)
 Dockerfile, docker-compose.yml, nginx.conf — деплой на Raspberry Pi
 .github/workflows/deploy.yml   — автодеплой при push у main
 ```
@@ -101,29 +117,62 @@ Dockerfile, docker-compose.yml, nginx.conf — деплой на Raspberry Pi
 
 ## Бекенд коротко (деталі — vault-тека vehicle_tracker_api)
 
+> ⚠️ Перевірено напряму 2026-08-26 — бекенд пішов значно вперед,
+> нижче виправлено (був застарілий запис "AllowAny").
+
 `apps/cars` (Car/Driver/RouteEvent/MonthlyCosts) — повний CRUD, живий,
-підключений до фронтенду. **Поки без жодної перевірки ролі/авторизації**
-(DRF `AllowAny` за замовчуванням) — `DJANGO_CODING_GUIDE.md` Фаза 9
-це виправляє, ще не набрано в код. `apps/accounts` — ролі
-(`driver`/`logist`/`manager`/`head`), Telegram-бот для реєстрації
+підключений до фронтенду, **вже з рольовим захистом**: `get_permissions()`
+вимагає `IsAuthenticated` на читання й `IsLogistOrAbove` на запис
+(`DJANGO_CODING_GUIDE.md` Фаза 9, змержено PR #1, коміт `5364f32`).
+Фаза 10 (nested `specs`/`trailer` write) — теж змержена (PR #2,
+`6df8ac5`/`2da211f`). `apps/logistics` (найманий транспорт + служби
+доставки, Фаза 11) — моделі закомічені, повна реалізація
+(serializers/views/urls/admin) готова й перевірена (`manage.py check`),
+але ще НЕ закомічена (лежить у робочій копії бекенду). `apps/accounts`
+— ролі (`driver`/`logist`/`manager`/`head`), Telegram-бот для реєстрації
 водіїв, задеплоєний і робочий у проді (деталі —
 `TELEGRAM_BOT_SETUP.md` у бекенд-репо). `products`/`customers`/
 `waybills`(1С-імпорт) — моделі є, API ще не написане.
 
+**Наслідок для фронтенду:** `/api/cars/`, `/api/drivers/` тепер
+вимагають автентифікованої сесії навіть на читання — раніше були
+відкриті. Варто перевірити, що живий `/driver`-флоу (вхід через
+Telegram Mini App) досі отримує ці дані без 401/403.
+
 ## Obsidian vault sync
 
 Ця тека (`obsidian/` у корені репозиторію `vehicle_cost_tracker`) —
-джерело правди для 4 файлів (CLAUDE.md, tasks.md, decisions.md,
-env.example.md). У vault на неї вказує Windows Junction:
+джерело правди для 8 файлів. У vault на неї вказує Windows Junction:
 `projects\vehicle_cost_tracker` (той самий підхід, що й для
-`vehicle_tracker_api`).
+`vehicle_tracker_api`, де Junction веде на `task_description/`).
+
+**Первинна четвірка** (від початку проєкту):
+- `CLAUDE.md` — цей файл, швидкий довідник по репо.
+- `tasks.md` — короткий статус-список: зроблено / наступний крок.
+- `decisions.md` — архітектурні рішення "чому саме так".
+- `env.example.md` — лише СТРУКТУРА `.env` (імена змінних + призначення),
+  без значень і секретів.
+
+**Додана 2026-08-24 четвірка** (за зразком аналогічних файлів у
+`vehicle_tracker_api/task_description/`, для паритету документації
+між репозиторіями):
+- `STATE.md` — ширший наратив поточного стану (те саме, що й
+  `tasks.md`, але детальніше, з контекстом "чому"; не дублюй один в
+  одного механічно — `tasks.md` лишається коротким, `STATE.md` довшим).
+- `CHANGES.md` — хронологічний журнал змін (детальніше, ніж записи в
+  `tasks.md`, з розділами "Що зроблено / Чому / Статус" на кожну подію).
+- `AGENTS_GLOBAL.md` — правила проєкту й стандарти коду (те, що в
+  `decisions.md` — це "чому", тут — "як писати код": стиль,
+  архітектурні принципи, git workflow).
+- `AI_AGENT_CONTEXT.md` — технічні пастки для AI-агента: реальні
+  сигнатури типів, розбіжності з планом, типові помилки (таблиця
+  "Ситуація → Правильно").
 
 Коли просять "онови obsidian" / "sync obsidian" — прочитай актуальний стан
-репо (структура, git log, CODING_GUIDE.md, documents/) і перепиши ці 4
-файли тут напряму (Read/Write), без MCP.
-
-`env.example.md` — тільки СТРУКТУРА `.env` (імена змінних + призначення),
-без значень і секретів.
+репо (структура, git log, CODING_GUIDE.md, documents/) і перепиши потрібні
+файли тут напряму (Read/Write), без MCP. Не всі 8 файлів обов'язково
+торкати щоразу — онови ті, яких стосується зміна (напр. чисто
+косметичний рефакторинг не потребує правки `AGENTS_GLOBAL.md`).
 
 Онови ці файли одразу наприкінці сесії, якщо було зроблено значущу зміну
 (задача, архітектурне рішення, зміна `.env`) — не відкладай.

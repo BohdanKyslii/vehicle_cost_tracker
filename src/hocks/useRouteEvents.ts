@@ -5,6 +5,7 @@ import {
 } from "@tanstack/react-query";
 import {
     fetchTodayEvents,
+    fetchDriverEvents,
     fetchLastOdometer,
     createRouteEvent,
 } from "../api/routeEvents.ts";
@@ -43,8 +44,16 @@ export function useCreateRouteEvent() {
               queryKey: ["route-events", newEvent.carId],
            });
             queryClient.invalidateQueries({
-                queryKey: ["last-odometer", newEvent.carId],
+                queryKey: ["lastOdometer", newEvent.carId],
             });
         },
+    });
+}
+
+export function useDriverEvents(carId: number) {
+    return useQuery({
+        queryKey: ["route-events", carId, "all"],
+        queryFn: () => fetchDriverEvents(carId),
+        enabled: !!carId,
     });
 }

@@ -8,6 +8,8 @@ import { useDayMode } from "../../hocks/useDayMode";
 import { useCreateRouteEvent, useLastOdometer } from "../../hocks/useRouteEvents";
 import { requiresOdometer, requiresWaybill, requiresPallets, eventTypeLabel, eventTypeIcon, eventTypeGradient } from "../../utils/eventHelpers";
 import { Input, Button, ErrorBanner, Spinner } from "../../components/driver/ui";
+import { QRScanner } from "../../components/driver/QRScanner";
+import { parseQRCode } from "../../utils/parseQR";
 
 export function EventForm() {
 	const navigate = useNavigate();
@@ -23,6 +25,7 @@ export function EventForm() {
 	const [odometerKm, setOdometerKm] = useState("");
 	const [palletsCount, setPalletsCount] = useState("");
 	const [waybillNumber, setWaybillNumber] = useState("");
+	const [waybillDate, setWaybillDate] = useState("");
 	const [customerName, setCustomerName] = useState("");
 	const [fuelLiters, setFuelLiters] = useState("");
 	const [fuelCostUah, setFuelCostUah] = useState("");
@@ -33,6 +36,7 @@ export function EventForm() {
 	const [extraTo, setExtraTo] = useState("");
 	const [extraWeightKg, setExtraWeightKg] = useState("");
 	const [notes, setNotes] = useState("");
+	const [scannerOpen, setScannerOpen] = useState(false);
 	
 	if (driverLoading || carLoading) return <Spinner label="Завантаження..." />;
 	if (!driver || !car) return <ErrorBanner message="Немає закріпленого авто" />;
@@ -40,6 +44,15 @@ export function EventForm() {
 	const needsOdometer = requiresOdometer(type);
 	const needsWaybill = requiresWaybill(type);
 	const needsPallets = requiresPallets(type, dayMode);
+	
+	function handleScan(raw: string) {
+		const parsed = parseQRCode(raw);
+		if (parsed) {
+			setWaybillNumber(parsed.waybillNumber);
+			setWaybillDate(parsed.waybillDate);
+		}
+		setScannerOpen(false);
+	}
 	
 	async function handleSubmit(e: FormEvent) {
 		e.preventDefault();
@@ -53,6 +66,7 @@ export function EventForm() {
 			odometerKm: needsOdometer && odometerKm ? Number(odometerKm) : undefined,
 			palletsCount: needsPallets && palletsCount ? Number(palletsCount) : undefined,
 			waybillNumber: needsWaybill ? waybillNumber : undefined,
+			waybillDate: needsWaybill ? waybillDate : undefined,
 			customerName: needsWaybill ? customerName : undefined,
 			fuelLiters: type === "refuel" && fuelLiters ? Number(fuelLiters) : undefined,
 			fuelCostUah: type === "refuel" && fuelCostUah ? Number(fuelCostUah) : undefined,
@@ -95,11 +109,16 @@ export function EventForm() {
 			
 			{needsWaybill && (
 				<>
+					<Button type="button" variant="ghost" onClick={() => setScannerOpen(true)}>
+						📷 Сканувати QR накладної
+					</Button>
 					<Input label="Номер накладної" value={waybillNumber} onChange={(e) => setWaybillNumber(e.target.value)} required />
 					<Input label="Клієнт" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
 				</>
 			)}
-			
+
+			{scannerOpen && <QRScanner onScan={handleScan} onClose={() => setScannerOpen(false)} />}
+
 			{type === "refuel" && (
 				<>
 					<Input label="Літрів" type="number" step="0.1" value={fuelLiters} onChange={(e) => setFuelLiters(e.target.value)} required />
