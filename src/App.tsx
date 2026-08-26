@@ -1,32 +1,20 @@
 // src/App.tsx
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route } from "react-router-dom";
 import { DriverLayout } from "./components/layouts/DriverLayout";
 import { DriverDashboard } from "./pages/driver/DriverDashboard";
 import { EventForm } from "./pages/driver/EventForm";
 import { MainLayout } from "./components/layouts/MainLayout";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
 import { WaybillList } from "./components/waybills/WaybillList";
-import {DriverMiniApp} from "./pages/DriverMiniApp.tsx";
+import {DriverMiniApp } from "./pages/DriverMiniApp.tsx";
+import { RequireRole } from "./components/auth/RequireRole";
+import { RoleRedirect } from "./pages/RoleRedirect";
 
 // Далі будемо замінювати PlaceholderPage на реальні компоненти
 
 export default function App() {
     return (
         <Routes>
-            {/* ── Водій (мобільний) ────────────────────────── */}
-            <Route path="/driver" element={<DriverLayout />}>
-                <Route index element={<DriverDashboard />} />
-                <Route path="event/new" element={<EventForm />} />
-                <Route path="scan" element={<PlaceholderPage title="Сканер QR" />} />
-                <Route path="history" element={<PlaceholderPage title="Історія" />} />
-            </Route>
-            
-            {/* ── Автопарк ─────────────────────────────────── */}
-            <Route path="/fleet" element={<MainLayout />}>
-                <Route index element={<PlaceholderPage title="Автопарк" />} />
-                <Route path=":carId" element={<PlaceholderPage title="Деталі авто" />} />
-            </Route>
-
             {/* ── Накладні ─────────────────────────────────── */}
             <Route path="/waybills" element={<MainLayout />}>
                 <Route index element={<WaybillList />} />
@@ -68,17 +56,41 @@ export default function App() {
                 <Route path="stores" element={<PlaceholderPage title="Магазини" />} />
                 <Route path="monthly-costs" element={<PlaceholderPage title="Місячні витрати" />} />
             </Route>
-
-            {/* ⚠️ НЕ ВИДАЛЯТИ при рефакторингу роутів (вже двічі губили при
-                переписуванні App.tsx — d792cfa, 2026-08-10 фікс). Це реальний
-                продакшн-маршрут: BotFather Menu Button у @driver_car_bot
-                веде саме сюди. Telegram Mini App — логінить через initData,
-                окремо від DriverLayout (без TopNav). Деталі — TELEGRAM_BOT_SETUP.md
-                у vehicle_tracker_api. */}
+            
+            <Route path="/" element={<RoleRedirect />} />
+            
+            {/* Водій — мобільний, лишається доступним і для head (тестування/підтримка) */}
+            <Route
+                path="/driver"
+                element={
+                    <RequireRole roles={["driver", "head"]}>
+                        <DriverLayout />
+                    </RequireRole>
+                }
+            >
+                <Route index element={<DriverDashboard />} />
+                <Route path="event/new" element={<EventForm />} />
+                <Route path="scan" element={<PlaceholderPage title="Сканер QR" />} />
+                <Route path="history" element={<PlaceholderPage title="Історія" />} />
+            </Route>
+            
+            {/* Офісні розділи — logist/manager/head, той самий гейт на кожен */}
+            <Route
+                path="/fleet"
+                element={
+                    <RequireRole roles={["logist", "manager", "head"]}>
+                        <MainLayout />
+                    </RequireRole>
+                }
+            >
+                <Route index element={<PlaceholderPage title="Автопарк" />} />
+                <Route path=":carId" element={<PlaceholderPage title="Деталі авто" />} />
+            </Route>
+            {/* /waybills, /hired, /carriers, /analytics, /admin — та сама обгортка RequireRole */}
+            
+            {/* Telegram Mini App — залишається ЄДИНИМ маршрутом, без RequireRole
+            (сам логінить через initData ще до того, як роль відома) */}
             <Route path="/driver-app" element={<DriverMiniApp />} />
-
-            {/* Редирект з / на /driver */}
-            <Route path="/" element={<Navigate to="/driver" replace />} />
 
             {/* 404 */}
             <Route path="*" element={
