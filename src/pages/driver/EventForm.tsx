@@ -46,9 +46,10 @@ export function EventForm() {
 	// водій спершу сканує, і вже тоді бачить форму з підтягнутим номером
 	const [scannerOpen, setScannerOpen] = useState(needsWaybill);
 	const [scanError, setScanError] = useState<string | null>(null);
-	// Точка вивантаження (full) часто має 2-4 накладних — основна несе
-	// одометр/палети/клієнта, додаткові лише фіксують номер (без одометра/
-	// палет, щоб не задвоїти суму на одну фізичну точку)
+	// Групове сканування кількох накладних за один захід: на unload (точка)
+	// основна несе одометр/палети, додаткові — лише номер (щоб не задвоїти
+	// суму на фізичній точці); на load (склад)/daily жодна з них одометра й
+	// палет не несе взагалі, це просто список накладних маршруту
 	const [additionalWaybills, setAdditionalWaybills] = useState<{ waybillNumber: string; waybillDate: string }[]>([]);
 	const [scanningAdditional, setScanningAdditional] = useState(false);
 
@@ -57,10 +58,10 @@ export function EventForm() {
 
 	const needsOdometer = requiresOdometer(type, dayMode, stage);
 	const needsPallets = requiresPallets(type, dayMode, stage);
-	// Кілька накладних на одну точку має сенс лише на unload (full) — водій
-	// сканує одну основну + додає ще; на load (склад) чи в daily кожен скан
-	// вже сам собі подія, групування не потрібне
-	const groupsMultipleWaybills = needsWaybill && needsPallets;
+	// Групове сканування (скан → "+ще одна" → скан → ...) потрібне для
+	// будь-якого delivery: на unload (точка) — 2-4 накладні цієї точки;
+	// на load (склад) чи в daily — весь список накладних маршруту підряд
+	const groupsMultipleWaybills = needsWaybill;
 	const isRouteNameField = type === "depot_start" && dayMode === "full";
 	// На unload водій свідомо сканує ЖЕ ВІДСКАНОВАНУ на складі (load) накладну —
 	// це не дублікат, а підтвердження доставки. Дублікатом вважаємо лише
@@ -234,7 +235,7 @@ export function EventForm() {
 						variant="ghost"
 						onClick={() => { setScanningAdditional(true); setScannerOpen(true); }}
 					>
-						📷 Ще одна накладна цієї точки
+						{isUnloadStage ? "📷 Ще одна накладна цієї точки" : "📷 Ще одна накладна"}
 					</Button>
 				</>
 			)}
