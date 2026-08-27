@@ -3,7 +3,7 @@ import { useCurrentDriver } from "../../hocks/useDrivers";
 import { useCar } from "../../hocks/useCars";
 import { useTodayEvents, useLastOdometer } from "../../hocks/useRouteEvents";
 import { useDayMode } from "../../hocks/useDayMode";
-import { getAvailableEventTypes, eventTypeLabel, eventTypeIcon, eventTypeGradient } from "../../utils/eventHelpers";
+import { getAvailableEventTypes, eventTypeLabel, eventTypeIcon, eventTypeGradient, eventSummaryBadges, eventComment } from "../../utils/eventHelpers";
 import { formatKm, formatDateTime } from "../../utils/formatters";
 import { Spinner, ErrorBanner, EmptyState } from "../../components/driver/ui";
 import { DayModeSwitch } from "../../components/driver/DayModeSwitch";
@@ -85,19 +85,29 @@ export function DriverDashboard() {
 					<EmptyState title="Ще немає подій" subtitle="Натисніть кнопку вище, щоб додати першу" />
 				) : (
 					<ul className="flex flex-col gap-2">
-						{events.map((e) => (
-							<li key={e.id} className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur-sm">
-								<div className={`h-9 w-9 shrink-0 rounded-full bg-gradient-to-br ${eventTypeGradient(e.eventType)} flex items-center justify-center text-base`}>
-									{eventTypeIcon(e.eventType)}
-								</div>
-								<div className="flex-1 min-w-0">
-									<p className="text-sm font-medium text-white/90">{eventTypeLabel(e.eventType, e.trackingMode)}</p>
-									{e.waybillNumber && <p className="text-xs text-white/40">№ {e.waybillNumber}</p>}
-									<p className="text-xs text-white/40">{formatDateTime(e.eventTs)}</p>
-								</div>
-								{e.odometerKm != null && <span className="text-xs text-white/50 shrink-0">{formatKm(e.odometerKm)}</span>}
-							</li>
-						))}
+						{events.map((e) => {
+							const badges = eventSummaryBadges(e);
+							const comment = eventComment(e);
+							return (
+								<li key={e.id} className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur-sm">
+									<div className={`h-9 w-9 shrink-0 rounded-full bg-gradient-to-br ${eventTypeGradient(e.eventType)} flex items-center justify-center text-base`}>
+										{eventTypeIcon(e.eventType)}
+									</div>
+									<div className="flex-1 min-w-0">
+										<p className="text-sm font-medium text-white/90">{eventTypeLabel(e.eventType, e.trackingMode)}</p>
+										{comment && <p className="text-xs text-white/40 truncate">💬 {comment}</p>}
+										<p className="text-xs text-white/40">{formatDateTime(e.eventTs)}</p>
+									</div>
+									{badges.length > 0 && (
+										<div className="flex flex-col items-end gap-0.5 shrink-0">
+											{badges.map((b, i) => (
+												<span key={i} className="text-xs text-white/50">{b}</span>
+											))}
+										</div>
+									)}
+								</li>
+							);
+						})}
 					</ul>
 				)}
 			</div>

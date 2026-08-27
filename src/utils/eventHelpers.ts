@@ -1,4 +1,5 @@
-import type { RouteEventType,TrackingMode } from "../types";
+import type { RouteEvent, RouteEventType, TrackingMode } from "../types";
+import { formatKm, formatLiters, formatKg, formatUah } from "./formatters";
 
 // Повертає масив доступних типів подій для поточного режиму
 // daily: 6 типів. "delivery" тут — лише скан накладних поточного дня
@@ -55,6 +56,26 @@ export function requiresPallets(type: RouteEventType, mode: TrackingMode): boole
 	if (type === "depot_start" && mode === "daily") return true;
 	if (type === "delivery" && mode === "full") return true;
 	return false;
+}
+
+// Права колонка карток історії/сьогоднішніх подій — компактні бейджі.
+// Будуються з наявності полів, а не switch по типу: full-режим delivery
+// має одночасно і одометр, і номер накладної — обидва мають зʼявитись.
+export function eventSummaryBadges(e: RouteEvent): string[] {
+	const badges: string[] = [];
+	if (e.odometerKm != null) badges.push(formatKm(e.odometerKm));
+	if (e.waybillNumber) badges.push(`№ ${e.waybillNumber}`);
+	if (e.returnClientWaybill) badges.push(`№ ${e.returnClientWaybill}`);
+	if (e.fuelLiters != null) badges.push(formatLiters(e.fuelLiters));
+	if (e.otherCostUah != null) badges.push(formatUah(e.otherCostUah));
+	if (e.extraWeightKg != null) badges.push(formatKg(e.extraWeightKg));
+	return badges;
+}
+
+// Коментар водія до події — або загальні "Нотатки", або спеціальний
+// коментар "Інших витрат" (два різні поля форми, обидва — вільний текст)
+export function eventComment(e: RouteEvent): string | undefined {
+	return e.notes || e.otherCostComment || undefined;
 }
 
 // Українська назва типу події для відображення у UI
