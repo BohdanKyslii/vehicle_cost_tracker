@@ -5607,6 +5607,81 @@ const isLockedDepotStart = type === "depot_start" && hasDepotStartToday;
 
 ---
 
+## Крок 15.6 — Кілька накладних на одну точку вивантаження (full)
+
+> Навіщо: реальний маршрут (напр. Вінницька/Хмельницька обл., 8 точок)
+> має на кожній точці 2-4 накладних, а не одну. `EventForm` мав рівно
+> одне поле `waybillNumber` на подію `delivery` — без способу зафіксувати
+> "ще одну накладну цієї ж точки", не задвоївши одометр і кількість
+> палет. Розглядали два варіанти: (а) змінити схему `route_events` під
+> масив накладних на подію, (б) лишити по одному запису на накладну, але
+> групувати їх на рівні форми. Обрали (б) — **без змін бекенду**
+> (`vehicle_tracker_api`, окремий репозиторій, зараз не відкритий у цій
+> сесії) — і воно вкладається в наявну модель без жодної міграції.
+
+`src/pages/driver/EventForm.tsx`:
+
+```typescript
+// Кілька накладних на точку має сенс лише там, де точка й так має
+// одометр+палети (full-режим delivery)
+const groupsMultipleWaybills = needsWaybill && needsPallets;
+
+const [additionalWaybills, setAdditionalWaybills] = useState<{ waybillNumber: string; waybillDate: string }[]>([]);
+const [scanningAdditional, setScanningAdditional] = useState(false);
+
+// isAlreadyScannedToday() тепер звіряє і з todayEvents, і з уже
+// заповненим waybillNumber, і зі списком additionalWaybills —
+// та сама накладна не повинна повторитись у межах ОДНОГО подання форми
+
+// у handleScan(), у гілці delivery:
+if (scanningAdditional) {
+  setAdditionalWaybills(prev => [...prev, parsed]);
+  setScanningAdditional(false);
+} else {
+  setWaybillNumber(parsed.waybillNumber);
+  setWaybillDate(parsed.waybillDate);
+}
+
+// handleSubmit() — основний запис як і раніше, потім по одному
+// POST-у на кожну додаткову накладну, АЛЕ без одометра/палет:
+await createEvent.mutateAsync(data);
+for (const w of additionalWaybills) {
+  await createEvent.mutateAsync({
+    carId: car!.idCar, driverId: driver!.idDriver, trackingMode: dayMode,
+    eventType: type, eventTs: new Date().toISOString(),
+    waybillNumber: w.waybillNumber, waybillDate: w.waybillDate,
+    customerName: customerName || undefined,
+    // odometerKm/palletsCount навмисно НЕ передаються — undefined
+  });
+}
+```
+
+**Чому це безпечно без зміни `calcSummary.ts`:**
+- `buildRouteSegments()` фільтрує події за `odometerKm !== null/undefined`
+  — додаткові записи (без одометра) просто не потрапляють у сегменти,
+  тож зайвих "точок" між реальними зупинками не з'являється.
+- Сума палет по точках (`full`-гілка в `buildDailySummary`) підсумовує
+  `palletsCount` — у додаткових записів воно `null`, тож не задвоюється.
+
+У розмітці: кнопка "📷 Ще одна накладна цієї точки" показується лише
+після того, як основну накладну вже відскановано
+(`groupsMultipleWaybills && waybillNumber`), список уже доданих —
+з кнопкою "✕" на видалення до збереження.
+
+**Заразом (те саме тестування з водієм) — ще дві дрібні правки:**
+- `requiresPallets(depot_start, mode)` тепер `true` для обох режимів
+  (раніше — тільки `daily`): у `full` це "загальна кількість палет на
+  маршрут", окреме поле від палет по точках, підпис у формі — "Кількість
+  палет (загальна на маршрут)".
+- "Назва маршруту" для власного авто — поля `route_name` **немає** в
+  схемі `route_events` (є лише в `hired_transport_trips`, інша фіча).
+  Тимчасово, без міграції бекенду: для `depot_start` у `full`-режимі
+  поле "Нотатки" перепідписується на "Назва маршруту"
+  (`isRouteNameField = type === "depot_start" && dayMode === "full"`
+  в `EventForm.tsx`) — значення й далі йде в те саме поле `notes`.
+
+---
+
 # ═══════════════════════════════════════════════════════════
 <a id="faza-16"></a>
 # ФАЗА 16 — АВТОПАРК ДЛЯ ЛОГІСТА (Fleet CRUD)

@@ -161,7 +161,7 @@ export function channelLabel(ch: DeliveryChannel | null | undefined): string
 export function getAvailableEventTypes(mode: TrackingMode): RouteEventType[]  // daily тепер теж містить "delivery" (= скан накладної, без одометра)
 export function requiresOdometer(type: RouteEventType, mode: TrackingMode): boolean  // ⚠️ додався mode: daily-delivery не показує одометр, full-delivery показує
 export function requiresWaybill(type: RouteEventType): boolean
-export function requiresPallets(type: RouteEventType, mode: TrackingMode): boolean
+export function requiresPallets(type: RouteEventType, mode: TrackingMode): boolean  // ⚠️ depot_start тепер завжди true (раніше лише daily) — full теж показує загальну к-сть палет на маршрут
 export function eventTypeLabel(type: RouteEventType, mode?: TrackingMode): string  // ⚠️ додався mode: delivery+daily → "Скан накладної", інакше "Вивантаження"
 export function eventTypeIcon(type: RouteEventType): string
 export function eventTypeGradient(type: RouteEventType): string  // ⚠️ нове, не було в плані — колір тайла на DriverDashboard/EventForm

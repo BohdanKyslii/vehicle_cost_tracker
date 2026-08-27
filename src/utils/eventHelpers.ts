@@ -50,10 +50,10 @@ export function requiresWaybill(type: RouteEventType): boolean {
 }
 
 // Чи потрібне поле кількості палет?
-// daily depot_start = завжди (загальна к-сть на день)
-// full delivery = завжди (к-сть на точку)
+// depot_start = завжди (daily — на весь день; full — загальна к-сть на весь маршрут)
+// full delivery = завжди (к-сть на точку вивантаження)
 export function requiresPallets(type: RouteEventType, mode: TrackingMode): boolean {
-	if (type === "depot_start" && mode === "daily") return true;
+	if (type === "depot_start") return true;
 	if (type === "delivery" && mode === "full") return true;
 	return false;
 }
