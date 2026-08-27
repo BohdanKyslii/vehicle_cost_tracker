@@ -35,6 +35,7 @@ export function EventForm() {
 	const [extraFrom, setExtraFrom] = useState("");
 	const [extraTo, setExtraTo] = useState("");
 	const [extraWeightKg, setExtraWeightKg] = useState("");
+	const [extraWaybill, setExtraWaybill] = useState("");
 	const [notes, setNotes] = useState("");
 	const [scannerOpen, setScannerOpen] = useState(false);
 	
@@ -48,8 +49,15 @@ export function EventForm() {
 	function handleScan(raw: string) {
 		const parsed = parseQRCode(raw);
 		if (parsed) {
-			setWaybillNumber(parsed.waybillNumber);
-			setWaybillDate(parsed.waybillDate);
+			if (type === "return_goods") {
+				setReturnClientWaybill(parsed.waybillNumber);
+			} else if (type === "extra_cargo") {
+				setExtraWaybill(parsed.waybillNumber);
+			} else {
+				// delivery — єдиний тип, якому потрібна ще й дата накладної
+				setWaybillNumber(parsed.waybillNumber);
+				setWaybillDate(parsed.waybillDate);
+			}
 		}
 		setScannerOpen(false);
 	}
@@ -76,6 +84,7 @@ export function EventForm() {
 			extraFrom: type === "extra_cargo" ? extraFrom : undefined,
 			extraTo: type === "extra_cargo" ? extraTo : undefined,
 			extraWeightKg: type === "extra_cargo" && extraWeightKg ? Number(extraWeightKg) : undefined,
+			extraWaybill: type === "extra_cargo" && extraWaybill ? extraWaybill : undefined,
 			notes: notes || undefined,
 		};
 		
@@ -134,11 +143,20 @@ export function EventForm() {
 			)}
 			
 			{type === "return_goods" && (
-				<Input label="Накладна клієнта (повернення)" value={returnClientWaybill} onChange={(e) => setReturnClientWaybill(e.target.value)} />
+				<>
+					<Button type="button" variant="ghost" onClick={() => setScannerOpen(true)}>
+						📷 Сканувати QR
+					</Button>
+					<Input label="Накладна клієнта (повернення)" value={returnClientWaybill} onChange={(e) => setReturnClientWaybill(e.target.value)} />
+				</>
 			)}
-			
+
 			{type === "extra_cargo" && (
 				<>
+					<Button type="button" variant="ghost" onClick={() => setScannerOpen(true)}>
+						📷 Сканувати QR
+					</Button>
+					<Input label="Накладна (опційно)" value={extraWaybill} onChange={(e) => setExtraWaybill(e.target.value)} />
 					<Input label="Звідки" value={extraFrom} onChange={(e) => setExtraFrom(e.target.value)} />
 					<Input label="Куди" value={extraTo} onChange={(e) => setExtraTo(e.target.value)} />
 					<Input label="Вага (кг)" type="number" value={extraWeightKg} onChange={(e) => setExtraWeightKg(e.target.value)} />

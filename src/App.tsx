@@ -71,7 +71,6 @@ export default function App() {
             >
                 <Route index element={<DriverDashboard />} />
                 <Route path="event/new" element={<EventForm />} />
-                <Route path="scan" element={<PlaceholderPage title="Сканер QR" />} />
                 <Route path="history" element={<DriverHistory />} />
             </Route>
             

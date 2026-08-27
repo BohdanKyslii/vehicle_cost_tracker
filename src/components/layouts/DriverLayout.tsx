@@ -32,7 +32,6 @@ export function DriverLayout() {
                 <div className="max-w-md mx-auto flex">
                     {[
                         { to: "/driver", label: "Маршрут", icon: "🗺️", exact: true },
-                        { to: "/driver/scan", label: "Сканер", icon: "📷", exact: false },
                         { to: "/driver/history", label: "Історія", icon: "📋", exact: false },
                     ].map(({ to, label, icon, exact }) => (
                         <NavLink
