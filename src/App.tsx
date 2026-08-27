@@ -10,6 +10,8 @@ import {DriverMiniApp } from "./pages/DriverMiniApp.tsx";
 import { RequireRole } from "./components/auth/RequireRole";
 import { RoleRedirect } from "./pages/RoleRedirect";
 import { DriverHistory } from "./pages/driver/DriverHistory";
+import { FleetList } from "./pages/fleet/FleetList";
+import { CarForm } from "./pages/fleet/CarForm";
 
 // Далі будемо замінювати PlaceholderPage на реальні компоненти
 
@@ -83,8 +85,9 @@ export default function App() {
                     </RequireRole>
                 }
             >
-                <Route index element={<PlaceholderPage title="Автопарк" />} />
-                <Route path=":carId" element={<PlaceholderPage title="Деталі авто" />} />
+                <Route index element={<FleetList />} />
+                <Route path="new" element={<CarForm />} />
+                <Route path=":carId" element={<CarForm />} />
             </Route>
             {/* /waybills, /hired, /carriers, /analytics, /admin — та сама обгортка RequireRole */}
             

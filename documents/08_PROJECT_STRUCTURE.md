@@ -1,6 +1,7 @@
 # Vehicle Cost Tracker — Структура файлів проєкту
 
-> ✅ Резинхронізовано 2026-08-24 напряму з `find src -type f` — це
+> ✅ Резинхронізовано 2026-08-27 напряму з `find src -type f` (попередній
+> резинк — 2026-08-24, до того як набрались Фаза 14 і Фаза 15). Це
 > РЕАЛЬНЕ дерево, не план (на відміну від попередньої версії "v3" цього
 > файлу, яка була написана до старту кодингу й описувала майбутній
 > вигляд). Реальна тека хуків називається **`hocks/`**, не `hooks/` —
@@ -64,15 +65,17 @@ src/
 │   │   └── ui.tsx                 # ⚠️ дублює Button/Input/Spinner/EmptyState/ErrorBanner (див. 05_COMPONENTS_HOOKS_UTILS.md)
 │   │
 │   ├── layouts/
-│   │   ├── DriverLayout.tsx       # glass-хедер + bottom nav
+│   │   ├── DriverLayout.tsx       # glass-хедер + bottom nav (Маршрут/Історія — "Сканер" прибрано в Кроці 15.5)
 │   │   ├── MainLayout.tsx         # sidebar
-│   │   └── TopNav.tsx             # НОВЕ — верхнє меню лендінгу (⚠️ орфан, див. нижче)
+│   │   └── TopNav.tsx             # верхнє меню лендінгу — ✅ підключено через RoleRedirect (Фаза 14)
 │   │
 │   ├── auth/
-│   │   └── AuthModal.tsx          # НОВЕ — вхід/реєстрація, 4 панелі, Telegram deep-link
+│   │   ├── AuthModal.tsx          # вхід/реєстрація, 4 панелі, Telegram deep-link
+│   │   └── RequireRole.tsx        # НОВЕ (Фаза 14) — гейт маршруту за роллю, захищає /driver і /fleet
 │   │
 │   ├── driver/
 │   │   ├── DayModeSwitch.tsx
+│   │   ├── QRScanner.tsx          # НОВЕ (Фаза 15) — Html5Qrcode, викликається з EventForm
 │   │   └── ui.tsx                 # ⚠️ дублікат components/ui/ui.tsx
 │   │
 │   ├── waybills/
@@ -86,13 +89,16 @@ src/
 │   └── analystics/                # ⏳ порожня, ⚠️ назва з друкарською помилкою ("analystics")
 │
 ├── pages/
-│   ├── DriverMiniApp.tsx          # НОВЕ — Telegram Mini App, /driver-app
-│   ├── LandingPage.tsx            # ⚠️ збудовано, але НЕ підключено в App.tsx
-│   ├── UnderConstruction.tsx      # ⚠️ збудовано, але НЕ підключено в App.tsx
+│   ├── DriverMiniApp.tsx          # Telegram Mini App, /driver-app
+│   ├── RoleRedirect.tsx           # НОВЕ (Фаза 14) — елемент маршруту "/": LandingPage
+│   │                              #   для розлогинених, редирект за роллю для залогинених
+│   ├── LandingPage.tsx            # ✅ підключено — рендериться через RoleRedirect
+│   ├── UnderConstruction.tsx      # ⚠️ збудовано, але й досі НЕ використовується ніде
 │   ├── PlaceholderPage.tsx        # заглушка, реально використовується в App.tsx
 │   └── driver/
 │       ├── DriverDashboard.tsx
-│       └── EventForm.tsx
+│       ├── EventForm.tsx
+│       └── DriverHistory.tsx      # НОВЕ (Фаза 15) — усі події водія, найновіші зверху
 │   # ⏳ порожньо: pages/fleet/, pages/waybills/ (WaybillList — в components/),
 │   #    pages/hired/, pages/carriers/, pages/analytics/, pages/admin/
 │
@@ -140,7 +146,6 @@ components/
      Toast.tsx, SkeletonRow.tsx
 
 pages/
-├── driver/QRScanner.tsx, DriverHistory.tsx   (Фаза 15)
 ├── fleet/FleetList.tsx, CarDetail.tsx, CarMonth.tsx, CarForm.tsx   (Фаза 16)
 ├── waybills/WaybillDetail.tsx, WaybillImport.tsx, ReturnMatchingList.tsx, UnassignedWaybills.tsx
 ├── hired/HiredTripList.tsx, HiredTripForm.tsx, HiredTripDetail.tsx
@@ -148,13 +153,13 @@ pages/
 ├── analytics/AnalyticsDashboard.tsx, TransportCosts.tsx, CustomerAnalytics.tsx, ChannelComparison.tsx, CarAnalytics.tsx
 └── admin/AdminDashboard.tsx, CarAdmin.tsx, DriverAdmin.tsx, ProductAdmin.tsx, CustomerAdmin.tsx, StoreAdmin.tsx, MonthlyCostsAdmin.tsx
 
-Заплановано ще (Крок 15, CODING_GUIDE.md):
-└── /panel — екран підтвердження реєстрацій для ролі head (не /admin — той шлях
-    зарезервовано під nginx-проксі на Django admin, див. 04_PAGES_AND_ROUTING.md)
-
-Заплановано (Фаза 14, CODING_GUIDE.md):
-└── RequireRole.tsx — гейт маршрутів за роллю; жоден маршрут в App.tsx
-    зараз не захищений на рівні UI
+Заплановано ще (Крок 15 "Що далі", CODING_GUIDE.md):
+└── AdminPanel — компонент для <Route path="/panel">, екран підтвердження
+    реєстрацій для ролі head (не /admin — той шлях зарезервовано під
+    nginx-проксі на Django admin). ⚠️ Пункт меню "Адмін" у TopNav.tsx вже
+    веде на /panel і вже гейтується (role==='head'), але сам маршрут
+    /panel у App.tsx ще не заведено — зараз "мертве" посилання (404),
+    див. 04_PAGES_AND_ROUTING.md.
 ```
 
 `api/`: `stores.ts`, `hiredTransport.ts`, `carriers.ts`, `monthlyCosts.ts`,

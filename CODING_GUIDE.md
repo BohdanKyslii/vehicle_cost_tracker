@@ -5007,7 +5007,13 @@ export function EventForm() {
 
 Створи `src/pages/PlaceholderPage.tsx`, якщо ще не робив цього в
 Фазі 10 (той самий компонент, використовується і тут для `/driver/scan`
-і `/driver/history` — QRScanner і Історія це Крок 14, ще попереду).
+і `/driver/history` — Історія це Фаза 15, ще попереду).
+
+> ⚠️ **Виправлено пост-фактум (Фаза 15.5):** `/driver/scan` як окремий
+> екран так і не зʼявився — коли дійшло до QR-сканера, дизайн змінився
+> (сканер вбудували прямо в `EventForm`, не окремою вкладкою). Цей
+> маршрут і пункт "Сканер" у нижній навігації (Фаза 9, Крок 9.х) пізніше
+> прибрані — див. Крок 15.5.
 
 Заміни блок `/driver` у `src/App.tsx` — з flat-маршруту на вкладені
 routes через `DriverLayout`:
@@ -5857,6 +5863,101 @@ const total = sorted
 
 ---
 
+## Крок 15.5 — Сканер для "Повернення" і "Додаткового вантажу", прибирання вкладки "Сканер"
+
+> Додано пост-фактум, після того як Кроки 15.1-15.4 вже були набрані й
+> задеплоєні. Рішення обговорювались і затверджувались перед реалізацією:
+> один спільний `scannerOpen`/`handleScan` на всю форму (а не окремий
+> сканер на кожен тип події), з QR береться лише номер накладної (дата з
+> QR тут не потрібна — у бізнес-логіці §4.3 `documents/01_PROJECT_OVERVIEW.md`
+> далі номером оригінальної накладної вручну оперує менеджер, застосунку
+> дата не потрібна).
+
+`handleScan` тепер розрізняє поточний `type` і кладе номер у потрібне поле:
+
+```typescript
+// src/pages/driver/EventForm.tsx — оновлений handleScan
+function handleScan(raw: string) {
+  const parsed = parseQRCode(raw);
+  if (parsed) {
+    if (type === "return_goods") {
+      setReturnClientWaybill(parsed.waybillNumber);
+    } else if (type === "extra_cargo") {
+      setExtraWaybill(parsed.waybillNumber);
+    } else {
+      // delivery — єдиний тип, якому потрібна ще й дата накладної
+      setWaybillNumber(parsed.waybillNumber);
+      setWaybillDate(parsed.waybillDate);
+    }
+  }
+  setScannerOpen(false);
+}
+```
+
+Кнопка "📷 Сканувати QR" додається в блоки `return_goods` і `extra_cargo`,
+той самий `{scannerOpen && <QRScanner .../>}` (визначений один раз у
+Кроці 15.2) обслуговує всі три типи — позиція в JSX не важлива, бо
+`QRScanner` рендериться як `fixed inset-0` поверх усього екрана.
+Заразом додано поле `extraWaybill` для `extra_cargo` — воно було в
+`RouteEventCreate` (`types/index.ts`) від самого початку, але при наборі
+`EventForm` (Фаза 13) в JSX його забули намалювати:
+
+```typescript
+// src/pages/driver/EventForm.tsx — доповнення блоків
+{type === "return_goods" && (
+  <>
+    <Button type="button" variant="ghost" onClick={() => setScannerOpen(true)}>
+      📷 Сканувати QR
+    </Button>
+    <Input label="Накладна клієнта (повернення)" value={returnClientWaybill} onChange={(e) => setReturnClientWaybill(e.target.value)} />
+  </>
+)}
+
+{type === "extra_cargo" && (
+  <>
+    <Button type="button" variant="ghost" onClick={() => setScannerOpen(true)}>
+      📷 Сканувати QR
+    </Button>
+    <Input label="Накладна (опційно)" value={extraWaybill} onChange={(e) => setExtraWaybill(e.target.value)} />
+    <Input label="Звідки" value={extraFrom} onChange={(e) => setExtraFrom(e.target.value)} />
+    <Input label="Куди" value={extraTo} onChange={(e) => setExtraTo(e.target.value)} />
+    <Input label="Вага (кг)" type="number" value={extraWeightKg} onChange={(e) => setExtraWeightKg(e.target.value)} />
+  </>
+)}
+```
+
+Не забудь додати `const [extraWaybill, setExtraWaybill] = useState("")`
+і включити `extraWaybill` в об'єкт, що йде в `createEvent.mutateAsync(...)`.
+
+**Прибирання мертвої вкладки "Сканер":** окремий екран `/driver/scan`
+(заведений ще в Фазі 9/13 як заглушка "на майбутнє") так і не знадобився
+— QR живе тільки всередині `EventForm`. Прибери:
+
+```typescript
+// src/components/layouts/DriverLayout.tsx — нижня навігація
+{ to: "/driver", label: "Маршрут", icon: "🗺️", exact: true },
+{ to: "/driver/history", label: "Історія", icon: "📋", exact: false },
+// рядок з "/driver/scan" / "Сканер" — видалити
+```
+
+```typescript
+// src/App.tsx — усередині /driver
+<Route path="event/new" element={<EventForm />} />
+<Route path="history" element={<DriverHistory />} />
+{/* <Route path="scan" .../> — видалено, PlaceholderPage тут більше не потрібен */}
+```
+
+### Перевірка
+
+1. У нижньому меню водія лишається два пункти: "Маршрут" і "Історія".
+2. "Нова подія" → "Повернення товару" → кнопка "📷 Сканувати QR" підставляє
+   номер у "Накладна клієнта (повернення)".
+3. "Нова подія" → "Додатковий вантаж" → та сама кнопка підставляє номер у
+   нове поле "Накладна (опційно)", інші поля (Звідки/Куди/Вага) вводяться
+   вручну як і раніше.
+
+---
+
 # ═══════════════════════════════════════════════════════════
 <a id="faza-16"></a>
 # ФАЗА 16 — АВТОПАРК ДЛЯ ЛОГІСТА (Fleet CRUD)
@@ -6172,22 +6273,26 @@ export function CarForm() {
 - Кнопка "← Назад"
 - Підсумки: сума, вага, об'єм
 
-> ⚠️ **Перевірено 2026-08-16 (сесія редіректу Mini App за роллю):** запис
-> нижче був НЕВІРНИЙ — Фаза 14 (`RequireRole`), Фаза 15 (`QRScanner`) і
-> Фаза 16 (`FleetList`/`CarForm`) розписані як інструкція вище в цьому
-> файлі, але жоден із цих файлів у репозиторії фактично не набраний
-> руками: `src/components/fleet/`, `src/pages/fleet/` — порожні папки,
-> `RequireRole.tsx`/`QRScanner.tsx` не існують, `/fleet` в `App.tsx`
-> досі рендерить `PlaceholderPage`. **Це зараз найпріоритетніше** — саме
-> через відсутність `FleetList` логіст/адмін, тиснучи в боті "Відкрити
-> застосунок", після редіректу за роллю (`vehicle_tracker_api`,
-> `DriverMiniApp.tsx`, вже зроблено) потрапляє на порожню заглушку
-> замість реального списку авто/водіїв. Продовжувати тут варто саме з
-> Фази 14 → Фази 16 (в такому порядку — гейт по ролі логічно ставити
-> ДО того, як зʼявляться сторінки, які він має захищати), а не з
-> Кроку 12/13/14 нижче (найманий транспорт/служби/аналітика) — ті
-> залежать від щойно дописаного, але ще не набраного вручну бекенду
-> (`apps/logistics`, `DJANGO_CODING_GUIDE.md` Фаза 11).
+> ⚠️ **Оновлено 2026-08-27 (перевірено напряму проти коду):**
+> Фаза 14 (`RequireRole`/`RoleRedirect`, PR #11, `b3a8378`) і Фаза 15
+> (`QRScanner`, `DriverHistory`, PR #12, `eb46c5a`, + доопрацювання
+> Кроку 15.5 — сканер для `return_goods`/`extra_cargo`, прибрана
+> вкладка "Сканер") — **обидві реально набрані, змержені в `main` і
+> задеплоєні.** Стара версія цього запису (від 2026-08-16) казала, що
+> жодна з фаз 14-16 не набрана — це вже неправда для 14 і 15.
+>
+> **Фаза 16 (`FleetList`/`CarForm`) лишається не набраною** —
+> `src/components/fleet/`, `src/pages/fleet/` досі порожні, `/fleet` в
+> `App.tsx` (тепер під `RequireRole roles={["logist","manager","head"]}`,
+> Фаза 14 це вже захищає) все ще рендерить `PlaceholderPage`. **Це
+> зараз найпріоритетніше** — логіст/адмін після Mini App-редіректу за
+> роллю потрапляє на реальний гейт, але за ним порожня заглушка замість
+> списку авто. Продовжувати саме з Фази 16, а не з Кроку 12/13 нижче
+> (найманий транспорт/служби) — ті залежать від бекендової
+> `apps/logistics` (`DJANGO_CODING_GUIDE.md` Фаза 11), яка на момент
+> цього запису ще не була змержена в `main` бекенд-репо (перевір
+> `obsidian/STATE.md` цього репо на актуальний статус, там могло
+> змінитись).
 >
 > `CarStatusBadge` (фільтри по статусу авто/режиму трекінгу в таблиці) —
 > доробити поверх `FleetList` із Фази 16.3, як окрема косметична
@@ -6214,14 +6319,17 @@ Admin бекенду (`vehicle_tracker_api`); адмін лише отримує
   - Permission-клас: тільки `Profile.role == HEAD` (НЕ Django
     `is_superuser` — це різні речі: `is_superuser` керує доступом до
     Django Admin, `Profile.role` — доступом до цього екрана застосунку)
-- **Frontend** (цей репозиторій): сторінка вже заведена на шляху
-  `/panel` (НЕ `/admin`!) — `App.tsx::AdminPanelRoute`, зараз показує
-  заглушку через `UnderConstruction`, з гейтом по ролі
-  (`user?.profile?.role !== 'head'` → "Доступ заборонено"). Пункт меню
-  "Адмін" у `TopNav.tsx` теж вже рендериться лише для ролі `head`.
-  Цей крок — замінити вміст `AdminPanelRoute` на таблицю заявок з
-  кнопками "Підтвердити"/"Відхилити" (React Query hook на кшталт
-  `usePendingUsers()`), логіка гейта й шлях лишаються ті самі.
+- **Frontend** (цей репозиторій): ⚠️ перевірено 2026-08-27 — маршрут
+  `/panel` у `App.tsx` **фактично НЕ існує**, попередня версія цього
+  запису це стверджувала помилково. Реально заведено лише пункт меню
+  "Адмін" у `TopNav.tsx` (`<Link to="/panel">`), і він уже правильно
+  гейтується (`user?.profile?.role === 'head'`) — але веде в нікуди,
+  бо сам `<Route path="/panel">` у `App.tsx` ще не додано. Цей крок:
+  (1) додати `<Route path="/panel" element={<RequireRole roles={["head"]}><AdminPanel /></RequireRole>} />`
+  в `App.tsx` (той самий `RequireRole` з Фази 14, а не саморобний гейт
+  на кшталт "показати заглушку"), (2) написати `AdminPanel` — таблицю
+  заявок із кнопками "Підтвердити"/"Відхилити" (React Query hook на
+  кшталт `usePendingUsers()`).
   **Чому НЕ `/admin`:** на проді nginx проксіює `/admin/` напряму на
   Django admin (`nginx.conf`, Крок 4.3); фронтенд-роут `/admin` (без
   слеша) перекривав би справжню адмінку заглушкою через SPA-fallback —
