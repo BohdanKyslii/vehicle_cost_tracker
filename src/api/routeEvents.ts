@@ -91,7 +91,7 @@ function toRouteEventPayload(data: RouteEventCreate) {
         car: data.carId,
         driver: data.driverId,
         tracking_mode: data.trackingMode,
-        eventType: data.eventType,
+        event_type: data.eventType,
         event_ts: data.eventTs,
         odometer_km: data.odometerKm ?? null,
         pallets_count: data.palletsCount ?? null,
