@@ -57,7 +57,7 @@ export function EventForm() {
 	if (!driver || !car) return <ErrorBanner message="Немає закріпленого авто" />;
 
 	const needsOdometer = requiresOdometer(type, dayMode, stage);
-	const needsPallets = requiresPallets(type, dayMode, stage);
+	const needsPallets = requiresPallets(type, dayMode);
 	// Групове сканування (скан → "+ще одна" → скан → ...) потрібне для
 	// будь-якого delivery: на unload (точка) — 2-4 накладні цієї точки;
 	// на load (склад) чи в daily — весь список накладних маршруту підряд
@@ -190,7 +190,11 @@ export function EventForm() {
 			
 			{needsPallets && (
 				<Input
-					label={type === "depot_start" && dayMode === "full" ? "Кількість палет (загальна на маршрут)" : "Кількість палет"}
+					label={
+						type === "depot_start" && dayMode === "full" ? "Кількість палет (загальна на маршрут)" :
+						type === "delivery" && dayMode === "full" && !isUnloadStage ? "Кількість палет (за весь цей скан)" :
+						"Кількість палет"
+					}
 					type="number"
 					value={palletsCount}
 					onChange={(e) => setPalletsCount(e.target.value)}

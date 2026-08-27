@@ -98,8 +98,12 @@ export function buildDailySummary(
 	if (mode === "daily" && depotStart?.palletsCount) {
 		palletsCount = depotStart?.palletsCount;
 	} else if (mode === "full") {
+		// odometerKm != null — ознака "unload" (підтверджена точка); "load"-скан
+		// на складі теж може нести palletsCount (загальна к-сть за захід), але
+		// це довідкове число, не пробіг по точках — його в суму не додаємо,
+		// інакше задвоїмо з сумою по точках нижче
 		const total = sorted
-		.filter(e => e.eventType === "delivery" && e.palletsCount)
+			.filter(e => e.eventType === "delivery" && e.odometerKm != null && e.palletsCount)
 			.reduce((sum, e) => sum + (e.palletsCount ?? 0), 0);
 		if (total > 0) palletsCount = total;
 	}

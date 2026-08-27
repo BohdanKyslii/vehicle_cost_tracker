@@ -65,10 +65,12 @@ export function requiresWaybill(type: RouteEventType): boolean {
 
 // Чи потрібне поле кількості палет?
 // depot_start = завжди (daily — на весь день; full — загальна к-сть на весь маршрут)
-// full delivery = лише на unload (к-сть на точку вивантаження, не на завантаженні)
-export function requiresPallets(type: RouteEventType, mode: TrackingMode, stage?: DeliveryStage): boolean {
+// full delivery = завжди, і на load (к-сть за весь захід сканування на складі),
+// і на unload (к-сть саме на цій точці) — обидва числа окремі, у сумі
+// (calcSummary.ts) рахується лише unload (за наявністю одометра)
+export function requiresPallets(type: RouteEventType, mode: TrackingMode): boolean {
 	if (type === "depot_start") return true;
-	if (type === "delivery" && mode === "full") return stage === "unload";
+	if (type === "delivery" && mode === "full") return true;
 	return false;
 }
 

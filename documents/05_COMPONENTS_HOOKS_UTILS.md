@@ -163,7 +163,7 @@ export interface EventTile { type: RouteEventType; stage?: DeliveryStage }  // �
 export function getAvailableEventTypes(mode: TrackingMode): EventTile[]  // ⚠️ тепер повертає EventTile[], не RouteEventType[] — full містить "delivery" двічі (stage: "load" і "unload")
 export function requiresOdometer(type: RouteEventType, mode: TrackingMode, stage?: DeliveryStage): boolean  // ⚠️ додався stage: full-delivery показує одометр лише на "unload", не на "load"
 export function requiresWaybill(type: RouteEventType): boolean
-export function requiresPallets(type: RouteEventType, mode: TrackingMode, stage?: DeliveryStage): boolean  // ⚠️ depot_start завжди true; full-delivery — лише "unload"
+export function requiresPallets(type: RouteEventType, mode: TrackingMode): boolean  // ⚠️ depot_start завжди true; full-delivery — на ОБОХ стадіях (load: за весь скан, unload: за точку) — stage тут не потрібен, обидві дають true
 export function eventTypeLabel(type: RouteEventType, mode?: TrackingMode, stage?: DeliveryStage): string  // ⚠️ delivery: daily або stage="load" → "Скан накладної", інакше "Вивантаження"
 export function eventTypeIcon(type: RouteEventType): string
 export function eventTypeGradient(type: RouteEventType): string  // ⚠️ нове, не було в плані — колір тайла на DriverDashboard/EventForm

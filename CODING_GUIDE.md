@@ -5819,6 +5819,44 @@ const groupsMultipleWaybills = needsWaybill;
 
 ---
 
+## Крок 15.9 — Кількість палет і на "Скані накладної" (load, full)
+
+> Навіщо: після Кроку 15.8 з'ясувалось, що на "Скані накладної" (склад)
+> теж бракує поля палет — не на кожну накладну окремо (уточнено у
+> водія), а ОДНЕ число за весь захід сканування (скільки палет
+> завантажили на маршрут загалом).
+
+`src/utils/eventHelpers.ts` — `requiresPallets` більше не залежить від
+`stage` для `delivery`+`full` (обидві стадії дають `true`), тому й
+параметр `stage` тут став зайвим:
+
+```typescript
+// було: requiresPallets(type, mode, stage) { ...; return stage === "unload"; }
+export function requiresPallets(type: RouteEventType, mode: TrackingMode): boolean {
+  if (type === "depot_start") return true;
+  if (type === "delivery" && mode === "full") return true; // і load, і unload
+  return false;
+}
+```
+
+⚠️ **Важливо** — це значення на `load` НЕ можна плюсувати до суми палет
+по точках (`unload`) в аналітиці, інакше задвоїться. `calcSummary.ts`
+вже рахує суму лише по подіях з одометром (`odometerKm != null` —
+ознака unload), тому довелось додати цей фільтр явно:
+
+```typescript
+// utils/calcSummary.ts, гілка mode === "full"
+const total = sorted
+  .filter(e => e.eventType === "delivery" && e.odometerKm != null && e.palletsCount)
+  .reduce((sum, e) => sum + (e.palletsCount ?? 0), 0);
+```
+
+`src/pages/driver/EventForm.tsx` — підпис поля тепер трирівневий
+(`depot_start`+full → "загальна на маршрут", `delivery`+full+load →
+"за весь цей скан", інакше — просто "Кількість палет").
+
+---
+
 # ═══════════════════════════════════════════════════════════
 <a id="faza-16"></a>
 # ФАЗА 16 — АВТОПАРК ДЛЯ ЛОГІСТА (Fleet CRUD)
