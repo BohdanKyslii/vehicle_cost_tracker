@@ -117,3 +117,81 @@ export async function fetchCar(id: number): Promise<Car> {
     const  raw =await apiFetch<RawCar>(`/cars/${id}/`);
     return mapCar(raw);
 }
+
+export interface CarPayload {
+    nameCar: string;
+    numberCar: string;
+    fuelCardNumber?: number;
+    amountCar: number;
+    defaultTrackingMode: TrackingMode;
+    statusCar: CarStatus;
+    isActive: boolean;
+    specs?: {
+        vinCode?: string;
+        yearManufactured?: number;
+        weightKg?: number;
+        payloadKg?: number;
+        lengthCm?: number;
+        widthCm?: number;
+        heightCm?: number;
+        hasTailLift: boolean;
+        hasTrailer: boolean;
+    };
+    trailer?: {
+        vinCode?: string;
+        yearManufactured?: number;
+        nameTrailer: string;
+        model: string;
+        numberTrailer: string;
+        isActive: boolean;
+    };
+}
+
+function toCarPayload(data: CarPayload) {
+    return {
+        name_car: data.nameCar,
+        number_car: data.numberCar,
+        fuel_card_number: data.fuelCardNumber ?? null,
+        amount_car: data.amountCar,
+        default_tracking_mode: data.defaultTrackingMode,
+        status_car: data.statusCar,
+        is_active: data.isActive,
+        ...(data.specs && {
+            specs: {
+                vin_code: data.specs.vinCode ?? "",
+                year_manufactured: data.specs.yearManufactured ?? null,
+                weight_kg: data.specs.weightKg ?? null,
+                payload_kg: data.specs.payloadKg ?? null,
+                length_cm: data.specs.lengthCm ?? null,
+                width_cm: data.specs.widthCm ?? null,
+                height_cm: data.specs.heightCm ?? null,
+                has_tail_lift: data.specs.hasTailLift,
+                has_trailer: data.specs.hasTrailer,
+            },
+        }),
+        ...(data.trailer && {
+            trailer: {
+                vin_code: data.trailer.vinCode ?? "",
+                year_manufactured: data.trailer.yearManufactured ?? null,
+                name_trailer: data.trailer.nameTrailer,
+                model: data.trailer.model,
+                number_trailer: data.trailer.numberTrailer,
+                is_active: data.trailer.isActive,
+            },
+        }),
+    };
+}
+
+export async function createCar(data: CarPayload): Promise<Car> {
+    const raw = await apiFetch<RawCar>("/cars/", { method: "POST", json: toCarPayload(data) });
+    return mapCar(raw);
+}
+
+export async function updateCar(id: number, data: CarPayload): Promise<Car> {
+    const raw = await apiFetch<RawCar>(`/cars/${id}/`, { method: "PATCH", json: toCarPayload(data) });
+    return mapCar(raw);
+}
+
+export async function deleteCar(id: number): Promise<void> {
+    await apiFetch<void>(`/cars/${id}/`, { method: "DELETE" });
+}
