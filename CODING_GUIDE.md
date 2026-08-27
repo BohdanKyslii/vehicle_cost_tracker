@@ -5210,11 +5210,12 @@ import { Html5Qrcode } from "html5-qrcode";
 interface QRScannerProps {
   onScan: (rawValue: string) => void;
   onClose: () => void;
+  notice?: string | null; // напр. "цю накладну вже відскановано" — показується поверх камери
 }
 
 const CONTAINER_ID = "qr-reader";
 
-export function QRScanner({ onScan, onClose }: QRScannerProps) {
+export function QRScanner({ onScan, onClose, notice }: QRScannerProps) {
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -5242,6 +5243,7 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
     <div className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-4">
       <div id={CONTAINER_ID} className="w-full max-w-sm rounded-xl overflow-hidden" />
       {error && <p className="text-red-300 text-sm mt-3 text-center">{error}</p>}
+      {notice && <p className="text-amber-300 text-sm mt-3 text-center">{notice}</p>}
       <button
         onClick={onClose}
         className="mt-5 px-4 py-2 text-sm text-white/70 underline underline-offset-4"
@@ -5262,50 +5264,105 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
 > сам, тому компонент і без змін підтримає виклик `onScan` кілька разів
 > поспіль, просто екран, що його використовує, не повинен закривати
 > `QRScanner` після першого спрацювання.
+>
+> ✅ **Резинхронізовано 2026-08-27** (тестування з водієм): додано
+> `notice` — саме цей механізм "не закривати камеру" тепер реально
+> використовується в `EventForm` (Крок 15.2) для попередження про
+> дублікат накладної, а не лише теоретична можливість з нотатки вище.
 
 ---
 
 ## Крок 15.2 — Підключення в EventForm
 
-У `src/pages/driver/EventForm.tsx` — додай стан для видимості сканера
-й обробник, який парсить сирий текст і підставляє поля лише для
-`type === "delivery"`:
+> ✅ **Резинхронізовано 2026-08-27** — після першого тесту з водієм
+> зʼясувалось, що camera-first UX і захист від дублю важливіші за
+> "кнопка → сканер → форма": (1) камера має відкриватись ОДРАЗУ при
+> вході на екран `delivery` (не за кнопкою) — форма зʼявляється лише
+> після скану; (2) та сама накладна не може потрапити в систему двічі
+> за день. Код нижче — вже фінальна версія з цим урахуванням, не
+> перший прохід.
+
+У `src/pages/driver/EventForm.tsx`:
 
 ```typescript
 // src/pages/driver/EventForm.tsx — доповнення
 import { useState } from "react";
 import { QRScanner } from "../../components/driver/QRScanner";
 import { parseQRCode } from "../../utils/parseQR";
+import { useTodayEvents } from "../../hocks/useRouteEvents";
+
+// needsWaybill залежить лише від type (searchParams) — відомо одразу,
+// ще ДО завантаження driver/car, тому можна ним ініціалізувати useState
+const needsWaybill = requiresWaybill(type);
 
 // ... всередині компонента, поруч з іншими useState:
-const [scannerOpen, setScannerOpen] = useState(false);
+const { data: todayEvents } = useTodayEvents(car?.idCar ?? 0);
+// Камера відкривається одразу, якщо тип вимагає накладну —
+// водій спершу сканує, форма з'являється вже з підтягнутим номером
+const [scannerOpen, setScannerOpen] = useState(needsWaybill);
+const [scanError, setScanError] = useState<string | null>(null);
+
+// Та сама накладна не може бути відскановано двічі за день
+function isAlreadyScannedToday(num: string): boolean {
+  return todayEvents?.some(e => e.waybillNumber === num) ?? false;
+}
 
 function handleScan(raw: string) {
   const parsed = parseQRCode(raw);
-  if (parsed) {
+  if (!parsed) return;
+
+  if (type === "return_goods") {
+    setReturnClientWaybill(parsed.waybillNumber);
+    setScannerOpen(false);
+  } else if (type === "extra_cargo") {
+    setExtraWaybill(parsed.waybillNumber);
+    setScannerOpen(false);
+  } else {
+    // delivery — єдиний тип, якому потрібна ще й дата накладної
+    if (isAlreadyScannedToday(parsed.waybillNumber)) {
+      setScanError(`Накладну №${parsed.waybillNumber} вже відскановано сьогодні — спробуйте іншу`);
+      return; // НЕ закриваємо камеру — водій одразу сканує правильну накладну
+    }
+    setScanError(null);
     setWaybillNumber(parsed.waybillNumber);
     setWaybillDate(parsed.waybillDate);
+    setScannerOpen(false);
   }
-  setScannerOpen(false);
 }
 
-// ... у розмітці, у блоці type === "delivery", ПЕРЕД полем "Номер накладної":
-{type === "delivery" && (
+async function handleSubmit(e: FormEvent) {
+  e.preventDefault();
+  // Та сама перевірка ще раз — на випадок ручного редагування номера
+  if (needsWaybill && isAlreadyScannedToday(waybillNumber)) {
+    setScanError(`Накладну №${waybillNumber} вже відскановано сьогодні — спробуйте іншу`);
+    return;
+  }
+  // ...решта handleSubmit без змін
+}
+
+// ... у розмітці:
+{needsWaybill && (
   <>
-    <Button type="button" variant="ghost" onClick={() => setScannerOpen(true)}>
-      📷 Сканувати QR накладної
-    </Button>
+    {/* Кнопка повторного сканування прихована після успішного скану —
+        одна накладна на подію, без можливості випадково передублювати */}
+    {!waybillNumber && (
+      <Button type="button" variant="ghost" onClick={() => setScannerOpen(true)}>
+        📷 Сканувати QR накладної
+      </Button>
+    )}
     <Input label="Номер накладної" value={waybillNumber} onChange={(e) => setWaybillNumber(e.target.value)} required />
-    {/* ...решта полів delivery без змін... */}
+    <Input label="Клієнт" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
+    {scanError && <ErrorBanner message={scanError} />}
   </>
 )}
 
-{scannerOpen && <QRScanner onScan={handleScan} onClose={() => setScannerOpen(false)} />}
+{scannerOpen && <QRScanner onScan={handleScan} onClose={() => setScannerOpen(false)} notice={scanError} />}
 ```
 
-Поле лишається редагованим вручну й після скану — якщо `parseQRCode`
-не розпізнав формат (повертає `null` при "чужому" QR), водій просто
-вводить номер сам, як і зараз.
+Поле "Номер накладної" лишається редагованим вручну й після скану —
+якщо `parseQRCode` не розпізнав формат (повертає `null` при "чужому"
+QR) або камера взагалі не запустилась (`error` в `QRScanner`), водій
+вводить номер сам.
 
 ---
 
@@ -5350,8 +5407,8 @@ export function useDriverEvents(carId: number) {
 import { useCurrentDriver } from "../../hocks/useDrivers";
 import { useCar } from "../../hocks/useCars";
 import { useDriverEvents } from "../../hocks/useRouteEvents";
-import { eventTypeLabel, eventTypeIcon, eventTypeGradient } from "../../utils/eventHelpers";
-import { formatKm, formatDateTime } from "../../utils/formatters";
+import { eventTypeLabel, eventTypeIcon, eventTypeGradient, eventSummaryBadges, eventComment } from "../../utils/eventHelpers";
+import { formatDateTime } from "../../utils/formatters";
 import { Spinner, EmptyState, ErrorBanner } from "../../components/driver/ui";
 
 export function DriverHistory() {
@@ -5367,22 +5424,41 @@ export function DriverHistory() {
 
   return (
     <ul className="flex flex-col gap-2">
-      {events.map((e) => (
-        <li key={e.id} className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur-sm">
-          <div className={`h-9 w-9 shrink-0 rounded-full bg-gradient-to-br ${eventTypeGradient(e.eventType)} flex items-center justify-center text-base`}>
-            {eventTypeIcon(e.eventType)}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-white/90">{eventTypeLabel(e.eventType)}</p>
-            <p className="text-xs text-white/40">{formatDateTime(e.eventTs)}</p>
-          </div>
-          {e.odometerKm != null && <span className="text-xs text-white/50 shrink-0">{formatKm(e.odometerKm)}</span>}
-        </li>
-      ))}
+      {events.map((e) => {
+        const badges = eventSummaryBadges(e);
+        const comment = eventComment(e);
+        return (
+          <li key={e.id} className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur-sm">
+            <div className={`h-9 w-9 shrink-0 rounded-full bg-gradient-to-br ${eventTypeGradient(e.eventType)} flex items-center justify-center text-base`}>
+              {eventTypeIcon(e.eventType)}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-white/90">{eventTypeLabel(e.eventType, e.trackingMode)}</p>
+              {comment && <p className="text-xs text-white/40 truncate">💬 {comment}</p>}
+              <p className="text-xs text-white/40">{formatDateTime(e.eventTs)}</p>
+            </div>
+            {badges.length > 0 && (
+              <div className="flex flex-col items-end gap-0.5 shrink-0">
+                {badges.map((b, i) => <span key={i} className="text-xs text-white/50">{b}</span>)}
+              </div>
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }
 ```
+
+> ✅ **Резинхронізовано 2026-08-27** — права колонка більше не показує
+> лише одометр, а `eventSummaryBadges()` (Крок 15.5): одометр, номер
+> накладної, номер накладної повернення, літри, грн, кг — залежно від
+> того, які поля заповнені на конкретній події. Під назвою також
+> зʼявився коментар водія (`eventComment()`), тому "Повернення товару"
+> зі сканом і коментарем видно в списку, а не лише іконка з часом.
+> `eventTypeLabel` тепер приймає другим аргументом `trackingMode` події —
+> без нього `delivery` завжди підписувався б "Вивантаження", навіть для
+> daily-запису, де це просто скан накладної.
 
 У `App.tsx` заміни `<Route path="history" element={<PlaceholderPage .../>} />`
 на `<Route path="history" element={<DriverHistory />} />`.
@@ -5392,13 +5468,102 @@ export function DriverHistory() {
 ## Крок 15.4 — Перевірка
 
 1. `npm run dev`, зайди на `/driver`, натисни тип події "Доставка".
-2. У формі — кнопка "📷 Сканувати QR накладної", відкриває камеру
-   (браузер попросить дозвіл).
+2. Камера відкривається одразу (без проміжної кнопки) — браузер
+   попросить дозвіл.
 3. Наведи на QR у форматі `"12345:15.03.26"` (або згенеруй тестовий
    QR із таким текстом) — номер і дата мають підставитись у поля,
-   сканер закриється.
-4. Збережи подію, перейди на "Історія" (bottom nav) — подія має бути
-   в списку, найновіші зверху.
+   сканер закриється, зʼявиться форма.
+4. Спробуй ще раз відсканувати ТУ Ж САМУ накладну (нову подію того ж
+   дня) — камера має лишитись відкритою з попередженням "вже
+   відскановано сьогодні", а не мовчки прийняти дублікат.
+5. Збережи подію, перейди на "Історія" (bottom nav) — подія має бути
+   в списку, найновіші зверху, з номером накладної справа.
+
+---
+
+## Крок 15.5 — Розмежування daily/full для `delivery`, блокування "Старт зі складу"
+
+> Навіщо: перший реальний тест із водієм (2026-08-27, режим `daily`)
+> показав, що `delivery` не може поводитись однаково в обох режимах.
+> За планом (`01_PROJECT_OVERVIEW.md`, розділ 4): у `daily` це просто
+> "скан накладної поточного дня" без одометра/палет (вони вже разово
+> зафіксовані в `depot_start`), а в `full` — повноцінна точка
+> вивантаження з одометром і палетами. Спроба зробити один спільний
+> `delivery`-екран без урахування режиму змушувала водія вводити
+> одометр там, де це не мало сенсу. Заразом виявилось, що ніщо не
+> заважало натиснути "Старт зі складу" кілька разів за день.
+
+`src/utils/eventHelpers.ts` — `requiresOdometer` і `eventTypeLabel`
+тепер беруть режим до уваги:
+
+```typescript
+// daily delivery = скан накладної без одометра (одометр вже є в depot_start);
+// full delivery = одометр обов'язково (пробіг/час між точками)
+export function requiresOdometer(type: RouteEventType, mode: TrackingMode): boolean {
+  if (["refuel", "other_cost", "return_goods", "extra_cargo"].includes(type)) return false;
+  if (type === "delivery") return mode === "full";
+  return true;
+}
+
+// daily-режим: "delivery" — лише скан накладної (без прив'язки до
+// фізичної точки вивантаження), тому назва інша, ніж у full-режимі
+export function eventTypeLabel(type: RouteEventType, mode?: TrackingMode): string {
+  if (type === "delivery" && mode === "daily") return "Скан накладної";
+  const labels: Record<RouteEventType, string> = { /* ...без змін... */ };
+  return labels[type];
+}
+
+// Права колонка карток історії/сьогоднішніх подій — компактні бейджі,
+// побудовані з наявності полів, а не switch по типу
+export function eventSummaryBadges(e: RouteEvent): string[] {
+  const badges: string[] = [];
+  if (e.odometerKm != null) badges.push(formatKm(e.odometerKm));
+  if (e.waybillNumber) badges.push(`№ ${e.waybillNumber}`);
+  if (e.returnClientWaybill) badges.push(`№ ${e.returnClientWaybill}`);
+  if (e.fuelLiters != null) badges.push(formatLiters(e.fuelLiters));
+  if (e.otherCostUah != null) badges.push(formatUah(e.otherCostUah));
+  if (e.extraWeightKg != null) badges.push(formatKg(e.extraWeightKg));
+  return badges;
+}
+
+export function eventComment(e: RouteEvent): string | undefined {
+  return e.notes || e.otherCostComment || undefined;
+}
+```
+
+`getAvailableEventTypes("daily")` доповнено `"delivery"` (раніше в daily
+його не було взагалі — доставку/накладну нічим було відсканувати без
+переходу у `full`).
+
+`src/pages/driver/EventForm.tsx` — виклики оновлено під нову сигнатуру:
+`requiresOdometer(type, dayMode)`, `eventTypeLabel(type, dayMode)`.
+
+`src/pages/driver/DriverDashboard.tsx` — блокування "Старт зі складу"
+після першого запису за день:
+
+```typescript
+const hasDepotStartToday = events?.some(e => e.eventType === "depot_start") ?? false;
+
+// ...у рендері тайлів:
+const isLockedDepotStart = type === "depot_start" && hasDepotStartToday;
+<button
+  disabled={isLockedDepotStart}
+  onClick={() => !isLockedDepotStart && navigate(`/driver/event/new?type=${type}`)}
+  className={isLockedDepotStart ? "opacity-40 cursor-not-allowed" : "..."}
+>
+  {/* ... */}
+  {eventTypeLabel(type, dayMode)}{isLockedDepotStart && " ✓"}
+</button>
+```
+
+Працює через `useTodayEvents` (кеш інвалідується автоматично після
+`createRouteEvent` — `useCreateRouteEvent`), тому тайл сіріє одразу
+після збереження, без ручного релоаду.
+
+> Перевірка: збережи "Старт зі складу" в будь-якому режимі — тайл
+> одразу стає неактивним (сірий, з ✓) до завтра, в обох режимах
+> одночасно (перевірка не залежить від `dayMode`, лише від наявності
+> `depot_start`-події за сьогодні).
 
 ---
 

@@ -155,14 +155,18 @@ export function formatPct(v: number): string
 export function formatLegalEntity(e: LegalEntity): string
 export function channelLabel(ch: DeliveryChannel | null | undefined): string
 
-// utils/eventHelpers.ts — ✅ реалізовано (+ 1 функція понад план)
-export function getAvailableEventTypes(mode: TrackingMode): RouteEventType[]
-export function requiresOdometer(type: RouteEventType): boolean
+// utils/eventHelpers.ts — ✅ реалізовано (+ 3 функції понад план)
+// ✅ Резинхронізовано 2026-08-27 — daily/full розійшлись по одометру
+// й підпису delivery (див. 01_PROJECT_OVERVIEW.md, розділ 4)
+export function getAvailableEventTypes(mode: TrackingMode): RouteEventType[]  // daily тепер теж містить "delivery" (= скан накладної, без одометра)
+export function requiresOdometer(type: RouteEventType, mode: TrackingMode): boolean  // ⚠️ додався mode: daily-delivery не показує одометр, full-delivery показує
 export function requiresWaybill(type: RouteEventType): boolean
 export function requiresPallets(type: RouteEventType, mode: TrackingMode): boolean
-export function eventTypeLabel(type: RouteEventType): string
+export function eventTypeLabel(type: RouteEventType, mode?: TrackingMode): string  // ⚠️ додався mode: delivery+daily → "Скан накладної", інакше "Вивантаження"
 export function eventTypeIcon(type: RouteEventType): string
 export function eventTypeGradient(type: RouteEventType): string  // ⚠️ нове, не було в плані — колір тайла на DriverDashboard/EventForm
+export function eventSummaryBadges(e: RouteEvent): string[]  // ⚠️ нове — права колонка картки (одометр/№накладної/літри/грн/кг), будується з наявності полів
+export function eventComment(e: RouteEvent): string | undefined  // ⚠️ нове — notes або otherCostComment, показується під назвою події
 
 // utils/clientFilter.ts — ✅ реалізовано, збігається з планом
 export function filterWaybills(items: WaybillSummary[], filters: WaybillFilters): WaybillSummary[]
@@ -222,6 +226,11 @@ AuthModal.tsx
 ```
 DayModeSwitch.tsx       — ✅ toggle daily/full + індикатор "змінено вручну на сьогодні"
 ui.tsx                  — ✅ (дублікат components/ui/ui.tsx, див. попередження вище)
+QRScanner.tsx           — ✅ Фаза 15, html5-qrcode, задня камера. Резинхронізовано 2026-08-27:
+                           приймає notice?: string | null (попередження поверх камери, напр.
+                           "цю накладну вже відскановано"); onScan НЕ закриває камеру сам —
+                           викликач (EventForm) вирішує, закривати чи лишити відкритою (потрібно
+                           для повторної спроби скану при дублікаті)
 
 ⏳ Не існує: RouteTimeline.tsx, EventTypeButtons.tsx, ScannedWaybillList.tsx,
    PalletsInput.tsx, StoreConfirmModal.tsx, RejectionForm.tsx,
@@ -264,7 +273,9 @@ WaybillList.tsx         — ✅ сама сторінка живе тут, не 
 ## `components/layouts/` — ✅ реалізовано
 
 ```
-DriverLayout.tsx  — glass-хедер + bottom nav (Маршрут/Сканер/Історія)
+DriverLayout.tsx  — glass-хедер + bottom nav (Маршрут/Історія) — окремої вкладки
+                     "Сканер" немає, сканування камери відбувається інлайн у EventForm
+                     (окрема вкладка/маршрут /driver/scan був видалений як мертвий)
 MainLayout.tsx     — sidebar (Автопарк/Накладні/Найманий/Служби/Аналітика/Адміністрування)
 TopNav.tsx         — верхнє меню лендінгу (⚠️ див. 04_PAGES_AND_ROUTING.md —
                      LandingPage/UnderConstruction, які його використовують,
