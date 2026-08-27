@@ -4,11 +4,12 @@ import { Html5Qrcode } from "html5-qrcode";
 interface QRScannerProps {
   onScan: (rawValue: string) => void;
   onClose: () => void;
+  notice?: string | null; // напр. "цю накладну вже відскановано" — показується поверх камери
 }
 
 const CONTAINER_ID = "qr-reader";
 
-export function QRScanner({ onScan, onClose }: QRScannerProps) {
+export function QRScanner({ onScan, onClose, notice }: QRScannerProps) {
 	const scannerRef = useRef<Html5Qrcode | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	
@@ -36,6 +37,7 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
 		<div className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-4">
 			<div id={CONTAINER_ID} className="w-full max-w-sm rounded-xl overflow-hidden" />
 			{error && <p className="text-red-300 text-sm mt-3 text-center">{error}</p>}
+			{notice && <p className="text-amber-300 text-sm mt-3 text-center">{notice}</p>}
 			<button
 				onClick={onClose}
 				className="mt-5 px-4 py-2 text-sm text-white/70 underline underline-offset-4"

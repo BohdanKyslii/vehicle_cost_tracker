@@ -5,7 +5,7 @@ import type { RouteEventType, RouteEventCreate } from "../../types";
 import { useCurrentDriver } from "../../hocks/useDrivers";
 import { useCar } from "../../hocks/useCars";
 import { useDayMode } from "../../hocks/useDayMode";
-import { useCreateRouteEvent, useLastOdometer } from "../../hocks/useRouteEvents";
+import { useCreateRouteEvent, useLastOdometer, useTodayEvents } from "../../hocks/useRouteEvents";
 import { requiresOdometer, requiresWaybill, requiresPallets, eventTypeLabel, eventTypeIcon, eventTypeGradient } from "../../utils/eventHelpers";
 import { Input, Button, ErrorBanner, Spinner } from "../../components/driver/ui";
 import { QRScanner } from "../../components/driver/QRScanner";
@@ -15,13 +15,15 @@ export function EventForm() {
 	const navigate = useNavigate();
 	const [searchParams] = useSearchParams();
 	const type = (searchParams.get("type") ?? "other_cost") as RouteEventType;
-	
+	const needsWaybill = requiresWaybill(type); // залежить лише від type — відомо одразу
+
 	const { data: driver, isLoading: driverLoading } = useCurrentDriver();
 	const { data: car, isLoading: carLoading } = useCar(driver?.idCar ?? 0);
 	const { dayMode } = useDayMode(car?.defaultTrackingMode ?? "daily");
 	const { data: lastOdometer } = useLastOdometer(car?.idCar ?? 0);
+	const { data: todayEvents } = useTodayEvents(car?.idCar ?? 0);
 	const createEvent = useCreateRouteEvent();
-	
+
 	const [odometerKm, setOdometerKm] = useState("");
 	const [palletsCount, setPalletsCount] = useState("");
 	const [waybillNumber, setWaybillNumber] = useState("");
@@ -37,34 +39,53 @@ export function EventForm() {
 	const [extraWeightKg, setExtraWeightKg] = useState("");
 	const [extraWaybill, setExtraWaybill] = useState("");
 	const [notes, setNotes] = useState("");
-	const [scannerOpen, setScannerOpen] = useState(false);
-	
+	// Для типу з накладною камера відкривається одразу при вході на екран —
+	// водій спершу сканує, і вже тоді бачить форму з підтягнутим номером
+	const [scannerOpen, setScannerOpen] = useState(needsWaybill);
+	const [scanError, setScanError] = useState<string | null>(null);
+
 	if (driverLoading || carLoading) return <Spinner label="Завантаження..." />;
 	if (!driver || !car) return <ErrorBanner message="Немає закріпленого авто" />;
-	
+
 	const needsOdometer = requiresOdometer(type, dayMode);
-	const needsWaybill = requiresWaybill(type);
 	const needsPallets = requiresPallets(type, dayMode);
-	
+
+	// Та сама накладна не може бути відскановано двічі за день — інакше дублюємо дані
+	function isAlreadyScannedToday(num: string): boolean {
+		return todayEvents?.some(e => e.waybillNumber === num) ?? false;
+	}
+
 	function handleScan(raw: string) {
 		const parsed = parseQRCode(raw);
-		if (parsed) {
-			if (type === "return_goods") {
-				setReturnClientWaybill(parsed.waybillNumber);
-			} else if (type === "extra_cargo") {
-				setExtraWaybill(parsed.waybillNumber);
-			} else {
-				// delivery — єдиний тип, якому потрібна ще й дата накладної
-				setWaybillNumber(parsed.waybillNumber);
-				setWaybillDate(parsed.waybillDate);
+		if (!parsed) return;
+
+		if (type === "return_goods") {
+			setReturnClientWaybill(parsed.waybillNumber);
+			setScannerOpen(false);
+		} else if (type === "extra_cargo") {
+			setExtraWaybill(parsed.waybillNumber);
+			setScannerOpen(false);
+		} else {
+			// delivery — єдиний тип, якому потрібна ще й дата накладної
+			if (isAlreadyScannedToday(parsed.waybillNumber)) {
+				setScanError(`Накладну №${parsed.waybillNumber} вже відскановано сьогодні — спробуйте іншу`);
+				return; // не закриваємо камеру, даємо відсканувати правильну накладну
 			}
+			setScanError(null);
+			setWaybillNumber(parsed.waybillNumber);
+			setWaybillDate(parsed.waybillDate);
+			setScannerOpen(false);
 		}
-		setScannerOpen(false);
 	}
-	
+
 	async function handleSubmit(e: FormEvent) {
 		e.preventDefault();
-		
+
+		if (needsWaybill && isAlreadyScannedToday(waybillNumber)) {
+			setScanError(`Накладну №${waybillNumber} вже відскановано сьогодні — спробуйте іншу`);
+			return;
+		}
+
 		const data: RouteEventCreate = {
 			carId: car!.idCar,
 			driverId: driver!.idDriver,
@@ -118,15 +139,20 @@ export function EventForm() {
 			
 			{needsWaybill && (
 				<>
-					<Button type="button" variant="ghost" onClick={() => setScannerOpen(true)}>
-						📷 Сканувати QR накладної
-					</Button>
+					{/* Кнопка повторного сканування прихована після успішного скану —
+					    одна накладна на подію, без можливості випадково передублювати */}
+					{!waybillNumber && (
+						<Button type="button" variant="ghost" onClick={() => setScannerOpen(true)}>
+							📷 Сканувати QR накладної
+						</Button>
+					)}
 					<Input label="Номер накладної" value={waybillNumber} onChange={(e) => setWaybillNumber(e.target.value)} required />
 					<Input label="Клієнт" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
+					{scanError && <ErrorBanner message={scanError} />}
 				</>
 			)}
 
-			{scannerOpen && <QRScanner onScan={handleScan} onClose={() => setScannerOpen(false)} />}
+			{scannerOpen && <QRScanner onScan={handleScan} onClose={() => setScannerOpen(false)} notice={scanError} />}
 
 			{type === "refuel" && (
 				<>

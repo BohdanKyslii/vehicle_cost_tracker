@@ -92,6 +92,7 @@ export function DriverDashboard() {
 								</div>
 								<div className="flex-1 min-w-0">
 									<p className="text-sm font-medium text-white/90">{eventTypeLabel(e.eventType, e.trackingMode)}</p>
+									{e.waybillNumber && <p className="text-xs text-white/40">№ {e.waybillNumber}</p>}
 									<p className="text-xs text-white/40">{formatDateTime(e.eventTs)}</p>
 								</div>
 								{e.odometerKm != null && <span className="text-xs text-white/50 shrink-0">{formatKm(e.odometerKm)}</span>}
