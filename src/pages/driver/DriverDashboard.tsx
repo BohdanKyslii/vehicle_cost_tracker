@@ -3,7 +3,7 @@ import { useCurrentDriver } from "../../hocks/useDrivers";
 import { useCar } from "../../hocks/useCars";
 import { useTodayEvents, useLastOdometer } from "../../hocks/useRouteEvents";
 import { useDayMode } from "../../hocks/useDayMode";
-import { getAvailableEventTypes, eventTypeLabel, eventTypeIcon, eventTypeGradient, eventSummaryBadges, eventComment } from "../../utils/eventHelpers";
+import { getAvailableEventTypes, eventTypeLabel, eventTypeIcon, eventTypeGradient, eventSummaryBadges, eventComment, inferDeliveryStage } from "../../utils/eventHelpers";
 import { formatKm, formatDateTime } from "../../utils/formatters";
 import { Spinner, ErrorBanner, EmptyState } from "../../components/driver/ui";
 import { DayModeSwitch } from "../../components/driver/DayModeSwitch";
@@ -50,14 +50,15 @@ export function DriverDashboard() {
 			<div>
 				<h3 className="text-sm font-semibold text-white/60 mb-3 tracking-wide uppercase">Нова подія</h3>
 				<div className="grid grid-cols-2 gap-3">
-					{availableTypes.map((type) => {
+					{availableTypes.map(({ type, stage }) => {
 						const isLockedDepotStart = type === "depot_start" && hasDepotStartToday;
+						const query = stage ? `type=${type}&stage=${stage}` : `type=${type}`;
 						return (
 							<button
-								key={type}
+								key={stage ? `${type}-${stage}` : type}
 								type="button"
 								disabled={isLockedDepotStart}
-								onClick={() => !isLockedDepotStart && navigate(`/driver/event/new?type=${type}`)}
+								onClick={() => !isLockedDepotStart && navigate(`/driver/event/new?${query}`)}
 								className={`group flex flex-col items-center gap-2 rounded-2xl border border-white/10 bg-white/5 py-5 backdrop-blur-sm transition-all ${
 									isLockedDepotStart
 										? "opacity-40 cursor-not-allowed"
@@ -68,7 +69,7 @@ export function DriverDashboard() {
 									{eventTypeIcon(type)}
 								</div>
 								<span className="text-xs font-medium text-white/80 text-center px-1">
-									{eventTypeLabel(type, dayMode)}
+									{eventTypeLabel(type, dayMode, stage)}
 									{isLockedDepotStart && " ✓"}
 								</span>
 							</button>
@@ -94,7 +95,7 @@ export function DriverDashboard() {
 										{eventTypeIcon(e.eventType)}
 									</div>
 									<div className="flex-1 min-w-0">
-										<p className="text-sm font-medium text-white/90">{eventTypeLabel(e.eventType, e.trackingMode)}</p>
+										<p className="text-sm font-medium text-white/90">{eventTypeLabel(e.eventType, e.trackingMode, inferDeliveryStage(e))}</p>
 										{comment && <p className="text-xs text-white/40 truncate">💬 {comment}</p>}
 										<p className="text-xs text-white/40">{formatDateTime(e.eventTs)}</p>
 									</div>

@@ -5682,6 +5682,106 @@ for (const w of additionalWaybills) {
 
 ---
 
+## Крок 15.7 — `delivery` у full розпадається на "Скан накладної" (load) і "Вивантаження" (unload)
+
+> Навіщо: буквально в той же день, одразу після Кроку 15.6, зʼясувалось,
+> що Крок 15.6 сам розв'язував не ту задачу. Реальний водій сканує ВСІ
+> накладні сьогоднішнього маршруту одразу на складі, ДО виїзду (авто ще
+> не рухалось — одометр там безглуздий), а не по одній на кожній точці.
+> Тайл "Вивантаження", який завжди вимагав одометр, водій фактично
+> використовував як "Завантаження". На фізичній точці водій сканує
+> БУДЬ-ЯКУ ОДНУ з уже завантажених накладних — це підтвердження
+> доставки, а не нове сканування — і вже тут вносить одометр і палети.
+
+`src/types/index.ts` — нове поняття, ЛИШЕ фронтенд (немає колонки в БД):
+
+```typescript
+export type DeliveryStage = 'load' | 'unload';
+```
+
+`src/utils/eventHelpers.ts` — `getAvailableEventTypes` тепер повертає
+тайли, а не голі типи (для `full` `delivery` дає ДВА тайли):
+
+```typescript
+export interface EventTile {
+  type: RouteEventType;
+  stage?: DeliveryStage;
+}
+
+export function getAvailableEventTypes(mode: TrackingMode): EventTile[] {
+  if (mode === "daily") {
+    return [{ type: "depot_start" }, { type: "delivery" }, /* ... */];
+  }
+  return [
+    { type: "depot_start" },
+    { type: "delivery", stage: "load" },   // склад, до виїзду
+    { type: "delivery", stage: "unload" }, // точка, після приїзду
+    /* refuel, other_cost, return_goods, extra_cargo, parking_end, depot_return */
+  ];
+}
+
+export function requiresOdometer(type: RouteEventType, mode: TrackingMode, stage?: DeliveryStage): boolean {
+  if (["refuel", "other_cost", "return_goods", "extra_cargo"].includes(type)) return false;
+  if (type === "delivery") {
+    if (mode === "daily") return false;
+    return stage === "unload"; // full: одометр лише на unload
+  }
+  return true;
+}
+
+export function requiresPallets(type: RouteEventType, mode: TrackingMode, stage?: DeliveryStage): boolean {
+  if (type === "depot_start") return true;
+  if (type === "delivery" && mode === "full") return stage === "unload";
+  return false;
+}
+
+export function eventTypeLabel(type: RouteEventType, mode?: TrackingMode, stage?: DeliveryStage): string {
+  if (type === "delivery" && (mode === "daily" || stage === "load")) return "Скан накладної";
+  // ...інакше з labels-словника ("Вивантаження" для delivery)
+}
+
+// stage ніде не зберігається в БД — для вже збережених подій вираховуємо
+// заднім числом: одометр є → це була unload, нема → load
+export function inferDeliveryStage(e: RouteEvent): DeliveryStage | undefined {
+  if (e.eventType !== "delivery" || e.trackingMode !== "full") return undefined;
+  return e.odometerKm != null ? "unload" : "load";
+}
+```
+
+`src/pages/driver/EventForm.tsx` — читає `stage` з query-параметра й
+передає його у всі три функції вище; головна зміна — **дублікат-гард
+тепер stage-залежний**:
+
+```typescript
+const stage = (searchParams.get("stage") as DeliveryStage | null) ?? undefined;
+const isUnloadStage = type === "delivery" && dayMode === "full" && stage === "unload";
+
+function isDuplicateForStage(num: string): boolean {
+  // на load: будь-який сьогоднішній запис з таким номером — дублікат
+  // на unload: дублікат лише якщо цей номер УЖЕ підтверджено (одометр є) —
+  // сам факт що він був на load, підтвердженню не заважає
+  const savedMatch = todayEvents?.some(e =>
+    e.waybillNumber === num && (isUnloadStage ? e.odometerKm != null : true)
+  ) ?? false;
+  return savedMatch || num === waybillNumber || additionalWaybills.some(w => w.waybillNumber === num);
+}
+```
+
+`src/pages/driver/DriverDashboard.tsx` — тайли тепер мапляться з
+`{type, stage}`, а не голого `type` (`key` і query-рядок враховують
+`stage`); `src/pages/driver/DriverHistory.tsx` і "Події сьогодні" на
+дашборді викликають `eventTypeLabel(e.eventType, e.trackingMode,
+inferDeliveryStage(e))`, щоб історичні записи теж підписувались вірно.
+
+> Перевірка: у `full`-режимі на дашборді тепер 9 тайлів (не 8) —
+> "Скан накладної" і "Вивантаження" окремо. Скануй кілька накладних на
+> "Скані накладної" (без одометра) на складі, потім піди на "Вивантаження"
+> і відскануй ОДНУ з тих самих накладних — вона МАЄ прийнятись (не
+> дублікат), з'явиться поле одометра/палет. Спроба підтвердити ту саму
+> накладну ще раз на "Вивантаженні" — має заблокуватись.
+
+---
+
 # ═══════════════════════════════════════════════════════════
 <a id="faza-16"></a>
 # ФАЗА 16 — АВТОПАРК ДЛЯ ЛОГІСТА (Fleet CRUD)

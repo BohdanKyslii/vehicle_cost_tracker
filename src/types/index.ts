@@ -94,6 +94,13 @@ export interface StoreDeliveryAddress {
 // full = tracking of every unloading point
 export type TrackingMode = 'daily' | 'full';
 
+// Two moments of the same `delivery` event in `full` mode:
+// "load" = scanning at the warehouse before departure (no odometer, car hasn't moved)
+// "unload" = arriving at a physical stop (odometer + pallets required)
+// Not stored on RouteEvent itself (no backend column) — carried only in the
+// EventForm URL (?stage=) and inferred for already-saved events from odometerKm.
+export type DeliveryStage = 'load' | 'unload';
+
 // Car operational status: active, under repair, or decommissioned
 export type CarStatus = "active" | "repair" | "inactive";
 

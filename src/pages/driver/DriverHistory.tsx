@@ -1,7 +1,7 @@
 import { useCurrentDriver } from "../../hocks/useDrivers";
 import { useCar } from "../../hocks/useCars";
 import { useDriverEvents } from "../../hocks/useRouteEvents";
-import { eventTypeLabel, eventTypeIcon, eventTypeGradient, eventSummaryBadges, eventComment } from "../../utils/eventHelpers";
+import { eventTypeLabel, eventTypeIcon, eventTypeGradient, eventSummaryBadges, eventComment, inferDeliveryStage } from "../../utils/eventHelpers";
 import { formatDateTime } from "../../utils/formatters";
 import { Spinner, EmptyState, ErrorBanner } from "../../components/driver/ui";
 
@@ -27,7 +27,7 @@ export function DriverHistory() {
 							{eventTypeIcon(e.eventType)}
 						</div>
 						<div className="flex-1 min-w-0">
-							<p className="text-sm font-medium text-white/90">{eventTypeLabel(e.eventType, e.trackingMode)}</p>
+							<p className="text-sm font-medium text-white/90">{eventTypeLabel(e.eventType, e.trackingMode, inferDeliveryStage(e))}</p>
 							{comment && <p className="text-xs text-white/40 truncate">💬 {comment}</p>}
 							<p className="text-xs text-white/40">{formatDateTime(e.eventTs)}</p>
 						</div>

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import type { RouteEventType, RouteEventCreate } from "../../types";
+import type { RouteEventType, RouteEventCreate, DeliveryStage } from "../../types";
 import { useCurrentDriver } from "../../hocks/useDrivers";
 import { useCar } from "../../hocks/useCars";
 import { useDayMode } from "../../hocks/useDayMode";
@@ -15,6 +15,9 @@ export function EventForm() {
 	const navigate = useNavigate();
 	const [searchParams] = useSearchParams();
 	const type = (searchParams.get("type") ?? "other_cost") as RouteEventType;
+	// stage — лише для delivery у full-режимі: "load" (склад, до виїзду,
+	// без одометра) чи "unload" (точка, з одометром); у daily стадії нема
+	const stage = (searchParams.get("stage") as DeliveryStage | null) ?? undefined;
 	const needsWaybill = requiresWaybill(type); // залежить лише від type — відомо одразу
 
 	const { data: driver, isLoading: driverLoading } = useCurrentDriver();
@@ -52,21 +55,24 @@ export function EventForm() {
 	if (driverLoading || carLoading) return <Spinner label="Завантаження..." />;
 	if (!driver || !car) return <ErrorBanner message="Немає закріпленого авто" />;
 
-	const needsOdometer = requiresOdometer(type, dayMode);
-	const needsPallets = requiresPallets(type, dayMode);
-	// Кілька накладних на одну точку має сенс лише там, де точка й так має
-	// одометр+палети (full-режим delivery) — у daily кожен скан вже сам собі подія
+	const needsOdometer = requiresOdometer(type, dayMode, stage);
+	const needsPallets = requiresPallets(type, dayMode, stage);
+	// Кілька накладних на одну точку має сенс лише на unload (full) — водій
+	// сканує одну основну + додає ще; на load (склад) чи в daily кожен скан
+	// вже сам собі подія, групування не потрібне
 	const groupsMultipleWaybills = needsWaybill && needsPallets;
 	const isRouteNameField = type === "depot_start" && dayMode === "full";
+	// На unload водій свідомо сканує ЖЕ ВІДСКАНОВАНУ на складі (load) накладну —
+	// це не дублікат, а підтвердження доставки. Дублікатом вважаємо лише
+	// повторний скан НА ТІЙ САМІЙ стадії: ще раз завантажили ту саму накладну,
+	// або ще раз підтвердили вже підтверджену (одометр уже проставлений)
+	const isUnloadStage = type === "delivery" && dayMode === "full" && stage === "unload";
 
-	// Та сама накладна не може бути відскановано двічі за день (і не може
-	// повторитись серед ще не збережених накладних цієї ж точки)
-	function isAlreadyScannedToday(num: string): boolean {
-		return (
-			(todayEvents?.some(e => e.waybillNumber === num) ?? false) ||
-			num === waybillNumber ||
-			additionalWaybills.some(w => w.waybillNumber === num)
-		);
+	function isDuplicateForStage(num: string): boolean {
+		const savedMatch = todayEvents?.some(e =>
+			e.waybillNumber === num && (isUnloadStage ? e.odometerKm != null : true)
+		) ?? false;
+		return savedMatch || num === waybillNumber || additionalWaybills.some(w => w.waybillNumber === num);
 	}
 
 	function handleScan(raw: string) {
@@ -81,8 +87,12 @@ export function EventForm() {
 			setScannerOpen(false);
 		} else {
 			// delivery — єдиний тип, якому потрібна ще й дата накладної
-			if (isAlreadyScannedToday(parsed.waybillNumber)) {
-				setScanError(`Накладну №${parsed.waybillNumber} вже додано — спробуйте іншу`);
+			if (isDuplicateForStage(parsed.waybillNumber)) {
+				setScanError(
+					isUnloadStage
+						? `Накладну №${parsed.waybillNumber} вже підтверджено (доставлено) сьогодні — спробуйте іншу`
+						: `Накладну №${parsed.waybillNumber} вже додано — спробуйте іншу`
+				);
 				return; // не закриваємо камеру, даємо відсканувати правильну накладну
 			}
 			setScanError(null);
@@ -100,10 +110,17 @@ export function EventForm() {
 	async function handleSubmit(e: FormEvent) {
 		e.preventDefault();
 
-		// Перевіряємо тільки збережені сьогодні події — isAlreadyScannedToday()
+		// Перевіряємо тільки збережені сьогодні події — isDuplicateForStage()
 		// зараховує сам waybillNumber як "уже доданий", тут це не підходить
-		if (needsWaybill && (todayEvents?.some(ev => ev.waybillNumber === waybillNumber) ?? false)) {
-			setScanError(`Накладну №${waybillNumber} вже відскановано сьогодні — спробуйте іншу`);
+		const alreadyOnStage = todayEvents?.some(ev =>
+			ev.waybillNumber === waybillNumber && (isUnloadStage ? ev.odometerKm != null : true)
+		) ?? false;
+		if (needsWaybill && alreadyOnStage) {
+			setScanError(
+				isUnloadStage
+					? `Накладну №${waybillNumber} вже підтверджено (доставлено) сьогодні — спробуйте іншу`
+					: `Накладну №${waybillNumber} вже відскановано сьогодні — спробуйте іншу`
+			);
 			return;
 		}
 
@@ -156,7 +173,7 @@ export function EventForm() {
 				<div className={`h-12 w-12 rounded-full bg-gradient-to-br ${eventTypeGradient(type)} flex items-center justify-center text-2xl shadow-lg`}>
 					{eventTypeIcon(type)}
 				</div>
-				<h2 className="text-lg font-bold text-white">{eventTypeLabel(type, dayMode)}</h2>
+				<h2 className="text-lg font-bold text-white">{eventTypeLabel(type, dayMode, stage)}</h2>
 			</div>
 			
 			{needsOdometer && (

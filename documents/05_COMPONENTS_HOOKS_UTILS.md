@@ -155,18 +155,21 @@ export function formatPct(v: number): string
 export function formatLegalEntity(e: LegalEntity): string
 export function channelLabel(ch: DeliveryChannel | null | undefined): string
 
-// utils/eventHelpers.ts — ✅ реалізовано (+ 3 функції понад план)
-// ✅ Резинхронізовано 2026-08-27 — daily/full розійшлись по одометру
-// й підпису delivery (див. 01_PROJECT_OVERVIEW.md, розділ 4)
-export function getAvailableEventTypes(mode: TrackingMode): RouteEventType[]  // daily тепер теж містить "delivery" (= скан накладної, без одометра)
-export function requiresOdometer(type: RouteEventType, mode: TrackingMode): boolean  // ⚠️ додався mode: daily-delivery не показує одометр, full-delivery показує
+// utils/eventHelpers.ts — ✅ реалізовано (+ 4 функції понад план)
+// ✅ Резинхронізовано 2026-08-27 (двічі того ж дня) — спершу daily/full
+// розійшлись по одометру й підпису delivery, потім full сам розпався на
+// дві стадії load/unload (див. 01_PROJECT_OVERVIEW.md, розділ 4)
+export interface EventTile { type: RouteEventType; stage?: DeliveryStage }  // ⚠️ нове — один тайл дашборду; для full+delivery їх два (load/unload)
+export function getAvailableEventTypes(mode: TrackingMode): EventTile[]  // ⚠️ тепер повертає EventTile[], не RouteEventType[] — full містить "delivery" двічі (stage: "load" і "unload")
+export function requiresOdometer(type: RouteEventType, mode: TrackingMode, stage?: DeliveryStage): boolean  // ⚠️ додався stage: full-delivery показує одометр лише на "unload", не на "load"
 export function requiresWaybill(type: RouteEventType): boolean
-export function requiresPallets(type: RouteEventType, mode: TrackingMode): boolean  // ⚠️ depot_start тепер завжди true (раніше лише daily) — full теж показує загальну к-сть палет на маршрут
-export function eventTypeLabel(type: RouteEventType, mode?: TrackingMode): string  // ⚠️ додався mode: delivery+daily → "Скан накладної", інакше "Вивантаження"
+export function requiresPallets(type: RouteEventType, mode: TrackingMode, stage?: DeliveryStage): boolean  // ⚠️ depot_start завжди true; full-delivery — лише "unload"
+export function eventTypeLabel(type: RouteEventType, mode?: TrackingMode, stage?: DeliveryStage): string  // ⚠️ delivery: daily або stage="load" → "Скан накладної", інакше "Вивантаження"
 export function eventTypeIcon(type: RouteEventType): string
 export function eventTypeGradient(type: RouteEventType): string  // ⚠️ нове, не було в плані — колір тайла на DriverDashboard/EventForm
 export function eventSummaryBadges(e: RouteEvent): string[]  // ⚠️ нове — права колонка картки (одометр/№накладної/літри/грн/кг), будується з наявності полів
 export function eventComment(e: RouteEvent): string | undefined  // ⚠️ нове — notes або otherCostComment, показується під назвою події
+export function inferDeliveryStage(e: RouteEvent): DeliveryStage | undefined  // ⚠️ нове — stage ніде не зберігається в БД, для вже збережених подій вираховується з наявності odometerKm
 
 // utils/clientFilter.ts — ✅ реалізовано, збігається з планом
 export function filterWaybills(items: WaybillSummary[], filters: WaybillFilters): WaybillSummary[]
