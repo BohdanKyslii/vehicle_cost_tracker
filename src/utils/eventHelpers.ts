@@ -1,12 +1,13 @@
 import type { RouteEventType,TrackingMode } from "../types";
 
 // Повертає масив доступних типів подій для поточного режиму
-// daily: тільки 5 типів (без точок маршруту)
+// daily: 6 типів (без окремого треку по точках, але з накладними на вивантаження)
 // full: всі 8 типів
 export function getAvailableEventTypes(mode: TrackingMode): RouteEventType[] {
 	if (mode === "daily") {
 		return [
 			"depot_start",
+			"delivery",
 			"refuel",
 			"other_cost",
 			"return_goods",
