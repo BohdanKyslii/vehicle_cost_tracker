@@ -1346,6 +1346,12 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
+    # Без слеша в кінці "/admin" не матчить "location /admin/" нижче і
+    # провалюється в SPA-заглушку (index.html) — редіректимо на "/admin/"
+    location = /admin {
+        return 301 /admin/;
+    }
+
     location /admin/ {
         proxy_pass http://127.0.0.1:8000/admin/;
         proxy_set_header Host $host;
@@ -1391,6 +1397,13 @@ server {
 - `location /api/`, `/admin/`, `/static/` — усе, що починається
   з цих шляхів, nginx перенаправляє на Django-бекенд (порт 8000
   на тому ж сервері)
+- ✅ Виправлено 2026-08-27: `location /admin/` матчить лише URI зі
+  слешем у кінці — `/admin` (без слеша, як природно набирають в
+  адресному рядку) під це правило не підпадав і провалювався в
+  SPA-fallback нижче, тобто React Router рендерив СВОЮ заглушку
+  "Адміністрування" (`PlaceholderPage`, окремий, ще не збудований
+  розділ фронтенду) замість реального Django Admin. Додано
+  `location = /admin { return 301 /admin/; }` перед основним блоком.
 - `location /` з `try_files $uri $uri/ /index.html` — це SPA-fallback:
   якщо файлу за адресою немає (наприклад `/fleet` — це не файл,
   а React-маршрут), nginx все одно віддає `index.html`, а
