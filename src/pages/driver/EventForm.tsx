@@ -42,7 +42,7 @@ export function EventForm() {
 	if (driverLoading || carLoading) return <Spinner label="Завантаження..." />;
 	if (!driver || !car) return <ErrorBanner message="Немає закріпленого авто" />;
 	
-	const needsOdometer = requiresOdometer(type);
+	const needsOdometer = requiresOdometer(type, dayMode);
 	const needsWaybill = requiresWaybill(type);
 	const needsPallets = requiresPallets(type, dayMode);
 	
@@ -98,7 +98,7 @@ export function EventForm() {
 				<div className={`h-12 w-12 rounded-full bg-gradient-to-br ${eventTypeGradient(type)} flex items-center justify-center text-2xl shadow-lg`}>
 					{eventTypeIcon(type)}
 				</div>
-				<h2 className="text-lg font-bold text-white">{eventTypeLabel(type)}</h2>
+				<h2 className="text-lg font-bold text-white">{eventTypeLabel(type, dayMode)}</h2>
 			</div>
 			
 			{needsOdometer && (

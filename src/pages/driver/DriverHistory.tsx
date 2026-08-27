@@ -24,7 +24,7 @@ export function DriverHistory() {
 						{eventTypeIcon(e.eventType)}
 					</div>
 					<div className="flex-1 min-w-0">
-						<p className="text-sm font-medium text-white/90">{eventTypeLabel(e.eventType)}</p>
+						<p className="text-sm font-medium text-white/90">{eventTypeLabel(e.eventType, e.trackingMode)}</p>
 						<p className="text-xs text-white/40">{formatDateTime(e.eventTs)}</p>
 					</div>
 					{e.odometerKm != null && <span className="text-xs text-white/50 shrink-0">{formatKm(e.odometerKm)}</span>}

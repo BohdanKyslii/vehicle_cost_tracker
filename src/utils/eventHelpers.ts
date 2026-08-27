@@ -1,8 +1,9 @@
 import type { RouteEventType,TrackingMode } from "../types";
 
 // Повертає масив доступних типів подій для поточного режиму
-// daily: 6 типів (без окремого треку по точках, але з накладними на вивантаження)
-// full: всі 8 типів
+// daily: 6 типів. "delivery" тут — лише скан накладних поточного дня
+// (без одометра/палет на кожну — це вже зафіксовано одним записом depot_start)
+// full: всі 8 типів, "delivery" — повноцінна подія на кожній точці (одометр+палети+скан)
 export function getAvailableEventTypes(mode: TrackingMode): RouteEventType[] {
 	if (mode === "daily") {
 		return [
@@ -27,14 +28,19 @@ export function getAvailableEventTypes(mode: TrackingMode): RouteEventType[] {
 }
 
 // Чи потрібне поле одометра для цього типу події?
-export function requiresOdometer(type: RouteEventType): boolean {
-	
-	return ![
+// daily delivery = скан накладної без одометра (одометр вже є в depot_start);
+// full delivery = одометр обов'язково (пробіг/час між точками)
+export function requiresOdometer(type: RouteEventType, mode: TrackingMode): boolean {
+	if ([
 		"refuel",
 		"other_cost",
 		"return_goods",
 		"extra_cargo",
-	].includes(type);
+	].includes(type)) return false;
+
+	if (type === "delivery") return mode === "full";
+
+	return true;
 }
 
 // Чи потрібне сканування накладної?
@@ -52,7 +58,11 @@ export function requiresPallets(type: RouteEventType, mode: TrackingMode): boole
 }
 
 // Українська назва типу події для відображення у UI
-export function eventTypeLabel(type: RouteEventType): string {
+// daily-режим: "delivery" — це лише скан накладної (без прив'язки до фізичної
+// точки вивантаження), тому назва інша, ніж у full-режимі
+export function eventTypeLabel(type: RouteEventType, mode?: TrackingMode): string {
+	if (type === "delivery" && mode === "daily") return "Скан накладної";
+
 	const labels: Record<RouteEventType, string> = {
 		depot_start: "Старт зі складу",
 		delivery: "Вивантаження",

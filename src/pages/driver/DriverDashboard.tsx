@@ -23,7 +23,8 @@ export function DriverDashboard() {
 	}
 	
 	const availableTypes = getAvailableEventTypes(dayMode);
-	
+	const hasDepotStartToday = events?.some(e => e.eventType === "depot_start") ?? false;
+
 	return (
 		<div className="flex flex-col gap-6">
 			{/* Картка авто — glass-панель у стилі лендінгу */}
@@ -49,18 +50,30 @@ export function DriverDashboard() {
 			<div>
 				<h3 className="text-sm font-semibold text-white/60 mb-3 tracking-wide uppercase">Нова подія</h3>
 				<div className="grid grid-cols-2 gap-3">
-					{availableTypes.map((type) => (
-						<button
-							key={type}
-							onClick={() => navigate(`/driver/event/new?type=${type}`)}
-							className="group flex flex-col items-center gap-2 rounded-2xl border border-white/10 bg-white/5 py-5 backdrop-blur-sm transition-all hover:bg-white/10 hover:border-white/20 hover:-translate-y-0.5 active:scale-[0.97]"
-						>
-							<div className={`h-11 w-11 rounded-full bg-gradient-to-br ${eventTypeGradient(type)} flex items-center justify-center text-xl shadow-lg transition-transform group-hover:scale-110`}>
-								{eventTypeIcon(type)}
-							</div>
-							<span className="text-xs font-medium text-white/80 text-center px-1">{eventTypeLabel(type)}</span>
-						</button>
-					))}
+					{availableTypes.map((type) => {
+						const isLockedDepotStart = type === "depot_start" && hasDepotStartToday;
+						return (
+							<button
+								key={type}
+								type="button"
+								disabled={isLockedDepotStart}
+								onClick={() => !isLockedDepotStart && navigate(`/driver/event/new?type=${type}`)}
+								className={`group flex flex-col items-center gap-2 rounded-2xl border border-white/10 bg-white/5 py-5 backdrop-blur-sm transition-all ${
+									isLockedDepotStart
+										? "opacity-40 cursor-not-allowed"
+										: "hover:bg-white/10 hover:border-white/20 hover:-translate-y-0.5 active:scale-[0.97]"
+								}`}
+							>
+								<div className={`h-11 w-11 rounded-full bg-gradient-to-br ${eventTypeGradient(type)} flex items-center justify-center text-xl shadow-lg transition-transform ${!isLockedDepotStart && "group-hover:scale-110"}`}>
+									{eventTypeIcon(type)}
+								</div>
+								<span className="text-xs font-medium text-white/80 text-center px-1">
+									{eventTypeLabel(type, dayMode)}
+									{isLockedDepotStart && " ✓"}
+								</span>
+							</button>
+						);
+					})}
 				</div>
 			</div>
 			
@@ -78,7 +91,7 @@ export function DriverDashboard() {
 									{eventTypeIcon(e.eventType)}
 								</div>
 								<div className="flex-1 min-w-0">
-									<p className="text-sm font-medium text-white/90">{eventTypeLabel(e.eventType)}</p>
+									<p className="text-sm font-medium text-white/90">{eventTypeLabel(e.eventType, e.trackingMode)}</p>
 									<p className="text-xs text-white/40">{formatDateTime(e.eventTs)}</p>
 								</div>
 								{e.odometerKm != null && <span className="text-xs text-white/50 shrink-0">{formatKm(e.odometerKm)}</span>}
