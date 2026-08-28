@@ -53,9 +53,16 @@ export function CarForm() {
 	const [trailerVinCode, setTrailerVinCode] = useState(existing?.trailer?.vinCode ?? "");
 	const [trailerYear, setTrailerYear] = useState(String(existing?.trailer?.yearManufactured ?? ""));
 	const [trailerName, setTrailerName] = useState(existing?.trailer?.nameTrailer ?? "");
-	const [trailerModel, setTrailerModel] = useState(existing?.trailer?.model ?? "");
 	const [trailerNumber, setTrailerNumber] = useState(existing?.trailer?.numberTrailer ?? "");
 	const [trailerIsActive, setTrailerIsActive] = useState(existing?.trailer?.isActive ?? true);
+
+	// Дані авто змінюються рідко — за замовчуванням (тільки для вже
+	// існуючого авто) текстові/числові поля заблоковані від випадкового
+	// редагування, доступні лише випадаючі списки (режим/статус/водій).
+	// Кнопка "Редагувати" розблоковує решту. Для НОВОГО авто (isEdit=false)
+	// блокування не має сенсу — все одразу редаговане.
+	const [isEditingDetails, setIsEditingDetails] = useState(false);
+	const detailsLocked = isEdit && !isEditingDetails;
 
 	// Призначення водія: якого водія id вважати "закріпленим" за цим авто —
 	// шукаємо серед усіх водіїв того, чий idCar збігається з поточним авто
@@ -93,7 +100,6 @@ export function CarForm() {
 					vinCode: trailerVinCode || undefined,
 					yearManufactured: trailerYear ? Number(trailerYear) : undefined,
 					nameTrailer: trailerName,
-					model: trailerModel,
 					numberTrailer: trailerNumber,
 					isActive: trailerIsActive,
 				}
@@ -127,12 +133,25 @@ export function CarForm() {
 	return (
 		<div className="p-6">
 		<form onSubmit={handleSubmit} className="max-w-lg mx-auto p-6 space-y-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
-			<h1 className="text-xl font-bold text-white">{isEdit ? "Редагувати авто" : "Нове авто"}</h1>
+			<div className="flex items-center justify-between">
+				<h1 className="text-xl font-bold text-white">{isEdit ? "Картка авто" : "Нове авто"}</h1>
+				{isEdit && !isEditingDetails && (
+					<Button type="button" variant="ghost" onClick={() => setIsEditingDetails(true)}>
+						✏️ Редагувати
+					</Button>
+				)}
+			</div>
+			{detailsLocked && (
+				<p className="text-xs text-white/40 -mt-2">
+					Дані авто змінюються рідко — щоб уникнути випадкових правок, поля нижче заблоковані.
+					Доступні: режим обліку, статус, водій. Натисніть "Редагувати", щоб змінити решту.
+				</p>
+			)}
 
-			<Input label="Назва (модель)" value={nameCar} onChange={(e) => setNameCar(e.target.value)} required />
-			<Input label="Держ. номер" value={numberCar} onChange={(e) => setNumberCar(e.target.value)} required />
-			<Input label="Номер паливної картки" type="number" value={fuelCardNumber} onChange={(e) => setFuelCardNumber(e.target.value)} />
-			<Input label="Місячна амортизація (грн)" type="number" value={amountCar} onChange={(e) => setAmountCar(e.target.value)} required />
+			<Input label="Назва (модель)" value={nameCar} onChange={(e) => setNameCar(e.target.value)} required disabled={detailsLocked} />
+			<Input label="Держ. номер" value={numberCar} onChange={(e) => setNumberCar(e.target.value)} required disabled={detailsLocked} />
+			<Input label="Номер паливної картки" type="number" value={fuelCardNumber} onChange={(e) => setFuelCardNumber(e.target.value)} disabled={detailsLocked} />
+			<Input label="Місячна амортизація (грн)" type="number" value={amountCar} onChange={(e) => setAmountCar(e.target.value)} required disabled={detailsLocked} />
 
 			<div className="flex flex-col gap-1">
 				<label className="text-sm font-medium text-white/70">Режим обліку за замовчуванням</label>
@@ -156,11 +175,13 @@ export function CarForm() {
 					<option value="active">Активне</option>
 					<option value="repair">Ремонт</option>
 					<option value="inactive">Неактивне</option>
+					<option value="pause">Пауза</option>
+					<option value="driver_downtime">Простій (водій)</option>
 				</select>
 			</div>
 
 			<label className="flex items-center gap-2 text-sm text-white/70">
-				<input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
+				<input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} disabled={detailsLocked} />
 				Авто активне (в експлуатації)
 			</label>
 
@@ -181,33 +202,32 @@ export function CarForm() {
 			</div>
 
 			<h2 className="text-lg font-semibold text-white pt-2">Технічні характеристики</h2>
-			<Input label="VIN" value={vinCode} onChange={(e) => setVinCode(e.target.value)} />
-			<Input label="Рік випуску" type="number" value={yearManufactured} onChange={(e) => setYearManufactured(e.target.value)} />
-			<Input label="Вага (кг)" type="number" value={weightKg} onChange={(e) => setWeightKg(e.target.value)} />
-			<Input label="Вантажопідйомність (кг)" type="number" value={payloadKg} onChange={(e) => setPayloadKg(e.target.value)} />
-			<Input label="Довжина (см)" type="number" value={lengthCm} onChange={(e) => setLengthCm(e.target.value)} />
-			<Input label="Ширина (см)" type="number" value={widthCm} onChange={(e) => setWidthCm(e.target.value)} />
-			<Input label="Висота (см)" type="number" value={heightCm} onChange={(e) => setHeightCm(e.target.value)} />
+			<Input label="VIN" value={vinCode} onChange={(e) => setVinCode(e.target.value)} disabled={detailsLocked} />
+			<Input label="Рік випуску" type="number" value={yearManufactured} onChange={(e) => setYearManufactured(e.target.value)} disabled={detailsLocked} />
+			<Input label="Вага (кг)" type="number" value={weightKg} onChange={(e) => setWeightKg(e.target.value)} disabled={detailsLocked} />
+			<Input label="Вантажопідйомність (кг)" type="number" value={payloadKg} onChange={(e) => setPayloadKg(e.target.value)} disabled={detailsLocked} />
+			<Input label="Довжина (см)" type="number" value={lengthCm} onChange={(e) => setLengthCm(e.target.value)} disabled={detailsLocked} />
+			<Input label="Ширина (см)" type="number" value={widthCm} onChange={(e) => setWidthCm(e.target.value)} disabled={detailsLocked} />
+			<Input label="Висота (см)" type="number" value={heightCm} onChange={(e) => setHeightCm(e.target.value)} disabled={detailsLocked} />
 
 			<label className="flex items-center gap-2 text-sm text-white/70">
-				<input type="checkbox" checked={hasTailLift} onChange={(e) => setHasTailLift(e.target.checked)} />
+				<input type="checkbox" checked={hasTailLift} onChange={(e) => setHasTailLift(e.target.checked)} disabled={detailsLocked} />
 				Є гідроборт
 			</label>
 			<label className="flex items-center gap-2 text-sm text-white/70">
-				<input type="checkbox" checked={hasTrailer} onChange={(e) => setHasTrailer(e.target.checked)} />
+				<input type="checkbox" checked={hasTrailer} onChange={(e) => setHasTrailer(e.target.checked)} disabled={detailsLocked} />
 				Є причіп
 			</label>
 
 			{hasTrailer && (
 				<div className="space-y-4 rounded-lg border border-white/10 p-4">
 					<h3 className="text-sm font-semibold text-white">Причіп</h3>
-					<Input label="Назва причепа" value={trailerName} onChange={(e) => setTrailerName(e.target.value)} required />
-					<Input label="Модель" value={trailerModel} onChange={(e) => setTrailerModel(e.target.value)} required />
-					<Input label="Держ. номер причепа" value={trailerNumber} onChange={(e) => setTrailerNumber(e.target.value)} required />
-					<Input label="VIN причепа" value={trailerVinCode} onChange={(e) => setTrailerVinCode(e.target.value)} />
-					<Input label="Рік випуску причепа" type="number" value={trailerYear} onChange={(e) => setTrailerYear(e.target.value)} />
+					<Input label="Назва причепа" value={trailerName} onChange={(e) => setTrailerName(e.target.value)} required disabled={detailsLocked} />
+					<Input label="Держ. номер причепа" value={trailerNumber} onChange={(e) => setTrailerNumber(e.target.value)} required disabled={detailsLocked} />
+					<Input label="VIN причепа" value={trailerVinCode} onChange={(e) => setTrailerVinCode(e.target.value)} disabled={detailsLocked} />
+					<Input label="Рік випуску причепа" type="number" value={trailerYear} onChange={(e) => setTrailerYear(e.target.value)} disabled={detailsLocked} />
 					<label className="flex items-center gap-2 text-sm text-white/70">
-						<input type="checkbox" checked={trailerIsActive} onChange={(e) => setTrailerIsActive(e.target.checked)} />
+						<input type="checkbox" checked={trailerIsActive} onChange={(e) => setTrailerIsActive(e.target.checked)} disabled={detailsLocked} />
 						Причіп активний
 					</label>
 				</div>

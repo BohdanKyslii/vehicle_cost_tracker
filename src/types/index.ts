@@ -102,7 +102,10 @@ export type TrackingMode = 'daily' | 'full';
 export type DeliveryStage = 'load' | 'unload';
 
 // Car operational status: active, under repair, or decommissioned
-export type CarStatus = "active" | "repair" | "inactive";
+// pause — вимушений простій через регуляцію часу праці водія/авто (тахограф);
+// driver_downtime — простій через відсутність водія (лікарняний, відпустка,
+// сімейні обставини тощо), без деталізації причини на рівні статусу
+export type CarStatus = "active" | "repair" | "inactive" | "pause" | "driver_downtime";
 
 // Vehicle status
 export interface Car {
@@ -141,7 +144,6 @@ export interface Trailer {
 	yearManufactured?: number;  // year of manufacture
 	nameTrailer: string;    // Schmitz semi-trailer
 	idCar: number;  // to which car it is attached
-	model: string;
 	numberTrailer: string;  // license plate "АА1234ВВ"
 	isActive: boolean;
 }

@@ -22,6 +22,7 @@ export function Input({ label, error, helpText, id, className = "", ...rest }: I
           w-full rounded-lg border px-3 py-2 text-sm text-white bg-white/5
           placeholder:text-white/30 transition-colors
           focus:outline-none focus:ring-2 focus:ring-violet-400
+          disabled:opacity-40 disabled:cursor-not-allowed
           ${error ? "border-rose-400/60 bg-rose-500/5" : "border-white/10 focus:border-violet-400/60"}
           ${className}
         `.trim()}

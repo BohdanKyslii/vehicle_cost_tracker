@@ -29,11 +29,13 @@ interface RawCarSpecs {
     has_trailer: boolean;
 }
 
+// ⚠️ Немає поля "model" — TrailerSerializer/DB його не має (видалено на
+// бекенді 2026-08-28, backend commit deb38c8), фронтенд раніше надсилав
+// його, DRF мовчки ігнорував
 interface RawTrailer {
     vin_code?: string;
     year_manufactured?: number;
     name_trailer: string;
-    model: string;
     number_trailer: string;
     is_active: boolean;
 }
@@ -74,7 +76,6 @@ function mapTrailer(raw: RawTrailer, carId: number): Trailer {
         yearManufactured: raw.year_manufactured,
         nameTrailer: raw.name_trailer,
         idCar: carId,
-        model: raw.model,
         numberTrailer: raw.number_trailer,
         isActive: raw.is_active,
     };
@@ -141,7 +142,6 @@ export interface CarPayload {
         vinCode?: string;
         yearManufactured?: number;
         nameTrailer: string;
-        model: string;
         numberTrailer: string;
         isActive: boolean;
     };
@@ -174,7 +174,6 @@ function toCarPayload(data: CarPayload) {
                 vin_code: data.trailer.vinCode ?? "",
                 year_manufactured: data.trailer.yearManufactured ?? null,
                 name_trailer: data.trailer.nameTrailer,
-                model: data.trailer.model,
                 number_trailer: data.trailer.numberTrailer,
                 is_active: data.trailer.isActive,
             },

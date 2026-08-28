@@ -7,7 +7,13 @@ import { ErrorBanner } from "../../components/ui/ErrorBanner";
 import type { CarStatus } from "../../types";
 
 const trackingModeLabel = { daily: "Щоденний", full: "Повний" } as const;
-const carStatusLabel: Record<CarStatus, string> = { active: "Активне", repair: "Ремонт", inactive: "Неактивне" };
+const carStatusLabel: Record<CarStatus, string> = {
+	active: "Активне",
+	repair: "Ремонт",
+	inactive: "Неактивне",
+	pause: "Пауза",
+	driver_downtime: "Простій (водій)",
+};
 
 export function FleetList() {
 	const { data: cars, isLoading, isError, refetch } = useCars();

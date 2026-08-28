@@ -52,9 +52,11 @@ export function LegalEntityBadge({ entity }: { entity: LegalEntity }) {
 
 // Статус авто
 const carStatusConfig: Record<CarStatus, { label: string; class: string }> = {
-    active:   { label: "Активне",   class: "bg-green-100 text-green-800"  },
-    repair:   { label: "Ремонт",    class: "bg-yellow-100 text-yellow-800" },
-    inactive: { label: "Неактивне", class: "bg-gray-100 text-gray-600"    },
+    active:          { label: "Активне",          class: "bg-green-100 text-green-800"  },
+    repair:          { label: "Ремонт",           class: "bg-yellow-100 text-yellow-800" },
+    inactive:        { label: "Неактивне",        class: "bg-gray-100 text-gray-600"    },
+    pause:           { label: "Пауза",            class: "bg-blue-100 text-blue-800"    },
+    driver_downtime: { label: "Простій (водій)",  class: "bg-orange-100 text-orange-800" },
 };
 
 export function CarStatusBadge({ status }: { status: CarStatus }) {
