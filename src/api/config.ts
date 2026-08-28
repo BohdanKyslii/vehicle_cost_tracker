@@ -12,6 +12,30 @@ interface FetchOptions extends RequestInit {
 	json?: unknown;
 }
 
+// DRF повертає помилки в РІЗНИХ формах залежно від джерела:
+// - кастомні view (login/register): {"error": "..."}
+// - permission/404: {"detail": "..."}
+// - ModelSerializer-валідація (найчастіше на create/update): {"field": ["msg", ...], ...}
+// Без цього apiFetch бачив лише перший варіант, і будь-яка помилка
+// валідації серіалізатора (напр. дублікат унікального поля) губилась —
+// користувач бачив голе "Request failed: 400." без причини.
+function extractErrorMessage(body: unknown): string | undefined {
+	if (!body || typeof body !== "object") return undefined;
+	const b = body as Record<string, unknown>;
+
+	if (typeof b.error === "string") return b.error;
+	if (typeof b.detail === "string") return b.detail;
+
+	const parts: string[] = [];
+	for (const [field, value] of Object.entries(b)) {
+		if (!Array.isArray(value)) continue;
+		const messages = value.filter((v): v is string => typeof v === "string");
+		if (messages.length === 0) continue;
+		parts.push(field === "non_field_errors" ? messages.join(" ") : `${field}: ${messages.join(" ")}`);
+	}
+	return parts.length > 0 ? parts.join("; ") : undefined;
+}
+
 // Обгортка над fetch: credentials + CSRF header + JSON body/parse в одному місці
 export async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T> {
 	const { json, headers, ...rest} = options;
@@ -29,7 +53,7 @@ export async function apiFetch<T>(path: string, options: FetchOptions = {}): Pro
 	
 	if (!res.ok) {
 		const body = await res.json().catch(() => ({}));
-		throw new Error(body.error ?? `Request failed: ${res.status}.`);
+		throw new Error(extractErrorMessage(body) ?? `Request failed: ${res.status}.`);
 	}
 
 	// 204 No Content (logout) - немає тіла для парсингу
