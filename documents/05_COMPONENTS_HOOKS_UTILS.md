@@ -95,10 +95,14 @@ export function useCreateRouteEvent()
 // ⏳ useEventsByDate — з оригінального плану, ще НЕ написано
 
 // hocks/useDayMode.ts — ✅
-// Зберігає вибір режиму водія в localStorage, ключ "dayMode:{дата}"
-// (⚠️ без carId у ключі — відрізняється від опису в оригінальному плані,
-// але й дефолт кожен раз береться з поточного carDefaultMode)
-export function useDayMode(carDefaultMode: TrackingMode): {
+// Зберігає вибір режиму водія в localStorage, ключ "dayMode:{дата}:{carId}"
+// ✅ Виправлено 2026-08-28: раніше ключ був лише "dayMode:{дата}", без
+// carId — якщо логіст перепризначав водія на інше авто того ж дня, ручний
+// override для СТАРОГО авто помилково "протікав" і на нове. carId
+// вантажиться асинхронно (спершу 0), тому пересинхронізація override —
+// не через useEffect (ловиться лінтом react-hooks/set-state-in-effect),
+// а через React-патерн "adjust state during render"
+export function useDayMode(carId: number, carDefaultMode: TrackingMode): {
   dayMode: TrackingMode; setDayMode: (mode: TrackingMode) => void; isOverridden: boolean;
 }
 
