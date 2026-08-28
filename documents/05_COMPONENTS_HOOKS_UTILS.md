@@ -27,15 +27,22 @@ export function register(username: string, email: string, password: string, role
 export function logout(): Promise<void>;
 export function loginWithTelegram(initData: string): Promise<CurrentUser>;  // Mini App
 
-// api/cars.ts — ✅ частково (тільки читання)
+// api/cars.ts — ✅ повний CRUD (Фаза 16, 2026-08-27)
 export async function fetchCars(): Promise<Car[]>
 export async function fetchCar(id: number): Promise<Car>
-// ⏳ createCar/updateCar/deleteCar — заплановані на Фазу 16, ще НЕ написані
+export async function createCar(data: CarPayload): Promise<Car>
+export async function updateCar(id: number, data: CarPayload): Promise<Car>
+export async function deleteCar(id: number): Promise<void>
+// ⚠️ create/update/delete НЕ перевіряють USE_MOCK (на відміну від fetch*) —
+// завжди реальний запит навіть у мок-режимі фронтенду
 
-// api/drivers.ts — ✅ частково
+// api/drivers.ts — ✅ повний CRUD (Фаза 16 + 2026-08-28: fetchDriver)
 export async function fetchDrivers(): Promise<Driver[]>
+export async function fetchDriver(id: number): Promise<Driver>   // ⚠️ нове 2026-08-28
 export async function fetchCurrentDriver(): Promise<Driver>
-// ⏳ createDriver/updateDriver — заплановані (Фаза 16), ще НЕ написані
+export async function createDriver(data: DriverPayload): Promise<Driver>
+export async function updateDriver(id: number, data: DriverPayload): Promise<Driver>
+export async function deleteDriver(id: number): Promise<void>
 
 // api/routeEvents.ts — ✅ реалізовано
 export async function fetchTodayEvents(carId: number): Promise<RouteEvent[]>
@@ -60,13 +67,19 @@ export async function fetchUnassignedWaybills(): Promise<WaybillSummary[]>
 ## `hocks/` — React Query хуки
 
 ```typescript
-// hocks/useCars.ts — ✅
+// hocks/useCars.ts — ✅ (Фаза 16: + create/update/delete)
 export function useCars()
 export function useCar(id: number)
+export function useCreateCar()
+export function useUpdateCar(id: number)
+export function useDeleteCar()
 
-// hocks/useDrivers.ts — ✅ (частково: лише поточний водій)
+// hocks/useDrivers.ts — ✅ (Фаза 16 + 2026-08-28: список і CRUD, не лише поточний)
 export function useCurrentDriver()
-// ⏳ useDrivers() (список) — з оригінального плану useCurrentDriver.ts, ще НЕ написано
+export function useDrivers()               // список — Фаза 16
+export function useDriver(id: number)      // ⚠️ нове 2026-08-28 — картка водія (DriverForm)
+export function useCreateDriver()          // ⚠️ нове 2026-08-28
+export function useUpdateDriver()          // Фаза 16, зараз інвалідує і ["drivers", id] теж
 
 // hocks/useRouteEvents.ts — ✅
 export function useTodayEvents(carId: number)      // refetchInterval: 60_000

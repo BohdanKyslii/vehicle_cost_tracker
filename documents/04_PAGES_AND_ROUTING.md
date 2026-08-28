@@ -11,6 +11,13 @@
 > нижче виправлено під Фазу 15 (2026-08-27): `/driver/scan` видалено як
 > мертвий маршрут (сканування камери тепер інлайн у `EventForm`), а
 > `/driver/history` — реальний `DriverHistory.tsx`, не заглушка.
+>
+> ✅ Резинхронізовано 2026-08-28 — `/fleet` (Фаза 16, дописана
+> користувачем 2026-08-27, доопрацьована 2026-08-28) реальна: список +
+> форма авто + картка водія, з `RequireRole`. ⚠️ `/waybills`, `/hired`,
+> `/carriers`, `/analytics`, `/admin` і досі БЕЗ `RequireRole` у
+> реальному коді, попри коментар нижче — хтось відкриє їх напряму за
+> URL без перевірки ролі.
 
 ---
 
@@ -26,10 +33,13 @@
     {/* "scan" маршруту немає — сканування камери інлайн у EventForm, Крок 15.2 */}
   </Route>
 
-  {/* ── Автопарк — ⏳ Фаза 16 не набрана ─────────────── */}
-  <Route path="/fleet" element={<MainLayout />}>
-    <Route index element={<PlaceholderPage title="Автопарк" />} />
-    <Route path=":carId" element={<PlaceholderPage title="Деталі авто" />} />
+  {/* ── Автопарк — ✅ Фаза 16 (2026-08-27/28) ────────── */}
+  <Route path="/fleet" element={<RequireRole roles={["logist","manager","head"]}><MainLayout /></RequireRole>}>
+    <Route index element={<FleetList />} />                 {/* ✅ реалізовано */}
+    <Route path="new" element={<CarForm />} />               {/* ✅ реалізовано */}
+    <Route path="drivers/new" element={<DriverForm />} />    {/* ✅ реалізовано */}
+    <Route path="drivers/:driverId" element={<DriverForm />} /> {/* ✅ реалізовано */}
+    <Route path=":carId" element={<CarForm />} />            {/* ✅ реалізовано — той самий CarForm, isEdit */}
   </Route>
 
   {/* ── Накладні — Фаза 11 ✅ (частково) ─────────────── */}
@@ -252,33 +262,73 @@ Telegram WebView, тому без `TopNav`/`AuthModal` — власний мін
 
 ---
 
-### `/fleet` — FleetList ⏳ план, не набрано (Фаза 16)
+### `/fleet` — FleetList ✅ реалізовано (Фаза 16, 2026-08-27/28)
 
-Зараз `PlaceholderPage` для будь-якої ролі, включно з `logist`/`manager`/
-`head`, які редиректяться сюди з Mini App після логіну — це поточний
-головний UX-розрив (`CODING_GUIDE.md`, розділ "ЩО ДАЛІ"). План лишається
-як був:
+**Файл:** `src/pages/fleet/FleetList.tsx`. Таблиця авто (`useCars`),
+без фільтрів/пошуку (⏳ з оригінального плану — `search`, `statusCar`,
+`trackingMode`, `isActive` ще не набрані).
 
-**Фільтри:** `search` (номер/назва), `statusCar`, `trackingMode`, `isActive`
-
-**Колонки:**
+**Колонки, що реально є:**
 
 | Колонка | Джерело |
 |---------|---------|
-| Номер + назва | `cars` |
-| Статус | badge: active/repair/inactive |
-| Режим (дефолт) | `cars.default_tracking_mode` |
-| Пробіг / місяць | `daily_summaries` |
-| Палет / місяць | `daily_summaries.pallets_count` |
-| Паливо л/100км | розрахунок |
-| Загальні витрати | `monthly_costs` |
-| Остання активність | `route_events` |
+| Номер (лінк на картку авто) | `car.numberCar` → `/fleet/:carId` |
+| Назва | `car.nameCar` |
+| Статус | `CarStatusBadge` |
+| Режим (дефолт) | `car.defaultTrackingMode` — ✅ додано 2026-08-28, раніше поле існувало лише в `CarForm`, у списку взагалі не було видно |
+| Водій (лінк на картку водія) | ✅ виправлено 2026-08-28 — раніше тут БУВ БАГ: `{car.trailer ? "—" : "—"}` завжди рендерив "—" незалежно від даних, водій ніколи фактично не шукався. Тепер `drivers?.find(d => d.idCar === car.idCar)`, клік веде на `/fleet/drivers/:driverId` |
+
+⏳ Все ще з оригінального плану, не набрано: пробіг/палети/паливо/
+витрати за місяць у колонках (`daily_summaries`/`monthly_costs` —
+самих цих сторінок аналітики ще нема).
 
 ---
 
-### `/fleet/:carId` — CarDetail ⏳ план, не набрано
+### `/fleet/new`, `/fleet/:carId` — CarForm ✅ реалізовано (Фаза 16)
 
-**Tabs:** `route` (timeline дня) | `month` (графік + таблиця) | `waybills`
+**Файл:** `src/pages/fleet/CarForm.tsx`. Один компонент на створення й
+редагування (`isEdit = !!carId`) — назва, номер, паливна картка,
+амортизація, режим трекінгу за замовчуванням, статус, характеристики
+(`CarSpecs`), причіп (умовний блок, лише коли `hasTrailer`), і select
+"Водій" — призначення/зняття водія з цього авто (двосторонньо оновлює
+й `Driver.idCar` через `useUpdateDriver`).
+
+✅ Виправлено 2026-08-28 — форма й `components/ui/Input.tsx`/`Button.tsx`
+були стилізовані під світлу тему (`bg-white`, без явного кольору
+тексту), а `MainLayout` (реальна обгортка `/fleet`) темна з `text-white`
+на корені — текст інпутів успадковував білий колір і зливався з білим
+фоном. Перестилізовано під той самий темний "glass" вигляд, що й
+`components/driver/ui.tsx`/`WaybillFiltersBar` (`bg-white/5`,
+`border-white/10`, `text-white`, `[&>option]:bg-slate-900` для
+`<select>`), форму огорнуто в картку (`rounded-2xl bg-white/5`) замість
+голого тексту на градієнті сторінки.
+
+⚠️ Реальний бекенд-баг (не тут, `vehicle_tracker_api`, виправлено
+2026-08-28): `CarSerializer.trailer` не мав `required=False` — DRF
+відхиляв створення авто БЕЗ причепа 400-кою, бо фронтенд не надсилає
+ключ `trailer` взагалі, коли `hasTrailer=false`.
+
+---
+
+### `/fleet/drivers/new`, `/fleet/drivers/:driverId` — DriverForm ✅ реалізовано (2026-08-28)
+
+**Файл:** `src/pages/fleet/DriverForm.tsx` — не було в оригінальному
+плані Фази 16 взагалі, додано за прямим запитом ("клік на водія має
+відкривати картку, як для авто"). Той самий стиль/патерн, що й
+`CarForm`: ПІБ, телефон, посвідчення водія, активність, select
+"Закріплене авто" (обернений бік того самого зв'язку — якщо обране авто
+вже мало ІНШОГО водія, той знімається, щоб не було двох водіїв на
+одному авто одночасно, `Driver.car` — `OneToOneField` на бекенді).
+
+⚠️ Реальний бекенд-баг (виправлено 2026-08-28): реєстрація через email
+(`RegisterSerializer.create()`) створювала `User`+`Profile`, але НЕ
+`Driver` — на відміну від Telegram-реєстрації бота
+(`_create_driver_registration`), яка одразу створює й лінкує `Driver`.
+Через це бот не міг закріпити авто за email-зареєстрованим водієм
+("у водія ще немає картки Driver") — тепер `RegisterSerializer`
+авто-створює порожню `Driver`-картку (`name_driver = username`) при
+`role=driver`, реальні ПІБ/телефон/посвідчення адмін дописує тут,
+у `DriverForm`.
 
 ---
 
