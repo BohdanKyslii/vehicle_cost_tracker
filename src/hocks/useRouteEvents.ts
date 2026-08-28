@@ -8,6 +8,7 @@ import {
     fetchDriverEvents,
     fetchLastOdometer,
     createRouteEvent,
+    deleteRouteEvent,
 } from "../api/routeEvents.ts";
 import type {
     RouteEventCreate
@@ -55,5 +56,19 @@ export function useDriverEvents(carId: number) {
         queryKey: ["route-events", carId, "all"],
         queryFn: () => fetchDriverEvents(carId),
         enabled: !!carId,
+    });
+}
+
+// Видалення події (напр. зайва/помилково відскановна накладна) — carId
+// передаємо окремо, бо DELETE не повертає видалений об'єкт
+export function useDeleteRouteEvent() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ id }: { id: number; carId: number }) => deleteRouteEvent(id),
+        onSuccess: (_data, variables) => {
+            queryClient.invalidateQueries({ queryKey: ["route-events", variables.carId] });
+            queryClient.invalidateQueries({ queryKey: ["lastOdometer", variables.carId] });
+        },
     });
 }

@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { useCurrentDriver } from "../../hocks/useDrivers";
 import { useCar } from "../../hocks/useCars";
 import { useDriverEvents } from "../../hocks/useRouteEvents";
@@ -6,6 +7,7 @@ import { formatDateTime } from "../../utils/formatters";
 import { Spinner, EmptyState, ErrorBanner } from "../../components/driver/ui";
 
 export function DriverHistory() {
+	const navigate = useNavigate();
 	const { data: driver, isLoading: driverLoading } = useCurrentDriver();
 	const { data: car } = useCar(driver?.idCar ?? 0);
 	const { data: events, isLoading, isError } = useDriverEvents(car?.idCar ?? 0);
@@ -22,7 +24,11 @@ export function DriverHistory() {
 				const badges = eventSummaryBadges(e);
 				const comment = eventComment(e);
 				return (
-					<li key={e.id} className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur-sm">
+					<li
+						key={e.id}
+						onClick={() => navigate(`/driver/event/${e.id}`)}
+						className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur-sm cursor-pointer transition-colors hover:bg-white/10 active:scale-[0.99]"
+					>
 						<div className={`h-9 w-9 shrink-0 rounded-full bg-gradient-to-br ${eventTypeGradient(e.eventType)} flex items-center justify-center text-base`}>
 							{eventTypeIcon(e.eventType)}
 						</div>

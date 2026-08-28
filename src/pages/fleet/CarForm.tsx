@@ -149,8 +149,10 @@ export function CarForm() {
 			)}
 
 			<Input label="Назва (модель)" value={nameCar} onChange={(e) => setNameCar(e.target.value)} required disabled={detailsLocked} />
-			<Input label="Держ. номер" value={numberCar} onChange={(e) => setNumberCar(e.target.value)} required disabled={detailsLocked} />
-			<Input label="Номер паливної картки" type="number" value={fuelCardNumber} onChange={(e) => setFuelCardNumber(e.target.value)} disabled={detailsLocked} />
+			<div className="grid grid-cols-2 gap-3">
+				<Input label="Держ. номер" value={numberCar} onChange={(e) => setNumberCar(e.target.value)} required disabled={detailsLocked} />
+				<Input label="Номер паливної картки" type="number" value={fuelCardNumber} onChange={(e) => setFuelCardNumber(e.target.value)} disabled={detailsLocked} />
+			</div>
 			<Input label="Місячна амортизація (грн)" type="number" value={amountCar} onChange={(e) => setAmountCar(e.target.value)} required disabled={detailsLocked} />
 
 			<div className="flex flex-col gap-1">
@@ -203,12 +205,18 @@ export function CarForm() {
 
 			<h2 className="text-lg font-semibold text-white pt-2">Технічні характеристики</h2>
 			<Input label="VIN" value={vinCode} onChange={(e) => setVinCode(e.target.value)} disabled={detailsLocked} />
-			<Input label="Рік випуску" type="number" value={yearManufactured} onChange={(e) => setYearManufactured(e.target.value)} disabled={detailsLocked} />
-			<Input label="Вага (кг)" type="number" value={weightKg} onChange={(e) => setWeightKg(e.target.value)} disabled={detailsLocked} />
-			<Input label="Вантажопідйомність (кг)" type="number" value={payloadKg} onChange={(e) => setPayloadKg(e.target.value)} disabled={detailsLocked} />
-			<Input label="Довжина (см)" type="number" value={lengthCm} onChange={(e) => setLengthCm(e.target.value)} disabled={detailsLocked} />
-			<Input label="Ширина (см)" type="number" value={widthCm} onChange={(e) => setWidthCm(e.target.value)} disabled={detailsLocked} />
-			<Input label="Висота (см)" type="number" value={heightCm} onChange={(e) => setHeightCm(e.target.value)} disabled={detailsLocked} />
+			<div className="grid grid-cols-2 gap-3">
+				<Input label="Рік випуску" type="number" value={yearManufactured} onChange={(e) => setYearManufactured(e.target.value)} disabled={detailsLocked} />
+				<Input label="Вага (кг)" type="number" value={weightKg} onChange={(e) => setWeightKg(e.target.value)} disabled={detailsLocked} />
+			</div>
+			<div className="grid grid-cols-2 gap-3">
+				<Input label="Вантажопідйомність (кг)" type="number" value={payloadKg} onChange={(e) => setPayloadKg(e.target.value)} disabled={detailsLocked} />
+				<Input label="Довжина (см)" type="number" value={lengthCm} onChange={(e) => setLengthCm(e.target.value)} disabled={detailsLocked} />
+			</div>
+			<div className="grid grid-cols-2 gap-3">
+				<Input label="Ширина (см)" type="number" value={widthCm} onChange={(e) => setWidthCm(e.target.value)} disabled={detailsLocked} />
+				<Input label="Висота (см)" type="number" value={heightCm} onChange={(e) => setHeightCm(e.target.value)} disabled={detailsLocked} />
+			</div>
 
 			<label className="flex items-center gap-2 text-sm text-white/70">
 				<input type="checkbox" checked={hasTailLift} onChange={(e) => setHasTailLift(e.target.checked)} disabled={detailsLocked} />

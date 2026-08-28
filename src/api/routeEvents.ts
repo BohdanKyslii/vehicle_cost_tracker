@@ -158,6 +158,15 @@ export async function fetchLastOdometer(carId: number): Promise<number | null> {
     return data.odometer_km;
 }
 
+// Видалення помилково відсканованої/зайвої події (напр. зайва накладна)
+export async function deleteRouteEvent(id: number): Promise<void> {
+    if (USE_MOCK) {
+        await mockDelay(300);
+        return;
+    }
+    await apiFetch<void>(`/route-events/${id}/`, { method: "DELETE" });
+}
+
 // Створення нової події (POST запит)
 export async function createRouteEvent(data: RouteEventCreate): Promise<RouteEvent> {
     if (USE_MOCK) {

@@ -5,6 +5,7 @@ const variantClasses = {
 	primary:
 		"bg-gradient-to-r from-violet-500 to-pink-500 text-white shadow-lg shadow-violet-500/25 hover:opacity-90 active:scale-[0.98]",
 	ghost: "text-white/70 hover:bg-white/5 hover:text-white active:scale-[0.98]",
+	danger: "bg-rose-500/10 text-rose-300 border border-rose-500/20 hover:bg-rose-500/20 active:scale-[0.98]",
 };
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {

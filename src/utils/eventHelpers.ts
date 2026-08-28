@@ -83,6 +83,37 @@ export function inferDeliveryStage(e: RouteEvent): DeliveryStage | undefined {
 	return e.odometerKm != null ? "unload" : "load";
 }
 
+// Немає поля-групи в БД (рішення: multi-waybill на точці — суто
+// frontend-хак, без зміни схеми) — тому "накладні однієї точки" визначаємо
+// заднім числом: усі delivery-події того ж режиму, скановані одна за одною
+// без розриву довше STOP_CLUSTER_WINDOW_MS. На практиці кілька накладних
+// однієї точки сканують поспіль за секунди-хвилини; новий виїзд на іншу
+// точку завжди довший за це вікно.
+const STOP_CLUSTER_WINDOW_MS = 10 * 60 * 1000;
+
+export function findEventGroup(events: RouteEvent[], target: RouteEvent): RouteEvent[] {
+	if (target.eventType !== "delivery") return [target];
+
+	const sameKind = events
+		.filter(e => e.eventType === "delivery" && e.trackingMode === target.trackingMode)
+		.sort((a, b) => a.eventTs.localeCompare(b.eventTs));
+	const idx = sameKind.findIndex(e => e.id === target.id);
+	if (idx === -1) return [target];
+
+	let start = idx;
+	let end = idx;
+	while (
+		start > 0 &&
+		new Date(sameKind[start].eventTs).getTime() - new Date(sameKind[start - 1].eventTs).getTime() <= STOP_CLUSTER_WINDOW_MS
+	) start--;
+	while (
+		end < sameKind.length - 1 &&
+		new Date(sameKind[end + 1].eventTs).getTime() - new Date(sameKind[end].eventTs).getTime() <= STOP_CLUSTER_WINDOW_MS
+	) end++;
+
+	return sameKind.slice(start, end + 1);
+}
+
 // Права колонка карток історії/сьогоднішніх подій — компактні бейджі.
 // Будуються з наявності полів, а не switch по типу: full-режим delivery
 // має одночасно і одометр, і номер накладної — обидва мають зʼявитись.

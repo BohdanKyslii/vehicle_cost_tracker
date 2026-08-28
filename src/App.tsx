@@ -10,6 +10,7 @@ import {DriverMiniApp } from "./pages/DriverMiniApp.tsx";
 import { RequireRole } from "./components/auth/RequireRole";
 import { RoleRedirect } from "./pages/RoleRedirect";
 import { DriverHistory } from "./pages/driver/DriverHistory";
+import { EventDetail } from "./pages/driver/EventDetail";
 import { FleetList } from "./pages/fleet/FleetList";
 import { CarForm } from "./pages/fleet/CarForm";
 import { DriverForm } from "./pages/fleet/DriverForm";
@@ -74,6 +75,7 @@ export default function App() {
             >
                 <Route index element={<DriverDashboard />} />
                 <Route path="event/new" element={<EventForm />} />
+                <Route path="event/:eventId" element={<EventDetail />} />
                 <Route path="history" element={<DriverHistory />} />
             </Route>
             
