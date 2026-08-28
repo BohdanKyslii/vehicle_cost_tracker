@@ -22,7 +22,7 @@ export function EventForm() {
 
 	const { data: driver, isLoading: driverLoading } = useCurrentDriver();
 	const { data: car, isLoading: carLoading } = useCar(driver?.idCar ?? 0);
-	const { dayMode } = useDayMode(car?.defaultTrackingMode ?? "daily");
+	const { dayMode } = useDayMode(car?.idCar ?? 0, car?.defaultTrackingMode ?? "daily");
 	const { data: lastOdometer } = useLastOdometer(car?.idCar ?? 0);
 	const { data: todayEvents } = useTodayEvents(car?.idCar ?? 0);
 	const createEvent = useCreateRouteEvent();

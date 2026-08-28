@@ -12,7 +12,7 @@ export function DriverDashboard() {
 	const navigate = useNavigate();
 	const { data: driver, isLoading: driverLoading, error: driverError } = useCurrentDriver();
 	const { data: car, isLoading: carLoading } = useCar(driver?.idCar ?? 0);
-	const { dayMode, setDayMode, isOverridden } = useDayMode(car?.defaultTrackingMode ?? "daily");
+	const { dayMode, setDayMode, isOverridden } = useDayMode(car?.idCar ?? 0, car?.defaultTrackingMode ?? "daily");
 	const { data: events, isLoading: eventsLoading } = useTodayEvents(car?.idCar ?? 0);
 	const { data: lastOdometer } = useLastOdometer(car?.idCar ?? 0);
 	
