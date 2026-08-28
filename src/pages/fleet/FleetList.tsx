@@ -50,7 +50,7 @@ export function FleetList() {
 								</td>
 								<td className="py-2">{car.nameCar}</td>
 								<td className="py-2"><CarStatusBadge status={car.statusCar} /></td>
-								<td className="py-2 text-white/70">{trackingModeLabel[car.defaultTrackingMode]}</td>
+								<td className="py-2 text-white/70">{trackingModeLabel[car.defaultTrackingMode ?? "daily"]}</td>
 								<td className="py-2">
 									{driver ? (
 										<Link to={`/fleet/drivers/${driver.idDriver}`} className="text-violet-300 hover:underline">
