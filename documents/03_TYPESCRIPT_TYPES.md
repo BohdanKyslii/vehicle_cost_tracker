@@ -105,7 +105,10 @@ export interface StoreDeliveryAddress {
 
 ```typescript
 export type TrackingMode = 'daily' | 'full';
-export type CarStatus = "active" | "repair" | "inactive";
+// pause/driver_downtime додані 2026-08-28 (backend migration
+// 0005_car_status_pause_downtime) — вимушений простій (тахограф) і
+// простій через відсутність водія відповідно
+export type CarStatus = "active" | "repair" | "inactive" | "pause" | "driver_downtime";
 
 // ── Авто власного автопарку ───────────────────────────────
 export interface Car {
@@ -137,13 +140,16 @@ export interface CarSpecs {
 }
 
 // ⚠️ Повністю нове відносно оригінального плану — причіп
+// ✅ Резинхронізовано 2026-08-28: поле `model` прибрано — на бекенді
+// його ніколи не було (ні в DB, ні в TrailerSerializer), фронтенд
+// надсилав його даремно, DRF мовчки ігнорував, введене значення
+// губилось безслідно (backend commit deb38c8)
 export interface Trailer {
   idTrailer: number;
   vinCode?: string;
   yearManufactured?: number;
   nameTrailer: string;
   idCar: number;
-  model: string;
   numberTrailer: string;
   isActive: boolean;
 }
