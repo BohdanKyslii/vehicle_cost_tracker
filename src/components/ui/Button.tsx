@@ -1,8 +1,8 @@
 // Record<Variant, string> — Tailwind класи для кожного варіанту кнопк
 const variantClasses = {
     primary: "bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800",
-    secondary: "bg-gray-100 text-gray-800 hover:bg-gray-200 active:bg-gray-300",
-    ghost: "text-gray-600 hover:bg-gray-100 active:bg-gray-200",
+    secondary: "bg-white/10 text-white hover:bg-white/15 active:bg-white/20",
+    ghost: "text-white/70 hover:bg-white/5 hover:text-white active:bg-white/10",
     danger: "bg-red-600 text-white hover:bg-red-700 active:bg-red-800",
 };
 

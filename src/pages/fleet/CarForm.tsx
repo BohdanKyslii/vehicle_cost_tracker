@@ -125,7 +125,8 @@ export function CarForm() {
 	}
 
 	return (
-		<form onSubmit={handleSubmit} className="p-6 max-w-lg space-y-4">
+		<div className="p-6">
+		<form onSubmit={handleSubmit} className="max-w-lg mx-auto p-6 space-y-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
 			<h1 className="text-xl font-bold text-white">{isEdit ? "Редагувати авто" : "Нове авто"}</h1>
 
 			<Input label="Назва (модель)" value={nameCar} onChange={(e) => setNameCar(e.target.value)} required />
@@ -134,11 +135,11 @@ export function CarForm() {
 			<Input label="Місячна амортизація (грн)" type="number" value={amountCar} onChange={(e) => setAmountCar(e.target.value)} required />
 
 			<div className="flex flex-col gap-1">
-				<label className="text-sm font-medium text-gray-700">Режим обліку за замовчуванням</label>
+				<label className="text-sm font-medium text-white/70">Режим обліку за замовчуванням</label>
 				<select
 					value={defaultTrackingMode}
 					onChange={(e) => setDefaultTrackingMode(e.target.value as TrackingMode)}
-					className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
+					className="w-full rounded-lg border border-white/10 bg-white/5 text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 [&>option]:bg-slate-900 [&>option]:text-white"
 				>
 					<option value="daily">Daily (без стадій)</option>
 					<option value="full">Full (склад / точки)</option>
@@ -146,11 +147,11 @@ export function CarForm() {
 			</div>
 
 			<div className="flex flex-col gap-1">
-				<label className="text-sm font-medium text-gray-700">Статус авто</label>
+				<label className="text-sm font-medium text-white/70">Статус авто</label>
 				<select
 					value={statusCar}
 					onChange={(e) => setStatusCar(e.target.value as CarStatus)}
-					className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
+					className="w-full rounded-lg border border-white/10 bg-white/5 text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 [&>option]:bg-slate-900 [&>option]:text-white"
 				>
 					<option value="active">Активне</option>
 					<option value="repair">Ремонт</option>
@@ -158,17 +159,17 @@ export function CarForm() {
 				</select>
 			</div>
 
-			<label className="flex items-center gap-2 text-sm text-gray-700">
+			<label className="flex items-center gap-2 text-sm text-white/70">
 				<input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
 				Авто активне (в експлуатації)
 			</label>
 
 			<div className="flex flex-col gap-1">
-				<label className="text-sm font-medium text-gray-700">Водій</label>
+				<label className="text-sm font-medium text-white/70">Водій</label>
 				<select
 					value={selectedDriverId}
 					onChange={(e) => setSelectedDriverId(e.target.value ? Number(e.target.value) : "")}
-					className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
+					className="w-full rounded-lg border border-white/10 bg-white/5 text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 [&>option]:bg-slate-900 [&>option]:text-white"
 				>
 					<option value="">— не призначено —</option>
 					{drivers?.map((d) => (
@@ -188,11 +189,11 @@ export function CarForm() {
 			<Input label="Ширина (см)" type="number" value={widthCm} onChange={(e) => setWidthCm(e.target.value)} />
 			<Input label="Висота (см)" type="number" value={heightCm} onChange={(e) => setHeightCm(e.target.value)} />
 
-			<label className="flex items-center gap-2 text-sm text-gray-700">
+			<label className="flex items-center gap-2 text-sm text-white/70">
 				<input type="checkbox" checked={hasTailLift} onChange={(e) => setHasTailLift(e.target.checked)} />
 				Є гідроборт
 			</label>
-			<label className="flex items-center gap-2 text-sm text-gray-700">
+			<label className="flex items-center gap-2 text-sm text-white/70">
 				<input type="checkbox" checked={hasTrailer} onChange={(e) => setHasTrailer(e.target.checked)} />
 				Є причіп
 			</label>
@@ -205,7 +206,7 @@ export function CarForm() {
 					<Input label="Держ. номер причепа" value={trailerNumber} onChange={(e) => setTrailerNumber(e.target.value)} required />
 					<Input label="VIN причепа" value={trailerVinCode} onChange={(e) => setTrailerVinCode(e.target.value)} />
 					<Input label="Рік випуску причепа" type="number" value={trailerYear} onChange={(e) => setTrailerYear(e.target.value)} />
-					<label className="flex items-center gap-2 text-sm text-gray-700">
+					<label className="flex items-center gap-2 text-sm text-white/70">
 						<input type="checkbox" checked={trailerIsActive} onChange={(e) => setTrailerIsActive(e.target.checked)} />
 						Причіп активний
 					</label>
@@ -221,5 +222,6 @@ export function CarForm() {
 				<Button type="submit" isLoading={mutation.isPending || updateDriverAssignment.isPending} className="flex-1">Зберегти</Button>
 			</div>
 		</form>
+		</div>
 	);
 }
