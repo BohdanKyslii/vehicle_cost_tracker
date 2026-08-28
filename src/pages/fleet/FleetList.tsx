@@ -1,16 +1,18 @@
 import { Link } from "react-router-dom";
-import { useCars } from "../../hocks/useCars";
+import { useCars, useChangeCarStatus } from "../../hocks/useCars";
 import { useDrivers } from "../../hocks/useDrivers";
 import { Spinner } from "../../components/ui/Spinner";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorBanner } from "../../components/ui/ErrorBanner";
-import { CarStatusBadge } from "../../components/ui/Badge";
+import type { CarStatus } from "../../types";
 
 const trackingModeLabel = { daily: "Щоденний", full: "Повний" } as const;
+const carStatusLabel: Record<CarStatus, string> = { active: "Активне", repair: "Ремонт", inactive: "Неактивне" };
 
 export function FleetList() {
 	const { data: cars, isLoading, isError, refetch } = useCars();
 	const { data: drivers } = useDrivers();
+	const changeStatus = useChangeCarStatus();
 
 	return (
 		<div className="p-6 space-y-4">
@@ -49,7 +51,18 @@ export function FleetList() {
 									</Link>
 								</td>
 								<td className="py-2">{car.nameCar}</td>
-								<td className="py-2"><CarStatusBadge status={car.statusCar} /></td>
+								<td className="py-2">
+									<select
+										value={car.statusCar}
+										disabled={changeStatus.isPending}
+										onChange={(e) => changeStatus.mutate({ id: car.idCar, status: e.target.value as CarStatus })}
+										className="rounded-lg border border-white/10 bg-white/5 text-white px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-violet-400 disabled:opacity-50 [&>option]:bg-slate-900 [&>option]:text-white"
+									>
+										{Object.entries(carStatusLabel).map(([value, label]) => (
+											<option key={value} value={value}>{label}</option>
+										))}
+									</select>
+								</td>
 								<td className="py-2 text-white/70">{trackingModeLabel[car.defaultTrackingMode ?? "daily"]}</td>
 								<td className="py-2">
 									{driver ? (
@@ -65,6 +78,10 @@ export function FleetList() {
 					})}
 					</tbody>
 				</table>
+			)}
+
+			{changeStatus.isError && (
+				<ErrorBanner message={`Не вдалось змінити статус: ${(changeStatus.error as Error).message}`} />
 			)}
 		</div>
 	);

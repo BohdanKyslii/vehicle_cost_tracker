@@ -195,3 +195,14 @@ export async function updateCar(id: number, data: CarPayload): Promise<Car> {
 export async function deleteCar(id: number): Promise<void> {
     await apiFetch<void>(`/cars/${id}/`, { method: "DELETE" });
 }
+
+// Швидка зміна статусу авто (без відкриття повної форми) — окремий бекенд-
+// ендпоінт, що пише запис в CarStatusLog (для підрахунку "днів у ремонті"),
+// на відміну від звичайного PATCH через updateCar
+export async function changeCarStatus(id: number, newStatus: CarStatus, reason = ""): Promise<Car> {
+    const raw = await apiFetch<RawCar>(`/cars/${id}/change_status/`, {
+        method: "POST",
+        json: { status: newStatus, reason },
+    });
+    return mapCar(raw);
+}

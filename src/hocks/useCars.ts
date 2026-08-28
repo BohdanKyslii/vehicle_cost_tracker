@@ -1,8 +1,9 @@
 import { useQuery} from "@tanstack/react-query";
 import { fetchCars, fetchCar} from "../api/cars.ts";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { createCar, updateCar, deleteCar } from "../api/cars.ts";
+import { createCar, updateCar, deleteCar, changeCarStatus } from "../api/cars.ts";
 import type { CarPayload } from "../api/cars.ts";
+import type { CarStatus } from "../types";
 
 // useQuery приймає об'єкт з двома обов'язковими полями:
 // queryKey — унікальний ключ для кешу (масив)
@@ -47,5 +48,19 @@ export function useDeleteCar() {
     return useMutation({
         mutationFn: (id: number) => deleteCar(id),
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ["cars"] }),
+    });
+}
+
+// Швидка зміна статусу просто зі списку (FleetList), без відкриття CarForm —
+// окремий ендпоінт change_status пише запис в CarStatusLog
+export function useChangeCarStatus() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ id, status, reason }: { id: number; status: CarStatus; reason?: string }) =>
+            changeCarStatus(id, status, reason),
+        onSuccess: (_result, { id }) => {
+            queryClient.invalidateQueries({ queryKey: ["cars"] });
+            queryClient.invalidateQueries({ queryKey: ["cars", id] });
+        },
     });
 }
