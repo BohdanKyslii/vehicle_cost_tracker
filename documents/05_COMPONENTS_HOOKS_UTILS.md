@@ -15,6 +15,11 @@ export const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3000'
 export const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
 export function apiFetch<T>(path: string, options?: FetchOptions): Promise<T>;
 // credentials:'include' + X-CSRFToken header — сесійна авторизація, не JWT
+// ⚠️ Резинхронізовано 2026-08-28: помилка тепер будується extractErrorMessage() —
+// розбирає і {"error"}, і {"detail"}, і DRF ModelSerializer-форму
+// {"field": ["msg", ...]}. До цього показувався лише перший варіант, тому
+// будь-яка помилка валідації (напр. дублікат унікального поля при СТВОРЕННІ
+// нового авто/водія — CarForm/DriverForm) губилась за голим "Request failed: 400."
 export function mockDelay(ms?: number): Promise<void>;
 
 // api/auth.ts — ✅ реалізовано, НЕ було в оригінальному плані
@@ -33,8 +38,9 @@ export async function fetchCar(id: number): Promise<Car>
 export async function createCar(data: CarPayload): Promise<Car>
 export async function updateCar(id: number, data: CarPayload): Promise<Car>
 export async function deleteCar(id: number): Promise<void>
-// ⚠️ create/update/delete НЕ перевіряють USE_MOCK (на відміну від fetch*) —
-// завжди реальний запит навіть у мок-режимі фронтенду
+export async function changeCarStatus(id: number, newStatus: CarStatus, reason?: string): Promise<Car>  // ⚠️ нове 2026-08-28 — POST /cars/{id}/change_status/, пише CarStatusLog (на відміну від updateCar — звичайний PATCH без журналу)
+// ⚠️ create/update/delete/changeCarStatus НЕ перевіряють USE_MOCK (на відміну
+// від fetch*) — завжди реальний запит навіть у мок-режимі фронтенду
 
 // api/drivers.ts — ✅ повний CRUD (Фаза 16 + 2026-08-28: fetchDriver)
 export async function fetchDrivers(): Promise<Driver[]>
@@ -73,6 +79,7 @@ export function useCar(id: number)
 export function useCreateCar()
 export function useUpdateCar(id: number)
 export function useDeleteCar()
+export function useChangeCarStatus()  // ⚠️ нове 2026-08-28 — FleetList, per-row select
 
 // hocks/useDrivers.ts — ✅ (Фаза 16 + 2026-08-28: список і CRUD, не лише поточний)
 export function useCurrentDriver()
