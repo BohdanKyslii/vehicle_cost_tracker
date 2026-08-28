@@ -6982,36 +6982,81 @@ export function DayModeSwitch({ mode, onChange, isOverridden, compact = false }:
 > frontend-хак). Щоб відкрити подію і побачити "усі накладні цієї
 > точки" разом, групу треба вирахувати заднім числом.
 
-Евристика в `src/utils/eventHelpers.ts`: усі `delivery`-події того ж
-`trackingMode`, скановані одна за одною без розриву довше 10 хв,
-вважаються однією точкою (на практиці кілька накладних сканують за
-секунди-хвилини, а виїзд на наступну точку завжди довший):
+> ⚠️ **Резинхронізовано 2026-08-28, того ж дня** — перша версія цього
+> кроку групувала ЧАСОВОЮ евристикою (усі `delivery`-події без розриву
+> довше 10 хв). Живе тестування одразу показало хибу: якщо водій
+> сканує кілька окремих, самостійних накладних "по одній" (кожну через
+> свій прохід EventForm, БЕЗ "+ Ще одна накладна") швидко одна за
+> одною, вони теж потрапляли у вікно 10 хв і хибно об'єднувались в
+> одну "точку", хоча це не мало жодного стосунку до реального фізичного
+> місця розвантаження. Замінено на явний маркер.
+
+Додаткова накладна (створена через "+ Ще одна накладна" в `EventForm`,
+Крок 15.6, чи "Ще одна накладна цієї точки" в `EventDetail`, Крок 17.6)
+несе в `notes` префікс `[stop:<id основної події>]` — без цього
+маркера подія завжди сама собі група, незалежно від того, наскільки
+близько за часом вона до інших:
 
 ```typescript
 // src/utils/eventHelpers.ts
-const STOP_CLUSTER_WINDOW_MS = 10 * 60 * 1000;
+const STOP_TAG_RE = /^\[stop:(\d+)\]\s*/;
+
+// group-id події: маркер "[stop:N]" в notes → N (id основної події
+// групи), інакше подія сама собі група (її власний id)
+function groupRootId(e: RouteEvent): number {
+  const match = e.notes?.match(STOP_TAG_RE);
+  return match ? Number(match[1]) : e.id;
+}
+
+export function stripStopTag(notes: string | undefined): string | undefined {
+  if (!notes) return notes;
+  return notes.replace(STOP_TAG_RE, "") || undefined;
+}
+
+export function withStopTag(rootId: number): string {
+  return `[stop:${rootId}]`;
+}
 
 export function findEventGroup(events: RouteEvent[], target: RouteEvent): RouteEvent[] {
   if (target.eventType !== "delivery") return [target];
+  const rootId = groupRootId(target);
+  return events.filter(e => e.eventType === "delivery" && groupRootId(e) === rootId);
+}
 
-  const sameKind = events
-    .filter(e => e.eventType === "delivery" && e.trackingMode === target.trackingMode)
-    .sort((a, b) => a.eventTs.localeCompare(b.eventTs));
-  const idx = sameKind.findIndex(e => e.id === target.id);
-  if (idx === -1) return [target];
-
-  let start = idx;
-  let end = idx;
-  while (start > 0 && new Date(sameKind[start].eventTs).getTime() - new Date(sameKind[start - 1].eventTs).getTime() <= STOP_CLUSTER_WINDOW_MS) start--;
-  while (end < sameKind.length - 1 && new Date(sameKind[end + 1].eventTs).getTime() - new Date(sameKind[end].eventTs).getTime() <= STOP_CLUSTER_WINDOW_MS) end++;
-
-  return sameKind.slice(start, end + 1);
+// Для "ще однієї накладної" незалежно від того, на яку саме подію
+// групи зараз дивиться водій — завжди веде до того самого кореня
+export function groupRootIdOf(e: RouteEvent): number {
+  return groupRootId(e);
 }
 ```
 
-Розширюємо кластер вліво/вправо від цільової події, поки розрив між
-сусідніми таймстемпами не перевищує вікно — це дає правильне
-групування навіть якщо клікнули не на першу накладну точки.
+`eventComment()` тепер пропускає `notes` через `stripStopTag()`, щоб
+службовий маркер не показувався у "💬 {коментар}" в списках. `EventForm.tsx`
+(Крок 15.6, цикл по `additionalWaybills`) ставить тег ПІСЛЯ створення
+основної події, коли вже відомий її `id`:
+
+```typescript
+// src/pages/driver/EventForm.tsx
+const mainEvent = await createEvent.mutateAsync(data);
+for (const w of additionalWaybills) {
+  await createEvent.mutateAsync({
+    ...,
+    notes: withStopTag(mainEvent.id),
+  });
+}
+```
+
+`EventDetail.tsx` (Крок 17.6, "📷 Ще одна накладна цієї точки") ставить
+тег на корінь ІСНУЮЧОЇ групи через `groupRootIdOf(target)` — а не на
+`target.id` напряму, інакше додавання ще однієї накладної, дивлячись
+на вже додаткову (не основну) подію групи, створило б ланцюжок
+посилань замість спільного кореня.
+
+> Компроміс: старі (до цього фікса) записи, згруповані виключно
+> часовою евристикою, після деплою розпадуться на окремі — у них немає
+> маркера `[stop:N]`. Прийнято свідомо: фіча нова, реальних
+> продакшн-груп на момент фікса було мало, а хибне групування
+> шкідливіше за втрату старого групування заднім числом.
 
 ---
 
@@ -7090,13 +7135,16 @@ import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useCurrentDriver } from "../../hocks/useDrivers";
 import { useCar } from "../../hocks/useCars";
-import { useDriverEvents, useCreateRouteEvent, useDeleteRouteEvent } from "../../hocks/useRouteEvents";
+import { useTodayEvents, useCreateRouteEvent, useDeleteRouteEvent } from "../../hocks/useRouteEvents";
 import {
   eventTypeLabel,
   eventTypeIcon,
   eventTypeGradient,
   inferDeliveryStage,
   findEventGroup,
+  groupRootIdOf,
+  withStopTag,
+  stripStopTag,
 } from "../../utils/eventHelpers";
 import { formatDateTime, formatKm } from "../../utils/formatters";
 import { Button, Spinner, ErrorBanner, EmptyState } from "../../components/driver/ui";
@@ -7110,7 +7158,7 @@ export function EventDetail() {
 
   const { data: driver, isLoading: driverLoading } = useCurrentDriver();
   const { data: car, isLoading: carLoading } = useCar(driver?.idCar ?? 0);
-  const { data: events, isLoading: eventsLoading } = useDriverEvents(car?.idCar ?? 0);
+  const { data: events, isLoading: eventsLoading } = useTodayEvents(car?.idCar ?? 0);
   const deleteEvent = useDeleteRouteEvent();
   const createEvent = useCreateRouteEvent();
 
@@ -7172,6 +7220,9 @@ export function EventDetail() {
       waybillNumber: parsed.waybillNumber,
       waybillDate: parsed.waybillDate,
       customerName: target!.customerName,
+      // groupRootIdOf(target), не target.id напряму — якщо target сам є
+      // додатковою накладною чужого кореня, нова має йти до ТОГО Ж кореня
+      notes: withStopTag(groupRootIdOf(target!)),
     });
   }
 
@@ -7236,7 +7287,7 @@ export function EventDetail() {
           {target.extraFrom && <Row label="Звідки" value={target.extraFrom} />}
           {target.extraTo && <Row label="Куди" value={target.extraTo} />}
           {target.extraWeightKg != null && <Row label="Вага" value={`${target.extraWeightKg} кг`} />}
-          {target.notes && <Row label="Нотатки" value={target.notes} />}
+          {stripStopTag(target.notes) && <Row label="Нотатки" value={stripStopTag(target.notes)!} />}
 
           {scanError && <ErrorBanner message={scanError} />}
 
@@ -7437,6 +7488,38 @@ onSuccess: (newEvent) => {
 
 > Усі чотири — фронтенд-only, бекенд не чіпали. `npm run build`
 > пройшов чисто після кожного.
+
+---
+
+## Крок 17.10 — Ще два фікси того ж дня: кнопка "Назад" у CarForm, точніше групування
+
+**1. `CarForm`: немає способу просто закрити картку без збереження.**
+У заблокованому перегляді (`detailsLocked`, Крок 16.5) кнопка "Скасувати"
+робила ТЕ САМЕ, що й мало б робити "закрити" (`navigate("/fleet")`, без
+жодного запиту на збереження) — але напис "Скасувати" звучав так, ніби
+щось редагувалось, хоча в locked-режимі це не так. Підпис тепер
+залежить від режиму (сам `onClick` не змінився):
+
+```typescript
+// src/pages/fleet/CarForm.tsx
+<Button type="button" variant="ghost" onClick={() => navigate("/fleet")}>
+  {detailsLocked ? "← Назад" : "Скасувати"}
+</Button>
+<Button type="submit" isLoading={mutation.isPending || updateDriverAssignment.isPending} className="flex-1">Зберегти</Button>
+```
+
+"Зберегти" лишається доступним і в locked-режимі — три `<select>`
+(режим/статус/водій, Крок 16.5) редаговані навіть без "Редагувати",
+і саме ця кнопка їх зберігає.
+
+**2. Групування накладних однієї точки хибно спрацьовувало для окремих,
+самостійно відсканованих накладних** — детально задокументовано вище
+в резинхронізованому Кроці 17.3 (часова евристика замінена на явний
+маркер `[stop:<id>]` у `notes`). Живий тест: водій відсканував кілька
+накладних "по одній" (кожну — окремим заходом в `EventForm`, без
+"+ Ще одна накладна"); попередня версія `findEventGroup` все одно
+об'єднувала їх в одну "точку", бо вони випадково потрапили в 10-хвилинне
+вікно.
 
 ---
 

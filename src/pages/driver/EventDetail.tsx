@@ -9,6 +9,9 @@ import {
 	eventTypeGradient,
 	inferDeliveryStage,
 	findEventGroup,
+	groupRootIdOf,
+	withStopTag,
+	stripStopTag,
 } from "../../utils/eventHelpers";
 import { formatDateTime, formatKm } from "../../utils/formatters";
 import { Button, Spinner, ErrorBanner, EmptyState } from "../../components/driver/ui";
@@ -87,6 +90,9 @@ export function EventDetail() {
 			waybillNumber: parsed.waybillNumber,
 			waybillDate: parsed.waybillDate,
 			customerName: target!.customerName,
+			// Прив'язуємо до кореня ІСНУЮЧОЇ групи (не до самого target,
+			// якщо target уже сам є "додатковою" накладною чужого кореня)
+			notes: withStopTag(groupRootIdOf(target!)),
 		});
 	}
 
@@ -153,7 +159,7 @@ export function EventDetail() {
 					{target.extraFrom && <Row label="Звідки" value={target.extraFrom} />}
 					{target.extraTo && <Row label="Куди" value={target.extraTo} />}
 					{target.extraWeightKg != null && <Row label="Вага" value={`${target.extraWeightKg} кг`} />}
-					{target.notes && <Row label="Нотатки" value={target.notes} />}
+					{stripStopTag(target.notes) && <Row label="Нотатки" value={stripStopTag(target.notes)!} />}
 
 					{scanError && <ErrorBanner message={scanError} />}
 

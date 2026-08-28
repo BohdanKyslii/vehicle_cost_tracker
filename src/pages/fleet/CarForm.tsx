@@ -248,7 +248,15 @@ export function CarForm() {
 			)}
 
 			<div className="flex gap-3">
-				<Button type="button" variant="ghost" onClick={() => navigate("/fleet")}>Скасувати</Button>
+				{/* У заблокованому перегляді "Скасувати" звучить так, ніби щось
+				    редагувалось — насправді кнопка просто закриває картку без
+				    збереження (той самий onClick), тому в locked-режимі підпис
+				    чіткіший: "Назад". "Зберегти" лишається доступним і тут — три
+				    <select> (режим/статус/водій) вище редаговані навіть без
+				    "Редагувати", і саме ця кнопка їх зберігає. */}
+				<Button type="button" variant="ghost" onClick={() => navigate("/fleet")}>
+					{detailsLocked ? "← Назад" : "Скасувати"}
+				</Button>
 				<Button type="submit" isLoading={mutation.isPending || updateDriverAssignment.isPending} className="flex-1">Зберегти</Button>
 			</div>
 		</form>

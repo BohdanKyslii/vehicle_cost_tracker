@@ -6,7 +6,7 @@ import { useCurrentDriver } from "../../hocks/useDrivers";
 import { useCar } from "../../hocks/useCars";
 import { useDayMode } from "../../hocks/useDayMode";
 import { useCreateRouteEvent, useLastOdometer, useTodayEvents } from "../../hocks/useRouteEvents";
-import { requiresOdometer, requiresWaybill, requiresPallets, eventTypeLabel, eventTypeIcon, eventTypeGradient } from "../../utils/eventHelpers";
+import { requiresOdometer, requiresWaybill, requiresPallets, eventTypeLabel, eventTypeIcon, eventTypeGradient, withStopTag } from "../../utils/eventHelpers";
 import { Input, Button, ErrorBanner, Spinner } from "../../components/driver/ui";
 import { QRScanner } from "../../components/driver/QRScanner";
 import { parseQRCode } from "../../utils/parseQR";
@@ -148,10 +148,14 @@ export function EventForm() {
 			notes: notes || undefined,
 		};
 
-		await createEvent.mutateAsync(data);
+		const mainEvent = await createEvent.mutateAsync(data);
 
 		// Додаткові накладні цієї ж точки — без одометра/палет (вони вже на
-		// основному записі), інакше пробіг і сума палет по точці задвоїться
+		// основному записі), інакше пробіг і сума палет по точці задвоїться.
+		// notes: withStopTag(mainEvent.id) — явно прив'язує їх до основної
+		// події (findEventGroup, eventHelpers.ts), а не покладається на
+		// близькість у часі: два окремі скани "по одній" (без "+ Ще одна")
+		// не повинні вважатись однією точкою, хай навіть зроблені швидко.
 		for (const w of additionalWaybills) {
 			await createEvent.mutateAsync({
 				carId: car!.idCar,
@@ -162,6 +166,7 @@ export function EventForm() {
 				waybillNumber: w.waybillNumber,
 				waybillDate: w.waybillDate,
 				customerName: customerName || undefined,
+				notes: withStopTag(mainEvent.id),
 			});
 		}
 

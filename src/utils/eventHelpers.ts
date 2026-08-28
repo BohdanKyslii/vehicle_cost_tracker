@@ -84,34 +84,52 @@ export function inferDeliveryStage(e: RouteEvent): DeliveryStage | undefined {
 }
 
 // Немає поля-групи в БД (рішення: multi-waybill на точці — суто
-// frontend-хак, без зміни схеми) — тому "накладні однієї точки" визначаємо
-// заднім числом: усі delivery-події того ж режиму, скановані одна за одною
-// без розриву довше STOP_CLUSTER_WINDOW_MS. На практиці кілька накладних
-// однієї точки сканують поспіль за секунди-хвилини; новий виїзд на іншу
-// точку завжди довший за це вікно.
-const STOP_CLUSTER_WINDOW_MS = 10 * 60 * 1000;
+// frontend-хак, без зміни схеми) — попередня версія групувала заднім
+// числом по часовому вікну (усі delivery-події без розриву довше N
+// хвилин), але це хибно об'єднувало й окремі, самостійні накладні,
+// якщо водій просто відсканував їх одну за одною (окремими заходами в
+// EventForm) швидко — саме так, а не через "+ Ще одна накладна".
+// Замінено на явний маркер: додаткова накладна (створена через
+// "+ Ще одна накладна" в EventForm чи "Ще одна накладна цієї точки" в
+// EventDetail) несе в `notes` префікс "[stop:<id основної події>]" —
+// без цього маркера подія завжди сама собі група, незалежно від того,
+// як близько за часом вона до інших.
+const STOP_TAG_RE = /^\[stop:(\d+)\]\s*/;
+
+// group-id події: якщо в notes є маркер "[stop:N]" — N (id основної
+// події групи), інакше подія сама собі група (її власний id)
+function groupRootId(e: RouteEvent): number {
+	const match = e.notes?.match(STOP_TAG_RE);
+	return match ? Number(match[1]) : e.id;
+}
+
+// Прибирає службовий маркер із notes перед показом водієві
+export function stripStopTag(notes: string | undefined): string | undefined {
+	if (!notes) return notes;
+	const stripped = notes.replace(STOP_TAG_RE, "");
+	return stripped || undefined;
+}
+
+// notes для НОВОЇ додаткової накладної тієї ж точки — прив'язує її до
+// групи з коренем rootId (id основної події: своєї власної, якщо це
+// перша додаткова накладна, або вже наявного корня групи — так усі
+// додаткові в одній групі посилаються на ОДИН і той самий id, а не
+// одна на одну ланцюжком)
+export function withStopTag(rootId: number): string {
+	return `[stop:${rootId}]`;
+}
 
 export function findEventGroup(events: RouteEvent[], target: RouteEvent): RouteEvent[] {
 	if (target.eventType !== "delivery") return [target];
+	const rootId = groupRootId(target);
+	return events.filter(e => e.eventType === "delivery" && groupRootId(e) === rootId);
+}
 
-	const sameKind = events
-		.filter(e => e.eventType === "delivery" && e.trackingMode === target.trackingMode)
-		.sort((a, b) => a.eventTs.localeCompare(b.eventTs));
-	const idx = sameKind.findIndex(e => e.id === target.id);
-	if (idx === -1) return [target];
-
-	let start = idx;
-	let end = idx;
-	while (
-		start > 0 &&
-		new Date(sameKind[start].eventTs).getTime() - new Date(sameKind[start - 1].eventTs).getTime() <= STOP_CLUSTER_WINDOW_MS
-	) start--;
-	while (
-		end < sameKind.length - 1 &&
-		new Date(sameKind[end + 1].eventTs).getTime() - new Date(sameKind[end].eventTs).getTime() <= STOP_CLUSTER_WINDOW_MS
-	) end++;
-
-	return sameKind.slice(start, end + 1);
+// Група (root id), до якої належить подія — для позначення НОВОЇ
+// додаткової накладної тим самим коренем незалежно від того, на яку
+// саме подію групи зараз дивиться водій
+export function groupRootIdOf(e: RouteEvent): number {
+	return groupRootId(e);
 }
 
 // Права колонка карток історії/сьогоднішніх подій — компактні бейджі.
@@ -131,7 +149,7 @@ export function eventSummaryBadges(e: RouteEvent): string[] {
 // Коментар водія до події — або загальні "Нотатки", або спеціальний
 // коментар "Інших витрат" (два різні поля форми, обидва — вільний текст)
 export function eventComment(e: RouteEvent): string | undefined {
-	return e.notes || e.otherCostComment || undefined;
+	return stripStopTag(e.notes) || e.otherCostComment || undefined;
 }
 
 // Українська назва типу події для відображення у UI
