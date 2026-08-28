@@ -1,13 +1,17 @@
 import { Link } from "react-router-dom";
 import { useCars } from "../../hocks/useCars";
+import { useDrivers } from "../../hocks/useDrivers";
 import { Spinner } from "../../components/ui/Spinner";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorBanner } from "../../components/ui/ErrorBanner";
 import { CarStatusBadge } from "../../components/ui/Badge";
 
+const trackingModeLabel = { daily: "Щоденний", full: "Повний" } as const;
+
 export function FleetList() {
 	const { data: cars, isLoading, isError, refetch } = useCars();
-	
+	const { data: drivers } = useDrivers();
+
 	return (
 		<div className="p-6 space-y-4">
 			<div className="flex items-center justify-between">
@@ -30,22 +34,35 @@ export function FleetList() {
 						<th className="py-2">Номер</th>
 						<th className="py-2">Назва</th>
 						<th className="py-2">Статус</th>
+						<th className="py-2">Режим</th>
 						<th className="py-2">Водій</th>
 					</tr>
 					</thead>
 					<tbody>
-					{cars.map((car) => (
-						<tr key={car.idCar} className="border-b border-white/5 hover:bg-white/5">
-							<td className="py-2">
-								<Link to={`/fleet/${car.idCar}`} className="text-violet-300 hover:underline">
-									{car.numberCar}
-								</Link>
-							</td>
-							<td className="py-2">{car.nameCar}</td>
-							<td className="py-2"><CarStatusBadge status={car.statusCar} /></td>
-							<td className="py-2">{car.trailer ? "—" : "—"}</td>
-						</tr>
-					))}
+					{cars.map((car) => {
+						const driver = drivers?.find((d) => d.idCar === car.idCar);
+						return (
+							<tr key={car.idCar} className="border-b border-white/5 hover:bg-white/5">
+								<td className="py-2">
+									<Link to={`/fleet/${car.idCar}`} className="text-violet-300 hover:underline">
+										{car.numberCar}
+									</Link>
+								</td>
+								<td className="py-2">{car.nameCar}</td>
+								<td className="py-2"><CarStatusBadge status={car.statusCar} /></td>
+								<td className="py-2 text-white/70">{trackingModeLabel[car.defaultTrackingMode]}</td>
+								<td className="py-2">
+									{driver ? (
+										<Link to={`/fleet/drivers/${driver.idDriver}`} className="text-violet-300 hover:underline">
+											{driver.nameDriver}
+										</Link>
+									) : (
+										<span className="text-white/40">—</span>
+									)}
+								</td>
+							</tr>
+						);
+					})}
 					</tbody>
 				</table>
 			)}

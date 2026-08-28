@@ -12,6 +12,7 @@ import { RoleRedirect } from "./pages/RoleRedirect";
 import { DriverHistory } from "./pages/driver/DriverHistory";
 import { FleetList } from "./pages/fleet/FleetList";
 import { CarForm } from "./pages/fleet/CarForm";
+import { DriverForm } from "./pages/fleet/DriverForm";
 
 // Далі будемо замінювати PlaceholderPage на реальні компоненти
 
@@ -87,6 +88,8 @@ export default function App() {
             >
                 <Route index element={<FleetList />} />
                 <Route path="new" element={<CarForm />} />
+                <Route path="drivers/new" element={<DriverForm />} />
+                <Route path="drivers/:driverId" element={<DriverForm />} />
                 <Route path=":carId" element={<CarForm />} />
             </Route>
             {/* /waybills, /hired, /carriers, /analytics, /admin — та сама обгортка RequireRole */}

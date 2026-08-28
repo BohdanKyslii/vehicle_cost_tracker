@@ -36,6 +36,18 @@ export async function fetchDrivers(): Promise<Driver[]> {
     return data.results.map(mapDriver);
 }
 
+// Один водій по id — картка водія (FleetList → клік на водія, як для авто)
+export async function fetchDriver(id: number): Promise<Driver> {
+    if (USE_MOCK) {
+        await mockDelay();
+        const driver = (mockDrivers as Driver[]).find(d => d.idDriver === id);
+        if (!driver) throw new Error(`Водія #${id} не знайдено`);
+        return driver;
+    }
+    const raw = await apiFetch<RawDriver>(`/drivers/${id}/`);
+    return mapDriver(raw);
+}
+
 // Поточний водій — визначається бекендом по сесії (Profile.driver, apps/accounts)
 export async function fetchCurrentDriver(): Promise<Driver> {
     if (USE_MOCK) {
