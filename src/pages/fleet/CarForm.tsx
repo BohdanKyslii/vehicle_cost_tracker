@@ -155,53 +155,55 @@ export function CarForm() {
 			</div>
 			<Input label="Місячна амортизація (грн)" type="number" value={amountCar} onChange={(e) => setAmountCar(e.target.value)} required disabled={detailsLocked} />
 
-			<div className="flex flex-col gap-1">
-				<label className="text-sm font-medium text-white/70">Режим обліку за замовчуванням</label>
-				<select
-					value={defaultTrackingMode}
-					onChange={(e) => setDefaultTrackingMode(e.target.value as TrackingMode)}
-					className="w-full rounded-lg border border-white/10 bg-white/5 text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 [&>option]:bg-slate-900 [&>option]:text-white"
-				>
-					<option value="daily">Daily (без стадій)</option>
-					<option value="full">Full (склад / точки)</option>
-				</select>
-			</div>
+			<div className="grid grid-cols-3 gap-2">
+				<div className="flex flex-col gap-1">
+					<label className="text-sm font-medium text-white/70">Режим обліку</label>
+					<select
+						value={defaultTrackingMode}
+						onChange={(e) => setDefaultTrackingMode(e.target.value as TrackingMode)}
+						className="w-full rounded-lg border border-white/10 bg-white/5 text-white px-2 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-violet-400 [&>option]:bg-slate-900 [&>option]:text-white"
+					>
+						<option value="daily">Daily</option>
+						<option value="full">Full</option>
+					</select>
+				</div>
 
-			<div className="flex flex-col gap-1">
-				<label className="text-sm font-medium text-white/70">Статус авто</label>
-				<select
-					value={statusCar}
-					onChange={(e) => setStatusCar(e.target.value as CarStatus)}
-					className="w-full rounded-lg border border-white/10 bg-white/5 text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 [&>option]:bg-slate-900 [&>option]:text-white"
-				>
-					<option value="active">Активне</option>
-					<option value="repair">Ремонт</option>
-					<option value="inactive">Неактивне</option>
-					<option value="pause">Пауза</option>
-					<option value="driver_downtime">Простій (водій)</option>
-				</select>
+				<div className="flex flex-col gap-1">
+					<label className="text-sm font-medium text-white/70">Статус авто</label>
+					<select
+						value={statusCar}
+						onChange={(e) => setStatusCar(e.target.value as CarStatus)}
+						className="w-full rounded-lg border border-white/10 bg-white/5 text-white px-2 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-violet-400 [&>option]:bg-slate-900 [&>option]:text-white"
+					>
+						<option value="active">Активне</option>
+						<option value="repair">Ремонт</option>
+						<option value="inactive">Неактивне</option>
+						<option value="pause">Пауза</option>
+						<option value="driver_downtime">Простій</option>
+					</select>
+				</div>
+
+				<div className="flex flex-col gap-1">
+					<label className="text-sm font-medium text-white/70">Водій</label>
+					<select
+						value={selectedDriverId}
+						onChange={(e) => setSelectedDriverId(e.target.value ? Number(e.target.value) : "")}
+						className="w-full rounded-lg border border-white/10 bg-white/5 text-white px-2 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-violet-400 [&>option]:bg-slate-900 [&>option]:text-white"
+					>
+						<option value="">— не призначено —</option>
+						{drivers?.map((d) => (
+							<option key={d.idDriver} value={d.idDriver}>
+								{d.nameDriver}
+							</option>
+						))}
+					</select>
+				</div>
 			</div>
 
 			<label className="flex items-center gap-2 text-sm text-white/70">
 				<input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} disabled={detailsLocked} />
 				Авто активне (в експлуатації)
 			</label>
-
-			<div className="flex flex-col gap-1">
-				<label className="text-sm font-medium text-white/70">Водій</label>
-				<select
-					value={selectedDriverId}
-					onChange={(e) => setSelectedDriverId(e.target.value ? Number(e.target.value) : "")}
-					className="w-full rounded-lg border border-white/10 bg-white/5 text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 [&>option]:bg-slate-900 [&>option]:text-white"
-				>
-					<option value="">— не призначено —</option>
-					{drivers?.map((d) => (
-						<option key={d.idDriver} value={d.idDriver}>
-							{d.nameDriver}
-						</option>
-					))}
-				</select>
-			</div>
 
 			<h2 className="text-lg font-semibold text-white pt-2">Технічні характеристики</h2>
 			<Input label="VIN" value={vinCode} onChange={(e) => setVinCode(e.target.value)} disabled={detailsLocked} />

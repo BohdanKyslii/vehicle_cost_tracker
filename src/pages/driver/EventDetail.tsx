@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useCurrentDriver } from "../../hocks/useDrivers";
 import { useCar } from "../../hocks/useCars";
-import { useDriverEvents, useCreateRouteEvent, useDeleteRouteEvent } from "../../hocks/useRouteEvents";
+import { useTodayEvents, useCreateRouteEvent, useDeleteRouteEvent } from "../../hocks/useRouteEvents";
 import {
 	eventTypeLabel,
 	eventTypeIcon,
@@ -22,7 +22,7 @@ export function EventDetail() {
 
 	const { data: driver, isLoading: driverLoading } = useCurrentDriver();
 	const { data: car, isLoading: carLoading } = useCar(driver?.idCar ?? 0);
-	const { data: events, isLoading: eventsLoading } = useDriverEvents(car?.idCar ?? 0);
+	const { data: events, isLoading: eventsLoading } = useTodayEvents(car?.idCar ?? 0);
 	const deleteEvent = useDeleteRouteEvent();
 	const createEvent = useCreateRouteEvent();
 

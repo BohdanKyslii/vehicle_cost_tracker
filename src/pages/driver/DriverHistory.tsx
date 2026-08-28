@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useCurrentDriver } from "../../hocks/useDrivers";
 import { useCar } from "../../hocks/useCars";
-import { useDriverEvents } from "../../hocks/useRouteEvents";
+import { useTodayEvents } from "../../hocks/useRouteEvents";
 import { eventTypeLabel, eventTypeIcon, eventTypeGradient, eventSummaryBadges, eventComment, inferDeliveryStage } from "../../utils/eventHelpers";
 import { formatDateTime } from "../../utils/formatters";
 import { Spinner, EmptyState, ErrorBanner } from "../../components/driver/ui";
@@ -10,12 +10,12 @@ export function DriverHistory() {
 	const navigate = useNavigate();
 	const { data: driver, isLoading: driverLoading } = useCurrentDriver();
 	const { data: car } = useCar(driver?.idCar ?? 0);
-	const { data: events, isLoading, isError } = useDriverEvents(car?.idCar ?? 0);
-	
+	const { data: events, isLoading, isError } = useTodayEvents(car?.idCar ?? 0);
+
 	if (driverLoading || isLoading) return <Spinner label="Завантаження історії..." />;
 	if (isError) return <ErrorBanner message="Не вдалось завантажити історію" />;
 	if (!events || events.length === 0) {
-		return <EmptyState title="Подій ще немає" subtitle="Зареєстровані події з'являться тут" />;
+		return <EmptyState title="Подій за сьогодні ще немає" subtitle="Зареєстровані події з'являться тут" />;
 	}
 	
 	return (

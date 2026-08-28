@@ -38,15 +38,18 @@ export function useCreateRouteEvent() {
 
     return useMutation({
        mutationFn: (data: RouteEventCreate) => createRouteEvent(data),
-        // onSuccess викликається після успішного запиту
+        // onSuccess викликається після успішного запиту. ПОВЕРТАЄМО
+        // Promise.all — без return mutateAsync() резолвиться одразу після
+        // POST, не чекаючи на реальне оновлення кешу todayEvents. Це
+        // давало вікно гонки: водій одразу відкриває наступний скан,
+        // а дублікат-гард (EventForm) ще бачить СТАРИЙ todayEvents без
+        // щойно збереженої накладної — повторний скан тієї самої
+        // накладної проходив, хоча мав блокуватись.
         onSuccess: (newEvent) => {
-
-           queryClient.invalidateQueries({
-              queryKey: ["route-events", newEvent.carId],
-           });
-            queryClient.invalidateQueries({
-                queryKey: ["lastOdometer", newEvent.carId],
-            });
+           return Promise.all([
+              queryClient.invalidateQueries({ queryKey: ["route-events", newEvent.carId] }),
+              queryClient.invalidateQueries({ queryKey: ["lastOdometer", newEvent.carId] }),
+           ]);
         },
     });
 }
@@ -67,8 +70,10 @@ export function useDeleteRouteEvent() {
     return useMutation({
         mutationFn: ({ id }: { id: number; carId: number }) => deleteRouteEvent(id),
         onSuccess: (_data, variables) => {
-            queryClient.invalidateQueries({ queryKey: ["route-events", variables.carId] });
-            queryClient.invalidateQueries({ queryKey: ["lastOdometer", variables.carId] });
+            return Promise.all([
+                queryClient.invalidateQueries({ queryKey: ["route-events", variables.carId] }),
+                queryClient.invalidateQueries({ queryKey: ["lastOdometer", variables.carId] }),
+            ]);
         },
     });
 }

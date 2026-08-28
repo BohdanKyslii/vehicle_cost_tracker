@@ -122,13 +122,18 @@ function toRouteEventPayload(data: RouteEventCreate) {
 export async function fetchTodayEvents(carId: number): Promise<RouteEvent[]> {
     if (USE_MOCK) {
         await mockDelay(200);
-        const today = new Date().toISOString().slice(0, 10);    // "2026-06-29"
-        return (mockEvents as RouteEvent[]).filter(
-            e => e.carId === carId && e.eventTs.startsWith(today)
-        );
+        // ЛОКАЛЬНА дата (getFullYear/getMonth/getDate), НЕ toISOString().slice(0,10) —
+        // те дає дату в UTC, яка ввечері за Києвом (з 21:00 до півночі,
+        // UTC+3) вже "завтра", через що сьогоднішні події переставали
+        // вважатись сьогоднішніми (дублікат-гард і "Історія" це й ловили)
+        const now = new Date();
+        const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+        return (mockEvents as RouteEvent[])
+            .filter(e => e.carId === carId && e.eventTs.startsWith(today))
+            .sort((a, b) => b.eventTs.localeCompare(a.eventTs));    // нові зверху, як fetchDriverEvents
     }
-    const  data = await apiFetch<Paginated<RawRouteEvent>>(`/route-events/?car_id=${carId}&date=today`)
-    return data.results.map(mapRouteEvent);
+    const data = await apiFetch<Paginated<RawRouteEvent>>(`/route-events/?car_id=${carId}&date=today`)
+    return data.results.map(mapRouteEvent).sort((a, b) => b.eventTs.localeCompare(a.eventTs));
 }
 
 // Дістати усі події водія

@@ -3,10 +3,12 @@
 Цей документ містить правила, стандарти та архітектурні рішення для
 **фронтенд-репозиторію** (`vehicle_cost_tracker`). Аналог до
 `AGENTS_GLOBAL.md` у бекенд-репозиторії
-(`C:\Users\b.kisliy\PycharmProjects\DjangoProject\vehicle_tracker_api\task_description\AGENTS_GLOBAL.md`)
+(`C:\Users\b.kysliy\PycharmProjects\vehicle_tracker_api\task_description\AGENTS_GLOBAL.md`)
 — читай обидва, якщо працюєш на стику фронтенда й бекенда.
 
-> Створено 2026-08-24, звірено з реальним кодом на цю дату.
+> Створено 2026-08-24, резинхронізовано 2026-08-28 (шлях бекенду мав
+> друкарську помилку в імені користувача й зайву підтеку; статус
+> Фаз 14-17 був застарілим — усі вже набрані й задеплоєні).
 
 ---
 
@@ -21,7 +23,7 @@
 **Два репозиторії, спільний деплой** (Raspberry Pi, `warehouse.mom`):
 - `vehicle_cost_tracker` (цей репозиторій) — React + TypeScript + Vite frontend.
 - `vehicle_tracker_api` — Django + DRF backend, шлях
-  `C:\Users\b.kisliy\PycharmProjects\DjangoProject\vehicle_tracker_api\`.
+  `C:\Users\b.kysliy\PycharmProjects\vehicle_tracker_api\`.
 
 **Навчальний контекст:** увесь код пишеться крок за кроком за
 `CODING_GUIDE.md` (корінь цього репо) — покроковою інструкцією для
@@ -30,14 +32,15 @@
 (написана інструкція ≠ набраний код) — див. розділ 8 нижче.
 
 **Основні модулі:**
-- **Driver UI (мобільний)** — реалізовано (Фаза 13 `CODING_GUIDE.md`):
-  `DriverDashboard`, `EventForm`, вхід через Telegram Mini App
-  (`/driver-app`, `DriverMiniApp.tsx`).
-- **Fleet / Logistics (десктоп)** — бекенд готовий (`apps.cars`,
-  `apps.logistics`), фронтенд-сторінки ще НЕ набрані:
-  `/fleet`, `/hired`, `/carriers`, `/admin` рендерять
-  `PlaceholderPage` (Фаза 14-16 `CODING_GUIDE.md` написані текстом, у
-  коді відсутні).
+- **Driver UI (мобільний)** — реалізовано (Фази 13, 15, 17
+  `CODING_GUIDE.md`): `DriverDashboard`, `EventForm`, `DriverHistory`,
+  `EventDetail` (видалення/групування подій), QR-сканер накладних,
+  вхід через Telegram Mini App (`/driver-app`, `DriverMiniApp.tsx`).
+- **Fleet / Logistics (десктоп)** — `/fleet` реалізовано (Фаза 16:
+  `FleetList`, `CarForm`, `DriverForm`, з рольовим гейтом `RequireRole`
+  з Фази 14); `/hired`, `/carriers`, `/admin` досі рендерять
+  `PlaceholderPage` — бекенд для них (`apps.logistics`) поки лише
+  моделі, без API.
 - **Analytics** — свідомо відкладено, ні бекенд (`apps.analytics`), ні
   фронтенд не написані.
 
@@ -75,49 +78,61 @@
 
 ### 3.3 Ролі та точки входу
 Ролі (`UserProfile['role']` у `src/api/auth.ts`): `driver` / `logist`
-/ `manager` / `head`. Дві незалежні точки входу:
-- **Telegram Mini App** (`/driver-app`) — реальний вхід водія у проді,
-  логін через `window.Telegram.WebApp.initData`, після логіну сама
+/ `manager` / `head`. Дві точки входу, обидві реальні (Фаза 14):
+- **Telegram Mini App** (`/driver-app`) — вхід водія у проді, логін
+  через `window.Telegram.WebApp.initData`, після логіну сама
   редіректить за роллю (`ROLE_LANDING` у `DriverMiniApp.tsx`:
   `driver`→`/driver`, решта→`/fleet`).
 - **Веб-лендінг** (`LandingPage`/`AuthModal`, username+пароль) —
-  повністю написаний код, але **ніде не підключений у `App.tsx`**:
-  `/` жорстко робить `Navigate` на `/driver` для всіх. Це відомий
-  розрив, який має закривати Фаза 14 (`RequireRole`/`RoleRedirect`).
-- Захисту маршрутів по ролі (`RequireRole`) немає взагалі — будь-хто,
-  хто вгадає URL, потрапить на будь-яку сторінку (там, де вона вже
-  реальна; решта — порожні заглушки).
+  `/` рендерить `RoleRedirect` (не жорсткий `Navigate` на `/driver`):
+  неавторизований бачить `LandingPage`, авторизований редіректиться за
+  роллю.
+- **`RequireRole`** (`components/auth/RequireRole.tsx`) гейтить
+  `/driver` (ролі `driver`/`head`) і `/fleet` (`logist`/`manager`/`head`)
+  — неавторизований на `/`, авторизований без потрібної ролі бачить
+  "Доступ заборонено". Це лише UX-гейт, не заміна бекенд-перевірки
+  (`permission_classes`).
 
 ---
 
-## 4. Структура проєкту (`src/`, реальний стан 2026-08-24)
+## 4. Структура проєкту (`src/`, реальний стан 2026-08-28)
 
 ```
 src/
 ├── types/index.ts        # Single Source of Truth для TS-типів
 ├── mocks/                 # ЛИШЕ 4 файли: cars, drivers, route-events, waybills
-├── api/                   # config.ts (apiFetch: credentials+CSRF+JSON), auth, cars,
-│                           # drivers, routeEvents, waybills — інших (products/customers/
-│                           # hiredTransport/carriers/analytics) ще немає
+├── api/                   # config.ts (apiFetch: credentials+CSRF+JSON), auth,
+│                           # cars, drivers (повний CRUD), routeEvents (+delete,
+│                           # Фаза 17), waybills — products/customers/hired/
+│                           # carriers/analytics ще немає
 ├── hocks/                 # ⚠️ так, "hocks" не "hooks" — реальна назва теки, свідомо
 │                           # не перейменована (задокументовано в decisions.md)
-├── utils/                 # Чисті функції: formatters, eventHelpers, calcSummary,
-│                           # calcTransportCost, calcProduct, parseQR, clientFilter
+├── utils/                 # Чисті функції: formatters, eventHelpers (+findEventGroup,
+│                           # Фаза 17), calcSummary, calcTransportCost, calcProduct,
+│                           # parseQR, clientFilter
 ├── components/
 │   ├── ui/, driver/        # реальні; ui/ui.tsx і driver/ui.tsx дублюють одні й ті
 │   │                       # самі назви (Button/Input/Spinner/EmptyState/ErrorBanner) —
-│   │                       # два незалежні набори, не імпорт одне з одного
-│   ├── auth/, layouts/     # AuthModal, TopNav, DriverLayout, MainLayout — реальні
-│   ├── waybills/           # WaybillList, WaybillTable, WaybillFiltersBar — реальні
-│   └── fleet/, hired/, carriers/, analystics/  # ⏳ порожні заготовки з Фази 2
+│   │                       # два незалежні набори, не імпорт одне з одного. driver/ui.tsx
+│   │                       # має третій варіант кнопки "danger" (Фаза 17, видалення)
+│   ├── auth/                # AuthModal, RequireRole — обидва реально гейтять маршрути
+│   ├── layouts/            # TopNav, DriverLayout, MainLayout — реальні
+│   ├── driver/             # QRScanner, DayModeSwitch (+ compact-варіант, Фаза 17)
+│   └── waybills/           # WaybillList, WaybillTable, WaybillFiltersBar — реальні
 └── pages/
-    ├── driver/              # DriverDashboard, EventForm — реальні
-    ├── DriverMiniApp.tsx, LandingPage.tsx, UnderConstruction.tsx, PlaceholderPage.tsx
-    └── fleet/, waybills/(частково), hired/, carriers/, admin/, analystics/  # ⏳ порожні
+    ├── driver/              # DriverDashboard, EventForm, DriverHistory, EventDetail
+    │                        # (Фаза 17 — деталі/видалення/групування) — усі реальні
+    ├── fleet/               # FleetList, CarForm, DriverForm — реальні (Фаза 16)
+    ├── DriverMiniApp.tsx, LandingPage.tsx, UnderConstruction.tsx,
+    │   RoleRedirect.tsx, PlaceholderPage.tsx
+    └── waybills/(частково), hired/, carriers/, admin/, analystics/  # ⏳ ще PlaceholderPage
 ```
 
-Повний реальний інвентар (що вже є, що ⏳) — `documents/05_COMPONENTS_HOOKS_UTILS.md`
-і `documents/08_PROJECT_STRUCTURE.md` (обидва ресинхронізовані 2026-08-24).
+Стубів `components/{fleet,hired,carriers,analystics}` з Фази 2 більше
+немає в дереві — `fleet/` став реальним, решта прибрана разом з
+рештою ненаписаних розділів. Повний реальний інвентар — сам код,
+`documents/05_COMPONENTS_HOOKS_UTILS.md`/`08_PROJECT_STRUCTURE.md`
+(ресинхронізовані 2026-08-24 — можуть уже трохи відставати від Фази 17).
 
 ---
 
@@ -167,12 +182,15 @@ src/
 
 ## 7. Пов'язаний бекенд коротко
 
-`vehicle_tracker_api` (`C:\Users\b.kisliy\PycharmProjects\DjangoProject\vehicle_tracker_api\`) —
-Django + DRF, PostgreSQL, сесійна авторизація (не JWT). `apps.cars` —
-повний CRUD, живий. `apps.accounts` — ролі, Telegram-бот реєстрації
-водіїв (задеплоєний, робочий). `apps.logistics` (найманий транспорт +
-служби доставки) — набрано, перевірено `manage.py check`. `apps.analytics`
-— порожній, свідомо. Деталі — vault-тека `vehicle_tracker_api` (Junction
+`vehicle_tracker_api` (`C:\Users\b.kysliy\PycharmProjects\vehicle_tracker_api\`) —
+Django + DRF, сесійна авторизація (не JWT). `apps.cars` — повний CRUD,
+живий, рольовий захист (`IsAuthenticated`+`IsLogistOrAbove` на запис).
+`apps.accounts` — ролі, Telegram-бот реєстрації водіїв (задеплоєний,
+робочий), email-реєстрація теж створює `Driver`-запис (пофіксено
+2026-08-28). `apps.logistics` (найманий транспорт + служби доставки) —
+**лише моделі** (`HiredTransportTrip`/`CarrierShipment`), `views.py`/
+`admin.py` — порожні заглушки, URL не підключено. `apps.analytics` —
+порожній, свідомо. Деталі — vault-тека `vehicle_tracker_api` (Junction
 на `task_description/` у бекенд-репо) або напряму файли там.
 
 ⚠️ DRF там завжди віддає `403`, не `401`, без авторизації —
@@ -185,7 +203,7 @@ Django + DRF, PostgreSQL, сесійна авторизація (не JWT). `app
 
 | Питання | Де дивитись |
 |---|---|
-| Що реально набрано в код (крок за кроком) | `CODING_GUIDE.md` (Фаза 1-16) |
+| Що реально набрано в код (крок за кроком) | `CODING_GUIDE.md` (Фаза 1-17) |
 | Бізнес-логіка, ролі, БД-схема (design-довідник, не факт коду) | `documents/01-08_*.md` (ресинхронізовано 2026-08-24, кожен розділ позначено ✅/⏳) |
 | Поточний прогрес, живі інциденти | `obsidian/STATE.md` (цей файл) |
 | Хронологія змін | `obsidian/CHANGES.md` |

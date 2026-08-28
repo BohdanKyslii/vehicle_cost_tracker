@@ -5463,14 +5463,16 @@ export function useDriverEvents(carId: number) {
 
 ```typescript
 // src/pages/driver/DriverHistory.tsx
+import { useNavigate } from "react-router-dom";
 import { useCurrentDriver } from "../../hocks/useDrivers";
 import { useCar } from "../../hocks/useCars";
 import { useDriverEvents } from "../../hocks/useRouteEvents";
-import { eventTypeLabel, eventTypeIcon, eventTypeGradient, eventSummaryBadges, eventComment } from "../../utils/eventHelpers";
+import { eventTypeLabel, eventTypeIcon, eventTypeGradient, eventSummaryBadges, eventComment, inferDeliveryStage } from "../../utils/eventHelpers";
 import { formatDateTime } from "../../utils/formatters";
 import { Spinner, EmptyState, ErrorBanner } from "../../components/driver/ui";
 
 export function DriverHistory() {
+  const navigate = useNavigate();
   const { data: driver, isLoading: driverLoading } = useCurrentDriver();
   const { data: car } = useCar(driver?.idCar ?? 0);
   const { data: events, isLoading, isError } = useDriverEvents(car?.idCar ?? 0);
@@ -5487,12 +5489,16 @@ export function DriverHistory() {
         const badges = eventSummaryBadges(e);
         const comment = eventComment(e);
         return (
-          <li key={e.id} className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur-sm">
+          <li
+            key={e.id}
+            onClick={() => navigate(`/driver/event/${e.id}`)}
+            className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur-sm cursor-pointer transition-colors hover:bg-white/10 active:scale-[0.99]"
+          >
             <div className={`h-9 w-9 shrink-0 rounded-full bg-gradient-to-br ${eventTypeGradient(e.eventType)} flex items-center justify-center text-base`}>
               {eventTypeIcon(e.eventType)}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-white/90">{eventTypeLabel(e.eventType, e.trackingMode)}</p>
+              <p className="text-sm font-medium text-white/90">{eventTypeLabel(e.eventType, e.trackingMode, inferDeliveryStage(e))}</p>
               {comment && <p className="text-xs text-white/40 truncate">💬 {comment}</p>}
               <p className="text-xs text-white/40">{formatDateTime(e.eventTs)}</p>
             </div>
@@ -5518,6 +5524,14 @@ export function DriverHistory() {
 > `eventTypeLabel` тепер приймає другим аргументом `trackingMode` події —
 > без нього `delivery` завжди підписувався б "Вивантаження", навіть для
 > daily-запису, де це просто скан накладної.
+>
+> ⚠️ **Резинхронізовано 2026-08-28** — рядки тепер клікабельні
+> (`onClick` → `/driver/event/:id`), відкривають нову сторінку деталей
+> події з можливістю видалення/додавання накладних — Фаза 17 нижче.
+> `inferDeliveryStage(e)` додано третім аргументом `eventTypeLabel`, щоб
+> історичні записи в цьому списку теж підписувались "Скан накладної"
+> vs "Вивантаження" коректно (раніше цей аргумент тут пропускали, хоч
+> `DriverDashboard` уже його передавав).
 
 У `App.tsx` заміни `<Route path="history" element={<PlaceholderPage .../>} />`
 на `<Route path="history" element={<DriverHistory />} />`.
@@ -5963,20 +5977,30 @@ function handleScan(raw: string) {
 # ФАЗА 16 — АВТОПАРК ДЛЯ ЛОГІСТА (Fleet CRUD)
 # ═══════════════════════════════════════════════════════════
 
-> Навіщо: `src/api/cars.ts`/`drivers.ts` зараз лише читають дані
-> (`fetchCars`, `fetchCar`, `fetchDrivers`, `fetchCurrentDriver`) — на
-> бекенді CRUD уже є (`DJANGO_CODING_GUIDE.md`, Фаза 6-7, з nested
-> `specs`/`trailer` записом — Фаза 10), а на фронтенді немає ЖОДНОЇ
-> сторінки для логіста, щоб додати авто. `src/pages/fleet/` і
-> `src/components/fleet/` — порожні заготовки з Фази 2. Ця фаза їх
-> наповнює.
+> ⚠️ **Резинхронізовано 2026-08-28 напряму проти коду** — цей розділ
+> раніше містив ДОПРОЕКТНИЙ план (мінімальна форма з 4 полів, без
+> причепа/водія/статусів/блокування). Фаза 16 була в реальності набрана
+> вручну (`faza_16 logostic_driver_car`) і потім суттєво доопрацьована
+> тим самим днем (FleetList: колонки "Режим"/"Водій", швидкий
+> перемикач статусу; CarForm: причіп, призначення водія, блокування
+> полів; DriverForm — нова сторінка). Нижче — те, що РЕАЛЬНО є в
+> `src/pages/fleet/`, `src/api/cars.ts`, `src/api/drivers.ts`,
+> `src/hocks/useCars.ts`, `src/hocks/useDrivers.ts` зараз, як
+> послідовність кроків "з нуля".
+>
+> Навіщо ця фаза: бекенд-CRUD уже є (`DJANGO_CODING_GUIDE.md`, Фаза
+> 6-7, nested `specs`/`trailer` запис — Фаза 10), а на фронтенді до неї
+> не було жодної сторінки для логіста, щоб додати/редагувати авто чи
+> водія.
 
 ## Крок 16.1 — CRUD-методи в src/api/cars.ts
 
-Додай поруч із наявними `fetchCars`/`fetchCar`:
+`CarPayload` включає `specs` (характеристики авто) і **окремо**
+`trailer` (причіп) — це не вкладено в `specs`, хоч `specs.hasTrailer`
+і каже, чи причіп взагалі є:
 
 ```typescript
-// src/api/cars.ts — нові експорти
+// src/api/cars.ts
 export interface CarPayload {
   nameCar: string;
   numberCar: string;
@@ -5995,6 +6019,13 @@ export interface CarPayload {
     heightCm?: number;
     hasTailLift: boolean;
     hasTrailer: boolean;
+  };
+  trailer?: {
+    vinCode?: string;
+    yearManufactured?: number;
+    nameTrailer: string;
+    numberTrailer: string;
+    isActive: boolean;
   };
 }
 
@@ -6020,6 +6051,15 @@ function toCarPayload(data: CarPayload) {
         has_trailer: data.specs.hasTrailer,
       },
     }),
+    ...(data.trailer && {
+      trailer: {
+        vin_code: data.trailer.vinCode ?? "",
+        year_manufactured: data.trailer.yearManufactured ?? null,
+        name_trailer: data.trailer.nameTrailer,
+        number_trailer: data.trailer.numberTrailer,
+        is_active: data.trailer.isActive,
+      },
+    }),
   };
 }
 
@@ -6036,29 +6076,95 @@ export async function updateCar(id: number, data: CarPayload): Promise<Car> {
 export async function deleteCar(id: number): Promise<void> {
   await apiFetch<void>(`/cars/${id}/`, { method: "DELETE" });
 }
+
+// Швидка зміна статусу авто (без відкриття повної форми) — окремий
+// бекенд-ендпоінт, що пише запис в CarStatusLog (для підрахунку "днів
+// у ремонті"), на відміну від звичайного PATCH через updateCar
+export async function changeCarStatus(id: number, newStatus: CarStatus, reason = ""): Promise<Car> {
+  const raw = await apiFetch<RawCar>(`/cars/${id}/change_status/`, {
+    method: "POST",
+    json: { status: newStatus, reason },
+  });
+  return mapCar(raw);
+}
 ```
 
-> У `USE_MOCK` режимі create/update/delete немає сенсу емулювати
-> повноцінно (мокові дані статичні, `mocks/cars.json` не файл БД) —
-> якщо потрібно перевіряти форму без бекенда, досить, щоб функція не
-> кидала виняток; реальна перевірка запису — тільки з `VITE_USE_MOCK=false`
-> і робочим Django.
+> ⚠️ `RawTrailer`/`Trailer` НЕ мають поля `model` — фронтенд це поле
+> колись мав (обов'язковий інпут "Модель причепа" в `CarForm`), але
+> `TrailerSerializer` на бекенді його ніколи не мав, тож DRF мовчки
+> ігнорував усе, що туди вводилось. Заразом на бекенді довго лишалась
+> сирітська NOT NULL колонка `trailers.model` без відповідного поля в
+> моделі (правилась без `makemigrations`), через що створення авто З
+> причепом падало 500-кою `IntegrityError`, а `CarSerializer.create()`
+> без `transaction.atomic()` лишало по собі напівстворений `Car`-рядок.
+> Виправлено бекенд-міграцією `0004_fix_trailer_schema_drift.py` +
+> `@transaction.atomic` на `create`/`update` серіалізатора (деталі —
+> `DJANGO_CODING_GUIDE.md`, Крок 10.1). Якщо колись знову бачиш "форма
+> проситься зберегти, а бекенд каже 400/500 без зрозумілої причини" —
+> спершу перевір: чи всі поля форми РЕАЛЬНО є в серіалізаторі, і чи
+> `makemigrations --check --dry-run` не показує розбіжність моделі й
+> БД.
 
-Аналогічно доповни `src/api/drivers.ts` — `createDriver`/`updateDriver`
-(той самий патерн: `toPayload` snake_case + `apiFetch` POST/PATCH на
-`/drivers/`), вони знадобляться в `CarForm` для призначення водія.
+Аналогічно `src/api/drivers.ts` має повний CRUD (не тільки читання):
+
+```typescript
+// src/api/drivers.ts
+export interface DriverPayload {
+  nameDriver: string;
+  phoneDriver?: string;
+  driversLicense?: string;
+  idCar: number | null;
+  isActive: boolean;
+}
+
+function toDriverPayload(data: DriverPayload) {
+  return {
+    name_driver: data.nameDriver,
+    phone: data.phoneDriver,
+    drivers_license: data.driversLicense,
+    car: data.idCar,
+    is_active: data.isActive,
+  };
+}
+
+export async function fetchDriver(id: number): Promise<Driver> {
+  const raw = await apiFetch<RawDriver>(`/drivers/${id}/`);
+  return mapDriver(raw);
+}
+
+export async function createDriver(data: DriverPayload): Promise<Driver> {
+  const raw = await apiFetch<RawDriver>("/drivers/", { method: "POST", json: toDriverPayload(data) });
+  return mapDriver(raw);
+}
+
+export async function updateDriver(id: number, data: DriverPayload): Promise<Driver> {
+  const raw = await apiFetch<RawDriver>(`/drivers/${id}/`, { method: "PATCH", json: toDriverPayload(data) });
+  return mapDriver(raw);
+}
+
+export async function deleteDriver(id: number): Promise<void> {
+  await apiFetch<void>(`/drivers/${id}/`, { method: "DELETE" });
+}
+```
+
+> `idCar` — це "яке авто закріплене за цим водієм" (обернений бік
+> зв'язку до того, що `CarForm` показує як `<select>` "Водій"). Обидві
+> форми пишуть той самий зв'язок з різних боків — деталі синхронізації
+> в Кроці 16.4/16.5 нижче.
 
 ---
 
 ## Крок 16.2 — React Query хуки для запису
 
-`src/hocks/useCars.ts` — додай мутації поруч із наявними `useCars`/`useCar`:
+`src/hocks/useCars.ts` — мутації поруч із наявними `useCars`/`useCar`,
+плюс окремий хук під швидку зміну статусу:
 
 ```typescript
-// src/hocks/useCars.ts — доповнення
+// src/hocks/useCars.ts
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { createCar, updateCar, deleteCar } from "../api/cars.ts";
+import { createCar, updateCar, deleteCar, changeCarStatus } from "../api/cars.ts";
 import type { CarPayload } from "../api/cars.ts";
+import type { CarStatus } from "../types";
 
 export function useCreateCar() {
   const queryClient = useQueryClient();
@@ -6086,27 +6192,120 @@ export function useDeleteCar() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["cars"] }),
   });
 }
+
+// Швидка зміна статусу просто зі списку (FleetList), без відкриття
+// CarForm — окремий ендпоінт change_status пише запис в CarStatusLog
+export function useChangeCarStatus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status, reason }: { id: number; status: CarStatus; reason?: string }) =>
+      changeCarStatus(id, status, reason),
+    onSuccess: (_result, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ["cars"] });
+      queryClient.invalidateQueries({ queryKey: ["cars", id] });
+    },
+  });
+}
+```
+
+`src/hocks/useDrivers.ts` — аналогічно, плюс `useDriver(id)` для
+картки водія (Крок 16.5):
+
+```typescript
+// src/hocks/useDrivers.ts
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { fetchDrivers, fetchDriver, fetchCurrentDriver, createDriver, updateDriver } from "../api/drivers";
+import type { DriverPayload } from "../api/drivers";
+
+export function useDrivers() {
+  return useQuery({ queryKey: ["drivers"], queryFn: fetchDrivers });
+}
+
+// Один водій по id — картка водія (аналогічно useCar)
+export function useDriver(id: number) {
+  return useQuery({
+    queryKey: ["drivers", id],
+    queryFn: () => fetchDriver(id),
+    enabled: !!id,
+  });
+}
+
+export function useCreateDriver() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: DriverPayload) => createDriver(data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["drivers"] }),
+  });
+}
+
+// id окремо від хуку (не в аргументах хуку) — потрібно оновлювати то
+// одного, то іншого водія (стара/нова прив'язка до авто) в межах
+// одного handleSubmit (див. CarForm/DriverForm нижче)
+export function useUpdateDriver() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: DriverPayload }) => updateDriver(id, data),
+    onSuccess: (_result, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ["drivers"] });
+      queryClient.invalidateQueries({ queryKey: ["drivers", id] });
+    },
+  });
+}
 ```
 
 ---
 
-## Крок 16.3 — FleetList
+## Крок 16.3 — CarStatus: два додаткові статуси
 
-Та сама структура, що й `WaybillList` (Фаза 11) — фільтри/стани
-завантаження зверху, таблиця знизу, лише простіша (без сортування по
-колонках для першої версії):
+`Car.Status` (бекенд) і `CarStatus` (фронтенд-тип) мають 5 значень, не
+3 — крім `active`/`repair`/`inactive` додано:
+- `pause` ("Пауза") — вимушений простій через тахограф/чіп-регулювання
+  часу роботи водія й авто;
+- `driver_downtime` ("Простій (водій)") — загальний простій через
+  недоступність водія (лікарняний, відпустка, сімейні обставини), не
+  повʼязаний з технічним станом авто.
+
+```typescript
+// src/types/index.ts
+export type CarStatus = "active" | "repair" | "inactive" | "pause" | "driver_downtime";
+```
+
+Бекенд: `apps/cars/models.py::Car.Status` TextChoices + ручна міграція
+`0005_car_status_pause_downtime.py` (`AlterField` лише на `status_car`,
+а не auto-generated — `makemigrations` на цей момент тягнув ще ~80
+непов'язаних історичних дрейфів по всій апці, які не мали відношення
+до цієї зміни).
+
+---
+
+## Крок 16.4 — FleetList
+
+Таблиця авто з інтерактивними колонками "Статус" (перемикач одразу зі
+списку) і "Водій" (клікабельне ім'я → картка водія):
 
 ```typescript
 // src/pages/fleet/FleetList.tsx
 import { Link } from "react-router-dom";
-import { useCars } from "../../hocks/useCars";
+import { useCars, useChangeCarStatus } from "../../hocks/useCars";
+import { useDrivers } from "../../hocks/useDrivers";
 import { Spinner } from "../../components/ui/Spinner";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorBanner } from "../../components/ui/ErrorBanner";
-import { Badge } from "../../components/ui/Badge";
+import type { CarStatus } from "../../types";
+
+const trackingModeLabel = { daily: "Щоденний", full: "Повний" } as const;
+const carStatusLabel: Record<CarStatus, string> = {
+  active: "Активне",
+  repair: "Ремонт",
+  inactive: "Неактивне",
+  pause: "Пауза",
+  driver_downtime: "Простій (водій)",
+};
 
 export function FleetList() {
   const { data: cars, isLoading, isError, refetch } = useCars();
+  const { data: drivers } = useDrivers();
+  const changeStatus = useChangeCarStatus();
 
   return (
     <div className="p-6 space-y-4">
@@ -6130,108 +6329,477 @@ export function FleetList() {
               <th className="py-2">Номер</th>
               <th className="py-2">Назва</th>
               <th className="py-2">Статус</th>
+              <th className="py-2">Режим</th>
               <th className="py-2">Водій</th>
             </tr>
           </thead>
           <tbody>
-            {cars.map((car) => (
-              <tr key={car.idCar} className="border-b border-white/5 hover:bg-white/5">
-                <td className="py-2">
-                  <Link to={`/fleet/${car.idCar}`} className="text-violet-300 hover:underline">
-                    {car.numberCar}
-                  </Link>
-                </td>
-                <td className="py-2">{car.nameCar}</td>
-                <td className="py-2"><Badge status={car.statusCar} /></td>
-                <td className="py-2">{car.trailer ? "—" : "—"}</td>
-              </tr>
-            ))}
+            {cars.map((car) => {
+              const driver = drivers?.find((d) => d.idCar === car.idCar);
+              return (
+                <tr key={car.idCar} className="border-b border-white/5 hover:bg-white/5">
+                  <td className="py-2">
+                    <Link to={`/fleet/${car.idCar}`} className="text-violet-300 hover:underline">
+                      {car.numberCar}
+                    </Link>
+                  </td>
+                  <td className="py-2">{car.nameCar}</td>
+                  <td className="py-2">
+                    <select
+                      value={car.statusCar}
+                      disabled={changeStatus.isPending}
+                      onChange={(e) => changeStatus.mutate({ id: car.idCar, status: e.target.value as CarStatus })}
+                      className="rounded-lg border border-white/10 bg-white/5 text-white px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-violet-400 disabled:opacity-50 [&>option]:bg-slate-900 [&>option]:text-white"
+                    >
+                      {Object.entries(carStatusLabel).map(([value, label]) => (
+                        <option key={value} value={value}>{label}</option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="py-2 text-white/70">{trackingModeLabel[car.defaultTrackingMode ?? "daily"]}</td>
+                  <td className="py-2">
+                    {driver ? (
+                      <Link to={`/fleet/drivers/${driver.idDriver}`} className="text-violet-300 hover:underline">
+                        {driver.nameDriver}
+                      </Link>
+                    ) : (
+                      <span className="text-white/40">—</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
+      )}
+
+      {changeStatus.isError && (
+        <ErrorBanner message={`Не вдалось змінити статус: ${(changeStatus.error as Error).message}`} />
       )}
     </div>
   );
 }
 ```
 
-> `Badge` (Фаза 8) очікує певний набір статусів залежно від того, як
-> ти його типізував — якщо `CarStatus` (`active`/`repair`/`inactive`)
-> туди ще не додано, розшир `Badge` або зроби окремий `CarStatusBadge`
-> (саме так і планувалось у старому пункті "Крок 12 — FleetList" в
-> "Що далі" нижче).
+> "Водій" шукається як `drivers?.find(d => d.idCar === car.idCar)` —
+> НЕ поле на `Car` (бекенд не денормалізує зворотний зв'язок туди), а
+> окремий запит `useDrivers()` і пошук по списку. `car.defaultTrackingMode`
+> опційне — `?? "daily"` тут обов'язковий: без цього fallback'у
+> `trackingModeLabel[undefined]` не ловиться `npx tsc --noEmit`, але
+> ловиться реальним білдом (`tsc -b` в `npm run build`) — три деплої
+> поспіль зламались саме на цьому, поки не було виявлено різницю між
+> ад-хок тайпчеком і `tsc -b`. **Завжди перевіряй `npm run build`, а не
+> лише `tsc --noEmit`, перед пушем.**
 
 ---
 
-## Крок 16.4 — CarForm (створення і редагування)
+## Крок 16.5 — CarForm: створення, редагування, причіп, водій, блокування полів
 
-Одна форма на обидва випадки — `create` без `carId` в URL, `edit` з ним:
+Одна форма на обидва випадки (`create` без `carId` в URL, `edit` з
+ним). Три `<select>` (режим обліку, статус, водій) завжди інтерактивні
+— решта текстових/числових полів для ІСНУЮЧОГО авто заблокована, поки
+логіст явно не натисне "✏️ Редагувати" (дані авто змінюються рідко,
+блокування — проти випадкових правок):
 
 ```typescript
 // src/pages/fleet/CarForm.tsx
 import { useState } from "react";
+import type { FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import type { Driver, TrackingMode, CarStatus } from "../../types";
 import { useCar, useCreateCar, useUpdateCar } from "../../hocks/useCars";
+import { useDrivers, useUpdateDriver } from "../../hocks/useDrivers";
 import { Input } from "../../components/ui/Input";
 import { Button } from "../../components/ui/Button";
 import { ErrorBanner } from "../../components/ui/ErrorBanner";
 import type { CarPayload } from "../../api/cars";
+import type { DriverPayload } from "../../api/drivers";
+
+// Формуємо повний DriverPayload з уже завантаженого водія, змінюючи
+// лише прив'язку до авто — updateDriver очікує весь об'єкт (не тільки idCar)
+function driverPayloadWithCar(driver: Driver, idCar: number | null): DriverPayload {
+  return {
+    nameDriver: driver.nameDriver,
+    phoneDriver: driver.phoneDriver,
+    driversLicense: driver.driversLicense,
+    isActive: driver.isActive,
+    idCar,
+  };
+}
 
 export function CarForm() {
   const { carId } = useParams();
   const navigate = useNavigate();
   const isEdit = !!carId;
   const { data: existing } = useCar(isEdit ? Number(carId) : 0);
+  const { data: drivers } = useDrivers();
 
   const [nameCar, setNameCar] = useState(existing?.nameCar ?? "");
   const [numberCar, setNumberCar] = useState(existing?.numberCar ?? "");
+  const [fuelCardNumber, setFuelCardNumber] = useState(String(existing?.fuelCardNumber ?? ""));
   const [amountCar, setAmountCar] = useState(String(existing?.amountCar ?? ""));
+  const [defaultTrackingMode, setDefaultTrackingMode] = useState<TrackingMode>(existing?.defaultTrackingMode ?? "daily");
+  const [statusCar, setStatusCar] = useState<CarStatus>(existing?.statusCar ?? "active");
+  const [isActive, setIsActive] = useState(existing?.isActive ?? true);
+
+  // CarSpecs
   const [vinCode, setVinCode] = useState(existing?.specs?.vinCode ?? "");
+  const [yearManufactured, setYearManufactured] = useState(String(existing?.specs?.yearManufactured ?? ""));
+  const [weightKg, setWeightKg] = useState(String(existing?.specs?.weightKg ?? ""));
+  const [payloadKg, setPayloadKg] = useState(String(existing?.specs?.payloadKg ?? ""));
+  const [lengthCm, setLengthCm] = useState(String(existing?.specs?.lengthCm ?? ""));
+  const [widthCm, setWidthCm] = useState(String(existing?.specs?.widthCm ?? ""));
+  const [heightCm, setHeightCm] = useState(String(existing?.specs?.heightCm ?? ""));
+  const [hasTailLift, setHasTailLift] = useState(existing?.specs?.hasTailLift ?? false);
+  const [hasTrailer, setHasTrailer] = useState(existing?.specs?.hasTrailer ?? false);
+
+  // Trailer — умовний блок, як у EventForm для різних event_type: рендериться
+  // лише коли hasTrailer=true, а не приховується стилями
+  const [trailerVinCode, setTrailerVinCode] = useState(existing?.trailer?.vinCode ?? "");
+  const [trailerYear, setTrailerYear] = useState(String(existing?.trailer?.yearManufactured ?? ""));
+  const [trailerName, setTrailerName] = useState(existing?.trailer?.nameTrailer ?? "");
+  const [trailerNumber, setTrailerNumber] = useState(existing?.trailer?.numberTrailer ?? "");
+  const [trailerIsActive, setTrailerIsActive] = useState(existing?.trailer?.isActive ?? true);
+
+  // Дані авто змінюються рідко — за замовчуванням (тільки для вже
+  // існуючого авто) текстові/числові поля заблоковані від випадкового
+  // редагування, доступні лише випадаючі списки (режим/статус/водій).
+  // Кнопка "Редагувати" розблоковує решту. Для НОВОГО авто (isEdit=false)
+  // блокування не має сенсу — все одразу редаговане.
+  const [isEditingDetails, setIsEditingDetails] = useState(false);
+  const detailsLocked = isEdit && !isEditingDetails;
+
+  // Призначення водія: якого водія id вважати "закріпленим" за цим авто —
+  // шукаємо серед усіх водіїв того, чий idCar збігається з поточним авто
+  const currentDriverId = drivers?.find((d) => existing && d.idCar === existing.idCar)?.idDriver ?? null;
+  const [selectedDriverId, setSelectedDriverId] = useState<number | "">(currentDriverId ?? "");
 
   const createCar = useCreateCar();
   const updateCar = useUpdateCar(Number(carId));
+  const updateDriverAssignment = useUpdateDriver();
   const mutation = isEdit ? updateCar : createCar;
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     const payload: CarPayload = {
       nameCar,
       numberCar,
+      fuelCardNumber: fuelCardNumber ? Number(fuelCardNumber) : undefined,
       amountCar: Number(amountCar),
-      defaultTrackingMode: "daily",
-      statusCar: "active",
-      isActive: true,
-      specs: vinCode ? { vinCode, hasTailLift: false, hasTrailer: false } : undefined,
+      defaultTrackingMode,
+      statusCar,
+      isActive,
+      specs: {
+        vinCode: vinCode || undefined,
+        yearManufactured: yearManufactured ? Number(yearManufactured) : undefined,
+        weightKg: weightKg ? Number(weightKg) : undefined,
+        payloadKg: payloadKg ? Number(payloadKg) : undefined,
+        lengthCm: lengthCm ? Number(lengthCm) : undefined,
+        widthCm: widthCm ? Number(widthCm) : undefined,
+        heightCm: heightCm ? Number(heightCm) : undefined,
+        hasTailLift,
+        hasTrailer,
+      },
+      trailer: hasTrailer
+        ? {
+            vinCode: trailerVinCode || undefined,
+            yearManufactured: trailerYear ? Number(trailerYear) : undefined,
+            nameTrailer: trailerName,
+            numberTrailer: trailerNumber,
+            isActive: trailerIsActive,
+          }
+        : undefined,
     };
-    mutation.mutate(payload, { onSuccess: () => navigate("/fleet") });
+
+    const savedCar = await mutation.mutateAsync(payload);
+
+    // Водій, що раніше був закріплений за цим авто, але тепер знятий/змінений — відв'язуємо
+    const previousDriver = drivers?.find((d) => d.idCar === savedCar.idCar && d.idDriver !== selectedDriverId);
+    if (previousDriver) {
+      await updateDriverAssignment.mutateAsync({
+        id: previousDriver.idDriver,
+        data: driverPayloadWithCar(previousDriver, null),
+      });
+    }
+    // Новий обраний водій — прив'язуємо до цього авто
+    if (selectedDriverId !== "") {
+      const driver = drivers?.find((d) => d.idDriver === selectedDriverId);
+      if (driver) {
+        await updateDriverAssignment.mutateAsync({
+          id: driver.idDriver,
+          data: driverPayloadWithCar(driver, savedCar.idCar),
+        });
+      }
+    }
+
+    navigate("/fleet");
   }
 
   return (
-    <form onSubmit={handleSubmit} className="p-6 max-w-lg space-y-4">
-      <h1 className="text-xl font-bold text-white">{isEdit ? "Редагувати авто" : "Нове авто"}</h1>
-      <Input label="Назва (модель)" value={nameCar} onChange={(e) => setNameCar(e.target.value)} required />
-      <Input label="Держ. номер" value={numberCar} onChange={(e) => setNumberCar(e.target.value)} required />
-      <Input label="Місячна амортизація (грн)" type="number" value={amountCar} onChange={(e) => setAmountCar(e.target.value)} required />
-      <Input label="VIN (необов'язково)" value={vinCode} onChange={(e) => setVinCode(e.target.value)} />
+    <div className="p-6">
+    <form onSubmit={handleSubmit} className="max-w-lg mx-auto p-6 space-y-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold text-white">{isEdit ? "Картка авто" : "Нове авто"}</h1>
+        {isEdit && !isEditingDetails && (
+          <Button type="button" variant="ghost" onClick={() => setIsEditingDetails(true)}>
+            ✏️ Редагувати
+          </Button>
+        )}
+      </div>
+      {detailsLocked && (
+        <p className="text-xs text-white/40 -mt-2">
+          Дані авто змінюються рідко — щоб уникнути випадкових правок, поля нижче заблоковані.
+          Доступні: режим обліку, статус, водій. Натисніть "Редагувати", щоб змінити решту.
+        </p>
+      )}
 
-      {mutation.isError && <ErrorBanner message={(mutation.error as Error).message} />}
+      <Input label="Назва (модель)" value={nameCar} onChange={(e) => setNameCar(e.target.value)} required disabled={detailsLocked} />
+      <div className="grid grid-cols-2 gap-3">
+        <Input label="Держ. номер" value={numberCar} onChange={(e) => setNumberCar(e.target.value)} required disabled={detailsLocked} />
+        <Input label="Номер паливної картки" type="number" value={fuelCardNumber} onChange={(e) => setFuelCardNumber(e.target.value)} disabled={detailsLocked} />
+      </div>
+      <Input label="Місячна амортизація (грн)" type="number" value={amountCar} onChange={(e) => setAmountCar(e.target.value)} required disabled={detailsLocked} />
+
+      <div className="flex flex-col gap-1">
+        <label className="text-sm font-medium text-white/70">Режим обліку за замовчуванням</label>
+        <select
+          value={defaultTrackingMode}
+          onChange={(e) => setDefaultTrackingMode(e.target.value as TrackingMode)}
+          className="w-full rounded-lg border border-white/10 bg-white/5 text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 [&>option]:bg-slate-900 [&>option]:text-white"
+        >
+          <option value="daily">Daily (без стадій)</option>
+          <option value="full">Full (склад / точки)</option>
+        </select>
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <label className="text-sm font-medium text-white/70">Статус авто</label>
+        <select
+          value={statusCar}
+          onChange={(e) => setStatusCar(e.target.value as CarStatus)}
+          className="w-full rounded-lg border border-white/10 bg-white/5 text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 [&>option]:bg-slate-900 [&>option]:text-white"
+        >
+          <option value="active">Активне</option>
+          <option value="repair">Ремонт</option>
+          <option value="inactive">Неактивне</option>
+          <option value="pause">Пауза</option>
+          <option value="driver_downtime">Простій (водій)</option>
+        </select>
+      </div>
+
+      <label className="flex items-center gap-2 text-sm text-white/70">
+        <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} disabled={detailsLocked} />
+        Авто активне (в експлуатації)
+      </label>
+
+      <div className="flex flex-col gap-1">
+        <label className="text-sm font-medium text-white/70">Водій</label>
+        <select
+          value={selectedDriverId}
+          onChange={(e) => setSelectedDriverId(e.target.value ? Number(e.target.value) : "")}
+          className="w-full rounded-lg border border-white/10 bg-white/5 text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 [&>option]:bg-slate-900 [&>option]:text-white"
+        >
+          <option value="">— не призначено —</option>
+          {drivers?.map((d) => (
+            <option key={d.idDriver} value={d.idDriver}>
+              {d.nameDriver}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <h2 className="text-lg font-semibold text-white pt-2">Технічні характеристики</h2>
+      <Input label="VIN" value={vinCode} onChange={(e) => setVinCode(e.target.value)} disabled={detailsLocked} />
+      <div className="grid grid-cols-2 gap-3">
+        <Input label="Рік випуску" type="number" value={yearManufactured} onChange={(e) => setYearManufactured(e.target.value)} disabled={detailsLocked} />
+        <Input label="Вага (кг)" type="number" value={weightKg} onChange={(e) => setWeightKg(e.target.value)} disabled={detailsLocked} />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <Input label="Вантажопідйомність (кг)" type="number" value={payloadKg} onChange={(e) => setPayloadKg(e.target.value)} disabled={detailsLocked} />
+        <Input label="Довжина (см)" type="number" value={lengthCm} onChange={(e) => setLengthCm(e.target.value)} disabled={detailsLocked} />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <Input label="Ширина (см)" type="number" value={widthCm} onChange={(e) => setWidthCm(e.target.value)} disabled={detailsLocked} />
+        <Input label="Висота (см)" type="number" value={heightCm} onChange={(e) => setHeightCm(e.target.value)} disabled={detailsLocked} />
+      </div>
+
+      <label className="flex items-center gap-2 text-sm text-white/70">
+        <input type="checkbox" checked={hasTailLift} onChange={(e) => setHasTailLift(e.target.checked)} disabled={detailsLocked} />
+        Є гідроборт
+      </label>
+      <label className="flex items-center gap-2 text-sm text-white/70">
+        <input type="checkbox" checked={hasTrailer} onChange={(e) => setHasTrailer(e.target.checked)} disabled={detailsLocked} />
+        Є причіп
+      </label>
+
+      {hasTrailer && (
+        <div className="space-y-4 rounded-lg border border-white/10 p-4">
+          <h3 className="text-sm font-semibold text-white">Причіп</h3>
+          <Input label="Назва причепа" value={trailerName} onChange={(e) => setTrailerName(e.target.value)} required disabled={detailsLocked} />
+          <Input label="Держ. номер причепа" value={trailerNumber} onChange={(e) => setTrailerNumber(e.target.value)} required disabled={detailsLocked} />
+          <Input label="VIN причепа" value={trailerVinCode} onChange={(e) => setTrailerVinCode(e.target.value)} disabled={detailsLocked} />
+          <Input label="Рік випуску причепа" type="number" value={trailerYear} onChange={(e) => setTrailerYear(e.target.value)} disabled={detailsLocked} />
+          <label className="flex items-center gap-2 text-sm text-white/70">
+            <input type="checkbox" checked={trailerIsActive} onChange={(e) => setTrailerIsActive(e.target.checked)} disabled={detailsLocked} />
+            Причіп активний
+          </label>
+        </div>
+      )}
+
+      {(mutation.isError || updateDriverAssignment.isError) && (
+        <ErrorBanner message={((mutation.error ?? updateDriverAssignment.error) as Error).message} />
+      )}
 
       <div className="flex gap-3">
         <Button type="button" variant="ghost" onClick={() => navigate("/fleet")}>Скасувати</Button>
-        <Button type="submit" isLoading={mutation.isPending} className="flex-1">Зберегти</Button>
+        <Button type="submit" isLoading={mutation.isPending || updateDriverAssignment.isPending} className="flex-1">Зберегти</Button>
       </div>
     </form>
+    </div>
   );
 }
 ```
 
-Це мінімальний набір полів (назва, номер, амортизація, VIN) —
-розшир формою повністю під `CarSpecs`/`Trailer`/призначення водія
-(`useDrivers`, `<select>` зі списком) за тим самим принципом умовних
-блоків, що й у `EventForm` (Фаза 13.5) для різних `event_type`.
+> Причіп НЕ вкладений всередину `specs` у payload — це два окремі
+> ключі верхнього рівня (`specs` і `trailer`), хоч `specs.hasTrailer`
+> і визначає, чи блок причепа взагалі рендериться/надсилається.
+> Призначення водія — ДВОСТОРОННІЙ update: якщо водій змінюється,
+> старий водій цього авто явно відв'язується (`idCar: null`), а новий
+> прив'язується — обидва через `updateDriverAssignment.mutateAsync`,
+> ПІСЛЯ того як сам `Car` вже збережений (потрібен `savedCar.idCar`).
+>
+> ⚠️ **Резинхронізовано 2026-08-28** — на мобільному картка авто мала
+> завеликий скрол (кожне поле на всю ширину). Короткі поля згруповано
+> по два в рядок (`grid grid-cols-2 gap-3`): держ. номер + паливна
+> картка, рік випуску + вага, вантажопідйомність + довжина, ширина +
+> висота. На всю ширину лишились лише "Назва (модель)" і "VIN" (довгі
+> значення).
 
 ---
 
-## Крок 16.5 — Підключення в App.tsx
+## Крок 16.6 — DriverForm: картка водія
+
+Дзеркальна сторінка до `CarForm` — відкривається кліком на ім'я водія
+в `FleetList` (`/fleet/drivers/:driverId`) або "+ Додати водія"
+(`/fleet/drivers/new`). Призначення авто тут — обернена сторона того ж
+зв'язку, що редагується в `CarForm` через `<select>` "Водій": якщо
+обране авто вже має ІНШОГО водія, той явно відв'язується, щоб не
+лишалось двох водіїв формально закріплених за одним авто.
+
+```typescript
+// src/pages/fleet/DriverForm.tsx
+import { useState } from "react";
+import type { FormEvent } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { useDriver, useDrivers, useCreateDriver, useUpdateDriver } from "../../hocks/useDrivers";
+import { useCars } from "../../hocks/useCars";
+import { Input } from "../../components/ui/Input";
+import { Button } from "../../components/ui/Button";
+import { ErrorBanner } from "../../components/ui/ErrorBanner";
+import type { DriverPayload } from "../../api/drivers";
+
+export function DriverForm() {
+  const { driverId } = useParams();
+  const navigate = useNavigate();
+  const isEdit = !!driverId;
+  const { data: existing } = useDriver(isEdit ? Number(driverId) : 0);
+  const { data: cars } = useCars();
+  const { data: drivers } = useDrivers();
+
+  const [nameDriver, setNameDriver] = useState(existing?.nameDriver ?? "");
+  const [phoneDriver, setPhoneDriver] = useState(existing?.phoneDriver ?? "");
+  const [driversLicense, setDriversLicense] = useState(existing?.driversLicense ?? "");
+  const [isActive, setIsActive] = useState(existing?.isActive ?? true);
+  const [selectedCarId, setSelectedCarId] = useState<number | "">(existing?.idCar ?? "");
+
+  const createDriver = useCreateDriver();
+  const updateDriver = useUpdateDriver();
+  const mutation = isEdit
+    ? { mutateAsync: (data: DriverPayload) => updateDriver.mutateAsync({ id: Number(driverId), data }), isPending: updateDriver.isPending, isError: updateDriver.isError, error: updateDriver.error }
+    : createDriver;
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    const payload: DriverPayload = {
+      nameDriver,
+      phoneDriver: phoneDriver || undefined,
+      driversLicense: driversLicense || undefined,
+      idCar: selectedCarId === "" ? null : selectedCarId,
+      isActive,
+    };
+
+    const savedDriver = await mutation.mutateAsync(payload);
+
+    // Авто, обране для цього водія, могло вже мати ІНШОГО водія — знімаємо
+    // його з того авто, інакше два водії формально закріплені за одним авто
+    if (selectedCarId !== "") {
+      const conflicting = drivers?.find(
+        (d) => d.idCar === selectedCarId && d.idDriver !== savedDriver.idDriver
+      );
+      if (conflicting) {
+        await updateDriver.mutateAsync({
+          id: conflicting.idDriver,
+          data: {
+            nameDriver: conflicting.nameDriver,
+            phoneDriver: conflicting.phoneDriver,
+            driversLicense: conflicting.driversLicense,
+            isActive: conflicting.isActive,
+            idCar: null,
+          },
+        });
+      }
+    }
+
+    navigate("/fleet");
+  }
+
+  return (
+    <div className="p-6">
+      <form onSubmit={handleSubmit} className="max-w-lg mx-auto p-6 space-y-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
+        <h1 className="text-xl font-bold text-white">{isEdit ? "Картка водія" : "Новий водій"}</h1>
+
+        <Input label="ПІБ" value={nameDriver} onChange={(e) => setNameDriver(e.target.value)} required />
+        <Input label="Телефон" value={phoneDriver} onChange={(e) => setPhoneDriver(e.target.value)} />
+        <Input label="Посвідчення водія" value={driversLicense} onChange={(e) => setDriversLicense(e.target.value)} />
+
+        <div className="flex flex-col gap-1">
+          <label className="text-sm font-medium text-white/70">Закріплене авто</label>
+          <select
+            value={selectedCarId}
+            onChange={(e) => setSelectedCarId(e.target.value ? Number(e.target.value) : "")}
+            className="w-full rounded-lg border border-white/10 bg-white/5 text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 [&>option]:bg-slate-900 [&>option]:text-white"
+          >
+            <option value="">— не призначено —</option>
+            {cars?.map((c) => (
+              <option key={c.idCar} value={c.idCar}>
+                {c.numberCar} — {c.nameCar}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <label className="flex items-center gap-2 text-sm text-white/70">
+          <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
+          Водій активний
+        </label>
+
+        {mutation.isError && (
+          <ErrorBanner message={(mutation.error as Error).message} />
+        )}
+
+        <div className="flex gap-3">
+          <Button type="button" variant="ghost" onClick={() => navigate("/fleet")}>Скасувати</Button>
+          <Button type="submit" isLoading={mutation.isPending} className="flex-1">Зберегти</Button>
+        </div>
+      </form>
+    </div>
+  );
+}
+```
+
+---
+
+## Крок 16.7 — Підключення в App.tsx
 
 ```typescript
 // src/App.tsx — фрагмент /fleet
@@ -6245,19 +6813,630 @@ export function CarForm() {
 >
   <Route index element={<FleetList />} />
   <Route path="new" element={<CarForm />} />
+  <Route path="drivers/new" element={<DriverForm />} />
+  <Route path="drivers/:driverId" element={<DriverForm />} />
   <Route path=":carId" element={<CarForm />} />
 </Route>
 ```
 
-## Крок 16.6 — Перевірка
+> `drivers/new` і `drivers/:driverId` мають бути оголошені ДО
+> `:carId` було б неважливо тут (різні префікси, React Router матчить
+> за точним сегментом `drivers`), але тримай усі `/fleet/drivers/*`
+> маршрути разом — легше побачити, що вони існують окремим блоком від
+> `:carId`.
+
+## Крок 16.8 — Перевірка
 
 1. Залогинься користувачем з `role="logist"` (або `manager`/`head`).
-2. `/fleet` → таблиця авто, кнопка "+ Додати авто".
-3. Заповни форму, збережи → редирект на `/fleet`, нове авто в таблиці.
-4. Клік по номеру авто → `CarForm` у режимі редагування з
-   передзаповненими полями, зміни зберігаються через `PATCH`.
-5. Перевір у Django Admin (`/admin/cars/car/`) — запис реально
-   з'явився/оновився в БД.
+2. `/fleet` → таблиця авто з колонками Номер/Назва/Статус/Режим/Водій,
+   кнопка "+ Додати авто".
+3. Зміни статус авто прямо зі `<select>` в таблиці → перевір у Django
+   Admin, що в `CarStatusLog` з'явився новий запис.
+4. Заповни `CarForm` (з причепом і без), збережи → редирект на
+   `/fleet`, нове авто в таблиці.
+5. Клік по номеру авто → `CarForm` у режимі редагування, текстові поля
+   заблоковані; натисни "✏️ Редагувати" — розблокувались; три
+   `<select>` були інтерактивні одразу.
+6. Клік по імені водія в колонці "Водій" → `DriverForm`, зміни
+   зберігаються через `PATCH`.
+7. Признач іншого водія тому самому авто в `CarForm` (або інше авто
+   тому самому водію в `DriverForm`) → попередній зв'язок коректно
+   знімається (в іншого водія/авто `idCar`/водій стає порожнім).
+8. Перевір у Django Admin (`/admin/cars/car/`, `/admin/cars/driver/`)
+   — записи реально з'явились/оновились в БД.
+9. **Перед пушем — обов'язково `npm run build`** (не лише
+   `npx tsc --noEmit`), і після деплою перевір статус GitHub Actions +
+   `curl` на реальний ендпоінт продакшена, а не просто вважай "запушив
+   → значить задеплоїлось".
+
+> ⚠️ **Відомий відкритий баг (станом на 2026-08-28):** створення НОВОГО
+> авто інколи все ще повертає "Request failed: 400." навіть після
+> всіх виправлень вище (trailer schema drift, atomic create, кращий
+> `extractErrorMessage`). Причина не встановлена — детально
+> задокументовано в пам'яті сесії
+> (`session-2026-08-28-fleet-work-and-open-400.md`), включно з
+> гіпотезами для наступної сесії (stale PWA-кеш, "осиротілі" рядки авто
+> з ДО atomic-фікса при повторному вводі того самого номера, ще не
+> перевірене поле/edge case). Наступний крок розслідування — точний
+> текст помилки в банері ЗАРАЗ і Response body з Network tab.
+
+---
+
+# ═══════════════════════════════════════════════════════════
+# ФАЗА 17 — ДЕШБОРД ВОДІЯ: КОМПАКТНІ ПЛИТКИ, ВИДАЛЕННЯ/ГРУПУВАННЯ ПОДІЙ
+# ═══════════════════════════════════════════════════════════
+
+> Навіщо: на мобільному `/driver` мав завеликий скрол (тайли "Нова
+> подія" — іконка над текстом, кожна на всю висоту `py-5`), перемикач
+> режиму обліку висів окремим блоком під карткою авто, а список "Події
+> сьогодні" внизу дублював `DriverHistory` (Фаза 15). Головне — водій
+> не мав способу виправити помилку сканування: зайву накладну не можна
+> було видалити, а якщо на одній точці кілька накладних — не було
+> екрана, що показав би їх РАЗОМ.
+
+## Крок 17.1 — DayModeSwitch: компактний варіант
+
+`components/driver/DayModeSwitch.tsx` (Крок 13.3) отримує пропс
+`compact` — той самий компонент, менший розмір кнопок, щоб влізти
+праворуч у картці авто:
+
+```typescript
+// src/components/driver/DayModeSwitch.tsx
+interface Props {
+  mode: TrackingMode;
+  onChange: (mode: TrackingMode) => void;
+  isOverridden: boolean;
+  compact?: boolean; // менший розмір — поруч з карткою авто на дашборді
+}
+
+export function DayModeSwitch({ mode, onChange, isOverridden, compact = false }: Props) {
+  return (
+    <div>
+      <div className="inline-flex rounded-full bg-white/5 border border-white/10 p-1">
+        {(["daily", "full"] as const).map((m) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => onChange(m)}
+            className={`rounded-full font-semibold transition-all ${compact ? "px-3 py-1.5 text-xs" : "px-5 py-2 text-sm"} ${
+              mode === m
+                ? "bg-gradient-to-r from-violet-500 to-pink-500 text-white shadow-md shadow-violet-500/25"
+                : "text-white/50 hover:text-white/80"
+            }`}
+          >
+            {m === "daily" ? "Щоденний" : "Повний"}
+          </button>
+        ))}
+      </div>
+      {isOverridden && <p className="mt-2 text-xs text-amber-300/80">⚡ Змінено вручну на сьогодні</p>}
+    </div>
+  );
+}
+```
+
+---
+
+## Крок 17.2 — DriverDashboard: перемикач у картці, компактні тайли, без дубля списку
+
+Три зміни в `pages/driver/DriverDashboard.tsx` (Кроки 13.4, 15.6-15.7):
+
+1. Картка авто (Крок 13.4) і `<DayModeSwitch>` (раніше окремим блоком
+   нижче) тепер один `flex items-center justify-between` — авто
+   зліва, перемикач (`compact`) праворуч:
+
+```typescript
+<div className="rounded-2xl bg-white/5 border border-white/10 p-5 backdrop-blur-sm">
+  <div className="flex items-center justify-between gap-3 flex-wrap">
+    <div className="flex items-center gap-3">
+      <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-violet-500 to-pink-500 flex items-center justify-center text-xl shrink-0">🚐</div>
+      <div>
+        <h2 className="text-lg font-bold text-white">{car.nameCar}</h2>
+        <p className="text-sm text-white/50">{car.numberCar}</p>
+      </div>
+    </div>
+    <DayModeSwitch mode={dayMode} onChange={setDayMode} isOverridden={isOverridden} compact />
+  </div>
+  {lastOdometer != null && (
+    <p className="mt-3 text-xs text-white/40">Останній одометр: <span className="text-white/70">{formatKm(lastOdometer)}</span></p>
+  )}
+</div>
+```
+
+2. Тайли "Нова подія" — іконка й текст в один рядок (`flex
+   items-center`, не `flex-col`), іконка тепер скруглений квадрат
+   (`rounded-lg`), не коло (`rounded-full`):
+
+```typescript
+<button
+  type="button"
+  disabled={isLockedDepotStart}
+  onClick={() => !isLockedDepotStart && navigate(`/driver/event/new?${query}`)}
+  className={`group flex items-center gap-2.5 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 backdrop-blur-sm transition-all ${
+    isLockedDepotStart ? "opacity-40 cursor-not-allowed" : "hover:bg-white/10 hover:border-white/20 active:scale-[0.97]"
+  }`}
+>
+  <div className={`h-9 w-9 shrink-0 rounded-lg bg-gradient-to-br ${eventTypeGradient(type)} flex items-center justify-center text-lg shadow-lg transition-transform ${!isLockedDepotStart && "group-hover:scale-105"}`}>
+    {eventTypeIcon(type)}
+  </div>
+  <span className="text-xs font-medium text-white/80 text-left leading-tight">
+    {eventTypeLabel(type, dayMode, stage)}
+    {isLockedDepotStart && " ✓"}
+  </span>
+</button>
+```
+
+3. Блок "Події сьогодні" (список `<ul>` внизу дашборду) — **видалено
+   повністю**. `useTodayEvents` лишається в компоненті (потрібен для
+   `hasDepotStartToday`), просто без відповідного JSX. Водій бачить
+   усі свої події (включно з сьогоднішніми, вони найновіші) в
+   `DriverHistory` (Фаза 15) — тримати той самий список у двох місцях
+   сенсу не було.
+
+---
+
+## Крок 17.3 — Групування накладних однієї точки (без зміни схеми БД)
+
+> Проблема: коли на одній точці/складі сканують кілька накладних
+> підряд (Крок 15.6-15.8), кожна лягає ОКРЕМИМ `RouteEvent` — немає
+> жодного поля-групи в БД (свідоме рішення ще з Кроку 15.6 — суто
+> frontend-хак). Щоб відкрити подію і побачити "усі накладні цієї
+> точки" разом, групу треба вирахувати заднім числом.
+
+Евристика в `src/utils/eventHelpers.ts`: усі `delivery`-події того ж
+`trackingMode`, скановані одна за одною без розриву довше 10 хв,
+вважаються однією точкою (на практиці кілька накладних сканують за
+секунди-хвилини, а виїзд на наступну точку завжди довший):
+
+```typescript
+// src/utils/eventHelpers.ts
+const STOP_CLUSTER_WINDOW_MS = 10 * 60 * 1000;
+
+export function findEventGroup(events: RouteEvent[], target: RouteEvent): RouteEvent[] {
+  if (target.eventType !== "delivery") return [target];
+
+  const sameKind = events
+    .filter(e => e.eventType === "delivery" && e.trackingMode === target.trackingMode)
+    .sort((a, b) => a.eventTs.localeCompare(b.eventTs));
+  const idx = sameKind.findIndex(e => e.id === target.id);
+  if (idx === -1) return [target];
+
+  let start = idx;
+  let end = idx;
+  while (start > 0 && new Date(sameKind[start].eventTs).getTime() - new Date(sameKind[start - 1].eventTs).getTime() <= STOP_CLUSTER_WINDOW_MS) start--;
+  while (end < sameKind.length - 1 && new Date(sameKind[end + 1].eventTs).getTime() - new Date(sameKind[end].eventTs).getTime() <= STOP_CLUSTER_WINDOW_MS) end++;
+
+  return sameKind.slice(start, end + 1);
+}
+```
+
+Розширюємо кластер вліво/вправо від цільової події, поки розрив між
+сусідніми таймстемпами не перевищує вікно — це дає правильне
+групування навіть якщо клікнули не на першу накладну точки.
+
+---
+
+## Крок 17.4 — Видалення події: API, хук, danger-кнопка
+
+Бекенд (`vehicle_tracker_api`, `apps/cars/views.py::RouteEventViewSet`)
+змін не потребував — `get_permissions()` там не перевизначено, тож діє
+дефолтний `IsAuthenticated` на всі дії включно з `destroy`, а
+`get_queryset()` і так обмежує водія його ж подіями. DELETE вже працює
+на бекенді, бракувало лише виклику з фронтенду:
+
+```typescript
+// src/api/routeEvents.ts
+export async function deleteRouteEvent(id: number): Promise<void> {
+  if (USE_MOCK) {
+    await mockDelay(300);
+    return;
+  }
+  await apiFetch<void>(`/route-events/${id}/`, { method: "DELETE" });
+}
+```
+
+```typescript
+// src/hocks/useRouteEvents.ts
+export function useDeleteRouteEvent() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id }: { id: number; carId: number }) => deleteRouteEvent(id),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["route-events", variables.carId] });
+      queryClient.invalidateQueries({ queryKey: ["lastOdometer", variables.carId] });
+    },
+  });
+}
+```
+
+`carId` передається окремо у змінних мутації, бо DELETE не повертає
+видалений об'єкт — інвалідувати кеш нема з чого, якби брали його з
+відповіді.
+
+`components/driver/ui.tsx` (Крок 13.2) — третій варіант кнопки поруч з
+`primary`/`ghost`:
+
+```typescript
+const variantClasses = {
+  primary: "bg-gradient-to-r from-violet-500 to-pink-500 text-white shadow-lg shadow-violet-500/25 hover:opacity-90 active:scale-[0.98]",
+  ghost: "text-white/70 hover:bg-white/5 hover:text-white active:scale-[0.98]",
+  danger: "bg-rose-500/10 text-rose-300 border border-rose-500/20 hover:bg-rose-500/20 active:scale-[0.98]",
+};
+```
+
+---
+
+## Крок 17.5 — DriverHistory: клікабельні рядки
+
+Дивись резинхронізований блок у Кроці 15.3 вище (`onClick` на `<li>` →
+`navigate(`/driver/event/${e.id}`)`, третій аргумент `inferDeliveryStage(e)`
+доданий до `eventTypeLabel`).
+
+---
+
+## Крок 17.6 — Нова сторінка pages/driver/EventDetail.tsx
+
+Відкривається кліком на подію в `DriverHistory`. Для `delivery` зі
+`findEventGroup().length > 1` показує список накладних точки з
+видаленням кожної окремо і кнопкою досканувати ще одну; для решти —
+картку деталей з однією кнопкою видалення. Підтвердження видалення —
+"у два дотики" (перший клік → кнопка на 3 сек стає "Точно?", другий
+клік у цьому вікні виконує `deleteEvent.mutate`), а не нативний
+`window.confirm()` — зручніше на телефоні і не блокує інтерфейс:
+
+```typescript
+// src/pages/driver/EventDetail.tsx
+import { useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { useCurrentDriver } from "../../hocks/useDrivers";
+import { useCar } from "../../hocks/useCars";
+import { useDriverEvents, useCreateRouteEvent, useDeleteRouteEvent } from "../../hocks/useRouteEvents";
+import {
+  eventTypeLabel,
+  eventTypeIcon,
+  eventTypeGradient,
+  inferDeliveryStage,
+  findEventGroup,
+} from "../../utils/eventHelpers";
+import { formatDateTime, formatKm } from "../../utils/formatters";
+import { Button, Spinner, ErrorBanner, EmptyState } from "../../components/driver/ui";
+import { QRScanner } from "../../components/driver/QRScanner";
+import { parseQRCode } from "../../utils/parseQR";
+
+export function EventDetail() {
+  const navigate = useNavigate();
+  const { eventId } = useParams();
+  const targetId = Number(eventId);
+
+  const { data: driver, isLoading: driverLoading } = useCurrentDriver();
+  const { data: car, isLoading: carLoading } = useCar(driver?.idCar ?? 0);
+  const { data: events, isLoading: eventsLoading } = useDriverEvents(car?.idCar ?? 0);
+  const deleteEvent = useDeleteRouteEvent();
+  const createEvent = useCreateRouteEvent();
+
+  const [confirmId, setConfirmId] = useState<number | null>(null);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
+
+  if (driverLoading || carLoading || eventsLoading) return <Spinner label="Завантаження..." />;
+  if (!driver || !car) return <ErrorBanner message="Немає закріпленого авто" />;
+
+  const target = events?.find(e => e.id === targetId);
+  if (!target) {
+    return (
+      <div className="flex flex-col gap-4">
+        <EmptyState title="Подію не знайдено" subtitle="Можливо, її вже видалено" />
+        <Button variant="ghost" onClick={() => navigate("/driver/history")}>← До історії</Button>
+      </div>
+    );
+  }
+
+  const group = findEventGroup(events ?? [], target).sort((a, b) => a.eventTs.localeCompare(b.eventTs));
+  const isMultiWaybill = target.eventType === "delivery" && group.length > 1;
+
+  function askDelete(id: number) {
+    if (confirmId === id) {
+      setConfirmId(null);
+      deleteEvent.mutate(
+        { id, carId: car!.idCar },
+        {
+          onSuccess: () => {
+            // Видалили саме той запис, на який зайшли — до історії;
+            // видалили сусідню накладну з групи — лишаємось на місці
+            if (id === target!.id) navigate("/driver/history");
+          },
+        }
+      );
+    } else {
+      setConfirmId(id);
+      setTimeout(() => setConfirmId(curr => (curr === id ? null : curr)), 3000);
+    }
+  }
+
+  function handleScan(raw: string) {
+    const parsed = parseQRCode(raw);
+    if (!parsed) return;
+    const alreadyScanned = events?.some(e => e.waybillNumber === parsed.waybillNumber);
+    if (alreadyScanned) {
+      setScanError(`Накладну №${parsed.waybillNumber} вже додано — спробуйте іншу`);
+      return;
+    }
+    setScanError(null);
+    setScannerOpen(false);
+    createEvent.mutate({
+      carId: car!.idCar,
+      driverId: target!.driverId,
+      trackingMode: target!.trackingMode,
+      eventType: "delivery",
+      eventTs: new Date().toISOString(),
+      waybillNumber: parsed.waybillNumber,
+      waybillDate: parsed.waybillDate,
+      customerName: target!.customerName,
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center gap-3">
+        <div className={`h-11 w-11 rounded-xl bg-gradient-to-br ${eventTypeGradient(target.eventType)} flex items-center justify-center text-xl shadow-lg shrink-0`}>
+          {eventTypeIcon(target.eventType)}
+        </div>
+        <div>
+          <h2 className="text-lg font-bold text-white">
+            {eventTypeLabel(target.eventType, target.trackingMode, inferDeliveryStage(target))}
+          </h2>
+          <p className="text-xs text-white/40">{formatDateTime(target.eventTs)}</p>
+        </div>
+      </div>
+
+      {isMultiWaybill ? (
+        <>
+          <h3 className="text-sm font-semibold text-white/60 tracking-wide uppercase">
+            Накладні цієї точки ({group.length})
+          </h3>
+          <div className="flex flex-col gap-2">
+            {group.map((e) => (
+              <div key={e.id} className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-white/90">№ {e.waybillNumber}</p>
+                  <p className="text-xs text-white/40 truncate">
+                    {e.customerName || "—"}
+                    {e.odometerKm != null && ` · ${formatKm(e.odometerKm)}`}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant={confirmId === e.id ? "danger" : "ghost"}
+                  onClick={() => askDelete(e.id)}
+                  isLoading={deleteEvent.isPending && deleteEvent.variables?.id === e.id}
+                  className="shrink-0 px-3 py-2"
+                >
+                  {confirmId === e.id ? "Точно?" : "🗑"}
+                </Button>
+              </div>
+            ))}
+          </div>
+
+          {scanError && <ErrorBanner message={scanError} />}
+          <Button type="button" variant="ghost" onClick={() => setScannerOpen(true)}>
+            📷 Ще одна накладна цієї точки
+          </Button>
+        </>
+      ) : (
+        <div className="rounded-xl border border-white/10 bg-white/5 p-4 flex flex-col gap-2 text-sm">
+          {target.waybillNumber && <Row label="Накладна" value={`№ ${target.waybillNumber}${target.waybillDate ? `, ${target.waybillDate}` : ""}`} />}
+          {target.customerName && <Row label="Клієнт" value={target.customerName} />}
+          {target.odometerKm != null && <Row label="Одометр" value={formatKm(target.odometerKm)} />}
+          {target.palletsCount != null && <Row label="Палети" value={String(target.palletsCount)} />}
+          {target.fuelLiters != null && <Row label="Пального" value={`${target.fuelLiters} л`} />}
+          {target.fuelCostUah != null && <Row label="Сума" value={`${target.fuelCostUah} грн`} />}
+          {target.otherCostUah != null && <Row label="Сума" value={`${target.otherCostUah} грн`} />}
+          {target.otherCostComment && <Row label="Коментар" value={target.otherCostComment} />}
+          {target.returnClientWaybill && <Row label="Накладна клієнта" value={target.returnClientWaybill} />}
+          {target.extraFrom && <Row label="Звідки" value={target.extraFrom} />}
+          {target.extraTo && <Row label="Куди" value={target.extraTo} />}
+          {target.extraWeightKg != null && <Row label="Вага" value={`${target.extraWeightKg} кг`} />}
+          {target.notes && <Row label="Нотатки" value={target.notes} />}
+
+          {scanError && <ErrorBanner message={scanError} />}
+
+          <Button
+            type="button"
+            variant={confirmId === target.id ? "danger" : "ghost"}
+            onClick={() => askDelete(target.id)}
+            isLoading={deleteEvent.isPending && deleteEvent.variables?.id === target.id}
+            className="mt-2"
+          >
+            {confirmId === target.id ? "Точно видалити?" : "🗑 Видалити подію"}
+          </Button>
+        </div>
+      )}
+
+      {scannerOpen && <QRScanner onScan={handleScan} onClose={() => setScannerOpen(false)} notice={scanError} />}
+      {deleteEvent.isError && <ErrorBanner message={(deleteEvent.error as Error).message} />}
+
+      <Button variant="ghost" onClick={() => navigate("/driver/history")}>← До історії</Button>
+    </div>
+  );
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-white/40">{label}</span>
+      <span className="text-white/90 text-right">{value}</span>
+    </div>
+  );
+}
+```
+
+> `deleteEvent.variables?.id` — TanStack Query зберігає останні
+> передані в `mutate()` змінні на самому об'єкті мутації; так кнопка
+> знає, яку саме з кількох накладних зараз видаляють, і показує
+> спінер лише на ній, а не на всіх одразу.
+
+---
+
+## Крок 17.7 — Підключення в App.tsx
+
+```typescript
+import { EventDetail } from "./pages/driver/EventDetail";
+// ...
+<Route path="event/new" element={<EventForm />} />
+<Route path="event/:eventId" element={<EventDetail />} />
+<Route path="history" element={<DriverHistory />} />
+```
+
+Порядок оголошення `event/new` і `event/:eventId` ролі не грає — React
+Router v6 ранжує маршрути за специфічністю сегмента незалежно від
+порядку в JSX, статичний `new` завжди переможе динамічний `:eventId`.
+
+---
+
+## Крок 17.8 — Перевірка
+
+1. `/driver` на вузькому екрані (390px) — перемикач режиму праворуч у
+   картці авто, тайли "Нова подія" компактні (іконка+текст в рядок,
+   квадратна іконка), списку "Події сьогодні" внизу немає.
+2. `/driver/history` → клік на будь-яку подію → відкривається
+   `/driver/event/:id`.
+3. Відскануй 2-3 накладні підряд на одній точці (Кроки 15.6-15.8) →
+   відкрий будь-яку з них з історії → всі мають зʼявитись РАЗОМ під
+   "Накладні цієї точки (N)".
+4. Видали одну накладну з групи (два кліки: 🗑 → "Точно?") — зникає з
+   групи, залишаєшся на сторінці; видали ту, на яку заходив — редирект
+   на `/driver/history`.
+5. "📷 Ще одна накладна цієї точки" — скан додає ще один запис у ту ж
+   групу без одометра/палет.
+6. Одиночна подія (заправка, інші витрати тощо) — картка з полями і
+   однією кнопкою "🗑 Видалити подію".
+7. **Перед пушем — `npm run build`** (не лише `tsc --noEmit`), бекенд
+   змін не потребує (DELETE вже дозволений `IsAuthenticated` +
+   `get_queryset()` водія).
+
+---
+
+## Крок 17.9 — Виправлення живого тестування (той самий день)
+
+Реальне тестування Кроків 17.1-17.8 одразу показало чотири проблеми:
+
+**1. Компактний перемикач режиму все ще розширював картку авто** —
+`compact` (Крок 17.1) лишав кнопки в рядок (`inline-flex`), просто
+менші. На вузькому екрані картка авто ставала ширшою за контейнер.
+Виправлення — компактний варіант тепер вертикальний стек:
+
+```typescript
+// src/components/driver/DayModeSwitch.tsx
+<div className={compact ? "flex flex-col items-end" : undefined}>
+  <div className={`inline-flex bg-white/5 border border-white/10 p-1 ${compact ? "flex-col gap-0.5 rounded-xl" : "rounded-full"}`}>
+    {(["daily", "full"] as const).map((m) => (
+      <button
+        key={m}
+        type="button"
+        onClick={() => onChange(m)}
+        className={`font-semibold transition-all ${compact ? "px-3 py-1 text-xs rounded-lg" : "px-5 py-2 text-sm rounded-full"} ${...}`}
+      >
+        {m === "daily" ? "Щоденний" : "Повний"}
+      </button>
+    ))}
+  </div>
+  {isOverridden && <p className={`mt-2 text-xs text-amber-300/80 ${compact ? "text-right" : ""}`}>⚡ Змінено вручну</p>}
+</div>
+```
+
+**2. `DriverHistory`/`EventDetail` показували вчорашні події замість
+сьогоднішніх.** Причина не в сортуванні — `fetchDriverEvents` (усі
+події) сортує коректно; причина в тому, що Крок 17.2 прибрав список
+"Події сьогодні" з дашборду в розрахунку на те, що водій бачитиме
+сьогоднішні події в `DriverHistory`, а той тягнув **усю** історію
+(`useDriverEvents`), тож найновіші вчорашні події природно опинялись
+зверху, поки за сьогодні ще нічого не відскановано — але це не те, що
+водій очікував побачити на екрані під назвою "події сьогодні".
+Виправлення — обидві сторінки тепер тягнуть `useTodayEvents`, не
+`useDriverEvents`:
+
+```typescript
+// src/pages/driver/DriverHistory.tsx і src/pages/driver/EventDetail.tsx
+import { useTodayEvents } from "../../hocks/useRouteEvents";
+// ...
+const { data: events, isLoading, isError } = useTodayEvents(car?.idCar ?? 0);
+```
+
+Заразом виправлено реальний бag у `fetchTodayEvents` (`api/routeEvents.ts`,
+mock-гілка, Фаза 13): "сьогодні" рахувалось як
+`new Date().toISOString().slice(0, 10)` — це UTC-дата, не локальна. З
+21:00 до півночі за Києвом (UTC+3) UTC-дата вже "завтра", тож щойно
+відскановані накладні переставали вважатись сьогоднішніми ввечері —
+рівно та поведінка, яку побачив водій. Виправлення — рахувати дату з
+локальних гетерів (`getFullYear`/`getMonth`/`getDate`), і заразом
+відсортувати результат так само, як `fetchDriverEvents` (найновіші
+зверху):
+
+```typescript
+// src/api/routeEvents.ts
+const now = new Date();
+const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+return (mockEvents as RouteEvent[])
+  .filter(e => e.carId === carId && e.eventTs.startsWith(today))
+  .sort((a, b) => b.eventTs.localeCompare(a.eventTs));
+```
+
+Реальний бекенд-запит (`?date=today`) цій хворобі не піддається — там
+"сьогодні" рахує Django (`timezone.localdate()`, `TIME_ZONE="Europe/Kyiv"`)
+на сервері, а не браузер клієнта.
+
+**3. Повторне сканування тієї самої накладної інколи НЕ блокувалось.**
+Дублікат-гард (`EventForm.tsx`, Крок 15.6) звіряє нову накладну проти
+`useTodayEvents()` — але `useCreateRouteEvent` (Крок 7.4) інвалідував
+кеш у `onSuccess` **без `return`**, тобто `mutateAsync()` резолвився
+одразу після POST, не чекаючи, поки `todayEvents` реально
+перезавантажиться. Якщо водій одразу після збереження відкривав
+наступний скан (до завершення фонового refetch), дублікат-гард ще
+бачив СТАРИЙ список без щойно доданої накладної — вікно гонки, вузьке,
+але реальне. Виправлення — `onSuccess` тепер повертає `Promise.all(...)`,
+і `useMutation` чекає на нього перед тим, як резолвити `mutateAsync`:
+
+```typescript
+// src/hocks/useRouteEvents.ts
+onSuccess: (newEvent) => {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: ["route-events", newEvent.carId] }),
+    queryClient.invalidateQueries({ queryKey: ["lastOdometer", newEvent.carId] }),
+  ]);
+},
+```
+
+Той самий фікс застосовано і в `useDeleteRouteEvent` (Крок 17.4) — для
+консистентності, не через окремо зловлений баг.
+
+**4. `CarForm`: "Режим обліку", "Статус авто", "Водій" — в один ряд.**
+Три окремі блоки `flex flex-col gap-1` (Крок 16.5) об'єднано в
+`grid grid-cols-3 gap-2`; чекбокс "Авто активне" (раніше стояв між
+"Статус авто" і "Водій") переїхав під сітку — три `<select>` мають
+бути поруч без розриву. Підписи скорочено ("Режим обліку" без "за
+замовчуванням"), текст усередині `<select>` зменшено до `text-xs`,
+щоб влізло в третину ширини на 390px:
+
+```typescript
+// src/pages/fleet/CarForm.tsx
+<div className="grid grid-cols-3 gap-2">
+  <div className="flex flex-col gap-1">
+    <label className="text-sm font-medium text-white/70">Режим обліку</label>
+    <select className="... px-2 py-2 text-xs ...">
+      <option value="daily">Daily</option>
+      <option value="full">Full</option>
+    </select>
+  </div>
+  {/* Статус авто, Водій — той самий патерн */}
+</div>
+<label className="flex items-center gap-2 text-sm text-white/70">
+  <input type="checkbox" checked={isActive} onChange={...} disabled={detailsLocked} />
+  Авто активне (в експлуатації)
+</label>
+```
+
+> Усі чотири — фронтенд-only, бекенд не чіпали. `npm run build`
+> пройшов чисто після кожного.
 
 ---
 
@@ -6273,31 +7452,33 @@ export function CarForm() {
 - Кнопка "← Назад"
 - Підсумки: сума, вага, об'єм
 
-> ⚠️ **Оновлено 2026-08-27 (перевірено напряму проти коду):**
-> Фаза 14 (`RequireRole`/`RoleRedirect`, PR #11, `b3a8378`) і Фаза 15
-> (`QRScanner`, `DriverHistory`, PR #12, `eb46c5a`, + доопрацювання
-> Кроку 15.5 — сканер для `return_goods`/`extra_cargo`, прибрана
-> вкладка "Сканер") — **обидві реально набрані, змержені в `main` і
-> задеплоєні.** Стара версія цього запису (від 2026-08-16) казала, що
-> жодна з фаз 14-16 не набрана — це вже неправда для 14 і 15.
+> ⚠️ **Оновлено 2026-08-28 (перевірено напряму проти коду):**
+> Фаза 14 (`RequireRole`/`RoleRedirect`, PR #11, `b3a8378`), Фаза 15
+> (`QRScanner`, `DriverHistory`, PR #12, `eb46c5a` + Крок 15.5-15.9) і
+> Фаза 16 (`FleetList`/`CarForm`/`DriverForm`, `faza_16
+> logostic_driver_car` + суттєве доопрацювання 2026-08-28: статуси
+> `pause`/`driver_downtime`, швидкий перемикач статусу, картка водія,
+> блокування полів у `CarForm`) — **усі три реально набрані, змержені в
+> `main` і задеплоєні.** Стара версія цього запису (від 2026-08-16/27)
+> казала, що Фаза 16 не набрана — це вже неправда, дивись Фазу 16 вище
+> (повністю резинхронізовано з реальним кодом).
 >
-> **Фаза 16 (`FleetList`/`CarForm`) лишається не набраною** —
-> `src/components/fleet/`, `src/pages/fleet/` досі порожні, `/fleet` в
-> `App.tsx` (тепер під `RequireRole roles={["logist","manager","head"]}`,
-> Фаза 14 це вже захищає) все ще рендерить `PlaceholderPage`. **Це
-> зараз найпріоритетніше** — логіст/адмін після Mini App-редіректу за
-> роллю потрапляє на реальний гейт, але за ним порожня заглушка замість
-> списку авто. Продовжувати саме з Фази 16, а не з Кроку 12/13 нижче
-> (найманий транспорт/служби) — ті залежать від бекендової
-> `apps/logistics` (`DJANGO_CODING_GUIDE.md` Фаза 11), яка на момент
-> цього запису ще не була змержена в `main` бекенд-репо (перевір
-> `obsidian/STATE.md` цього репо на актуальний статус, там могло
-> змінитись).
+> **Відомий відкритий баг у Фазі 16:** створення НОВОГО авто інколи все
+> ще повертає "Request failed: 400." — причина не встановлена, детально
+> задокументовано в пам'яті сесії
+> (`session-2026-08-28-fleet-work-and-open-400.md`). Дивись примітку в
+> кінці Кроку 16.8.
 >
-> `CarStatusBadge` (фільтри по статусу авто/режиму трекінгу в таблиці) —
-> доробити поверх `FleetList` із Фази 16.3, як окрема косметична
-> ітерація (за зразком `WaybillFiltersBar`/`SortHeader` з Фази 11), вже
-> ПІСЛЯ того, як сам `FleetList` набраний.
+> **Фаза 17** (компактна `CarForm` на мобільному — резинхронізовано в
+> Кроці 16.5, компактний дашборд водія, видалення/групування подій —
+> нова сторінка `EventDetail`) — так само реально набрана й задеплоєна
+> тим самим днем 2026-08-28.
+>
+> Далі логічно продовжувати з Кроку 12/13 нижче (найманий
+> транспорт/служби доставки) — але ті залежать від бекендової
+> `apps/logistics` (`DJANGO_CODING_GUIDE.md` Фаза 11); перевір
+> `obsidian/STATE.md` цього репо на актуальний статус змержування перед
+> стартом.
 
 ### Крок 12 — HiredTripForm (найманий транспорт)
 ### Крок 13 — CarrierShipmentForm (служби доставки)

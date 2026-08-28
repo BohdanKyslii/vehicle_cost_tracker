@@ -4,7 +4,9 @@
 бекенд-репо (`vehicle_tracker_api/task_description/AI_AGENT_CONTEXT.md`)
 — тут лише фронтенд-специфіка.
 
-> Створено 2026-08-24, звірено з реальним `src/`.
+> Створено 2026-08-24, резинхронізовано 2026-08-28 (Фази 14-17 вже
+> реальні — попередня версія стверджувала протилежне для 14-16;
+> `RouteEvent` мав набагато більше полів, ніж тут документувалось).
 
 ---
 
@@ -30,7 +32,7 @@ interface Car {
   fuelCardNumber?: number;
   amountCar: number;              // амортизація грн/міс
   defaultTrackingMode?: TrackingMode;
-  statusCar: 'active' | 'repair' | 'inactive';
+  statusCar: 'active' | 'repair' | 'inactive' | 'pause' | 'driver_downtime'; // 5 значень, +2 додано 2026-08-28
   isActive: boolean;
   specs?: CarSpecs;                // VIN, габарити, гідроборт — окремий інтерфейс
   trailer?: Trailer;
@@ -62,17 +64,35 @@ interface RouteEvent {
   id: number;
   carId: number;
   driverId: number;
+  trackingMode?: TrackingMode;
   eventType: RouteEventType;   // ⚠️ поле "eventType", НЕ "type"
   eventTs: string;
+  odometerKm?: number;
   palletsCount?: number;       // обов'язково для depot_start(daily) / delivery(full)
-  // ...
+  waybillNumber?: string; waybillDate?: string; customerName?: string;
+  rejection?: DeliveryRejection;              // isFull/productId/quantity/comment
+  fuelLiters?: number; fuelCostUah?: number; adBlueLiters?: number; adBlueCostUah?: number;
+  otherCostUah?: number; otherCostComment?: string;
+  returnClientWaybill?: string;
+  extraFrom?: string; extraTo?: string; extraWeightKg?: number; extraWaybill?: string; extraComment?: string;
+  notes?: string;
+  createdAt: string;
 }
 
-// Реальні значення enum (рівно 8):
+// Реальні значення enum (рівно 8, без "stage" — воно НЕ зберігається в
+// БД, лише в URL query-параметрі EventForm; для вже збережених подій
+// вираховується заднім числом через inferDeliveryStage(e) — eventHelpers.ts):
 type RouteEventType =
   | 'depot_start' | 'delivery' | 'parking_end' | 'depot_return'
   | 'refuel' | 'other_cost' | 'return_goods' | 'extra_cargo';
+type DeliveryStage = 'load' | 'unload'; // лише UI, тільки для delivery+full
 ```
+
+⚠️ Немає жодного поля-групи для "кілька накладних однієї точки" —
+кожна лягає окремим `RouteEvent` (Фаза 15, групове сканування). Щоб
+показати їх разом (Фаза 17, `EventDetail.tsx`), група вираховується
+заднім числом евристикою `findEventGroup()` (`eventHelpers.ts`) — за
+близькістю `eventTs` (вікно 10 хв), не за явним зв'язком у БД.
 
 ### `Driver`
 ```typescript
@@ -137,8 +157,11 @@ Spinner, EmptyState, ErrorBanner — див. дублювання нижче).
 vs `components/driver/ui`), інакше правки підуть не в той компонент.
 
 ### Хуки (`src/hocks/` — так, "hocks", не "hooks")
-Реально є: `useAuthModal`, `useCars`, `useCurrentUser`, `useDayMode`,
-`useDrivers`, `useRouteEvents`, `useWaybillFilters`, `useWaybills`.
+Реально є: `useAuthModal`, `useCars`, `useCurrentUser`, `useDayMode`
+(carId-scoped, `useDayMode(carId, carDefaultMode)` — НЕ лише
+`useDayMode(defaultMode)`, як показує застарілий приклад коду в
+Кроці 13.4 `CODING_GUIDE.md`), `useDrivers`, `useRouteEvents`
+(+ `useDeleteRouteEvent`, Фаза 17), `useWaybillFilters`, `useWaybills`.
 `useWaybillChannelGuard` (клієнтська перевірка ексклюзивності каналу)
 — **не існує**, перевірка лише на бекенді.
 
@@ -148,18 +171,18 @@ vs `components/driver/ui`), інакше правки підуть не в то�
 
 | Маршрут | Статус |
 |---|---|
-| `/driver`, `/driver/event/new` | ✅ реальні (`DriverDashboard`, `EventForm`) |
-| `/driver/scan`, `/driver/history` | ⏳ `PlaceholderPage` |
-| `/driver-app` | ✅ `DriverMiniApp` — Telegram Mini App логін, редіректить за роллю |
+| `/driver`, `/driver/event/new`, `/driver/event/:eventId`, `/driver/history` | ✅ реальні (`DriverDashboard`, `EventForm`, `EventDetail` — Фаза 17, `DriverHistory`), під `RequireRole roles={["driver","head"]}` |
+| `/driver-app` | ✅ `DriverMiniApp` — Telegram Mini App логін, БЕЗ `RequireRole` (сам логінить через `initData` до того, як роль відома) |
 | `/waybills` (index) | ✅ реальний `WaybillList` |
 | `/waybills/:id`, `/import`, `/unassigned`, `/returns` | ⏳ `PlaceholderPage` |
-| `/fleet`, `/hired`, `/carriers`, `/analytics`, `/admin` (усі під-маршрути) | ⏳ `PlaceholderPage` |
-| `/` | `Navigate` на `/driver` для БУДЬ-КОГО (не веде на `LandingPage`) |
+| `/fleet`, `/fleet/new`, `/fleet/:carId`, `/fleet/drivers/new`, `/fleet/drivers/:driverId` | ✅ реальні (`FleetList`, `CarForm`, `DriverForm` — Фаза 16), під `RequireRole roles={["logist","manager","head"]}` |
+| `/hired`, `/carriers`, `/analytics`, `/admin` (усі під-маршрути) | ⏳ `PlaceholderPage` |
+| `/` | `RoleRedirect` — неавторизований бачить `LandingPage`, авторизований редіректиться за роллю |
 
-`RequireRole` / захист маршрутів по ролі — **не існує в коді взагалі**
-(Фаза 14 `CODING_GUIDE.md` написана текстом, не набрана). `LandingPage`/
-`TopNav`/`AuthModal` — код повністю готовий, але жоден `<Route>` його не
-рендерить.
+`RequireRole` (`components/auth/RequireRole.tsx`) — гейтить `/driver` і
+`/fleet` за `user.profile.role`; неавторизований → `Navigate to="/"`,
+неправильна роль → "Доступ заборонено". `LandingPage`/`TopNav`/
+`AuthModal` реально рендеряться через `RoleRedirect` на `/`.
 
 ---
 
@@ -188,5 +211,8 @@ vs `components/driver/ui`), інакше правки підуть не в то�
 | Ексклюзивність каналу доставки | Тільки на бекенді (`attach_waybill`), клієнтського guard-хука немає |
 | Мобільний UI | `min-height: 44px` на кнопках/тап-цілях |
 | Auth | Django-сесія + `X-CSRFToken` cookie (`apiFetch`), НЕ JWT, НЕ `localStorage`-токен |
-| Довіра "виконано" в `CODING_GUIDE.md` | Це сценарій для ручного набору, не changelog — перевіряй, що файл справді існує в `src/`, перш ніж вважати крок готовим (Фаза 15/16 вже раз хибно позначались виконаними) |
-| Пошук актуального стану | `CODING_GUIDE.md` = факт коду; `documents/*.md` = design-довідник (ресинхронізовано 2026-08-24, але не Джерело Правди по імплементації) |
+| `useDayMode` сигнатура | `useDayMode(carId, carDefaultMode)` — carId-scoped ключ у localStorage, НЕ `useDayMode(defaultMode)` |
+| Видалення/оновлення `RouteEvent` | DELETE вже дозволений бекендом без змін (`IsAuthenticated`, `get_queryset()` водія) — не питай дозволу на бекенд-роботу, якої не треба |
+| "Кілька накладних однієї точки" | Немає поля-групи в БД — групуй заднім числом через `findEventGroup()` (часове вікно), не шукай зв'язок у моделі |
+| Довіра "виконано" в `CODING_GUIDE.md`/vault-файлах | Перевіряй, що файл справді існує в `src/`, перш ніж вважати крок готовим — тут уже кілька разів (Фаза 15/16, потім і сам vault) позначки "виконано"/"резинхронізовано" виявлялись застарілими вже за пару сесій |
+| Пошук актуального стану | `CODING_GUIDE.md` = факт коду (Фаза 1-17); `documents/*.md` = design-довідник (ресинхронізовано 2026-08-24, не Фаза 17) |

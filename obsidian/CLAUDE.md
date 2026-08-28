@@ -2,142 +2,152 @@
 
 Frontend-репозиторій застосунку обліку транспортних витрат. React PWA,
 навчальний проєкт (JS/React/TS з нуля) — весь процес написання коду
-задокументований крок за кроком у `CODING_GUIDE.md` у корені репо
-(зараз Фази 1-16: **1-13 набрано в код**, **14-16 щойно дописані в
-гайд** — рольова маршрутизація, QR-сканер водія, CRUD автопарку для
-логіста — ще НЕ набрані руками в репозиторій, це наступний крок).
+задокументований крок за кроком у `CODING_GUIDE.md` у корені репо.
+
+> ⚠️ **Резинхронізовано 2026-08-28** — попередня версія цього файлу
+> (від 2026-08-24) стверджувала "Фази 14-16 щойно дописані в гайд, ще
+> НЕ набрані руками" і давала НЕПРАВИЛЬНИЙ шлях бекенду
+> (`C:\Users\b.kisliy\PycharmProjects\DjangoProject\vehicle_tracker_api\`
+> — з друкарською помилкою в імені користувача й зайвою підтекою). Обидва
+> твердження вже неправдиві: **Фази 1-17 реально набрані, змержені в
+> `main` і задеплоєні** (перевірено напряму — файли існують, білд
+> проходить), а правильний шлях бекенду — нижче.
 
 Пов'язаний репозиторій: **vehicle_tracker_api** (Django-бекенд,
-`C:\Users\b.kisliy\PycharmProjects\DjangoProject\vehicle_tracker_api\`) —
-один застосунок, розділений на два репо. Vault-контекст бекенду: тека
+`C:\Users\b.kysliy\PycharmProjects\vehicle_tracker_api\`) — один
+застосунок, розділений на два репо. Vault-контекст бекенду: тека
 `vehicle_tracker_api` поруч із цією в `projects/` (Junction на
 `task_description/` у бекенд-репо).
 
 ## Стек
 
-- React 19, TypeScript, Vite
-- react-router-dom v7 (маршрутизація)
-- TanStack Query v5 (data fetching/caching) — підключено з Фази 4.5
-  (`useCurrentUser`, `QueryClientProvider` у `main.tsx`)
-- Tailwind CSS + власний CSS-файл для лендінгу (`landing.css`)
-- Recharts (аналітика, заплановано, ще не в гайді)
-- html5-qrcode — у `package.json`, гайд написаний (Фаза 15 —
-  `QRScanner`, `parseQR.ts`), сам компонент ще не набраний у код
+- React 19.2, TypeScript 6.0, Vite 8.1
+- react-router-dom v7.18 (маршрутизація)
+- TanStack Query v5.101 (data fetching/caching) — `useCurrentUser`,
+  `QueryClientProvider` у `main.tsx`
+- Tailwind CSS v4.3 + власний CSS-файл для лендінгу (`landing.css`)
+- Recharts v3.9 (у залежностях, аналітика ще не написана — свідомо
+  відкладено)
+- html5-qrcode v2.3.8 — реально використовується (`QRScanner.tsx`,
+  Фаза 15)
 
 ## Структура репо (реальний стан коду, не лише гайд)
 
 ```
 src/
-  App.tsx                     — маршрути; `/` зараз Navigate на /driver
-                                 (Фаза 14 гайду це виправляє на рольовий
-                                 редирект, ще не набрано)
+  App.tsx                     — маршрути; RequireRole на /fleet і /driver,
+                                 RoleRedirect на "/"
   main.tsx, index.css, assets/logo.png
   api/
-    config.ts                — apiFetch (credentials, CSRF, JSON)
-    auth.ts, cars.ts (read-only!), drivers.ts (read-only!),
-    routeEvents.ts, waybills.ts
+    config.ts                — apiFetch (credentials, CSRF, JSON), USE_MOCK
+    auth.ts, cars.ts, drivers.ts — повний CRUD (не read-only)
+    routeEvents.ts            — create/delete (Фаза 17), fetchToday/fetchDriver/lastOdometer
+    waybills.ts
   components/
-    auth/AuthModal.tsx
-    layouts/TopNav.tsx        — верхнє меню лендінгу; LandingPage/TopNav
-                                 зараз "осиротілі" — жоден route на / їх
-                                 не показує (Фаза 14 виправляє)
-    layouts/MainLayout.tsx    — ліва sidebar, темний градієнт (не
-                                 верхнє меню; офісні сторінки)
-    layouts/DriverLayout.tsx  — окрема темна mobile-first тема, bottom
-                                 nav, навмисно відділена від MainLayout
-                                 (Telegram Mini App контекст)
-    driver/ui.tsx, DayModeSwitch.tsx — driver-версія ui/-компонентів
+    auth/AuthModal.tsx, RequireRole.tsx
+    layouts/TopNav.tsx        — верхнє меню лендінгу
+    layouts/MainLayout.tsx    — sidebar, офісні сторінки (/fleet, /waybills, ...)
+    layouts/DriverLayout.tsx  — темна mobile-first тема, bottom nav (Telegram Mini App контекст)
+    driver/ui.tsx, DayModeSwitch.tsx (compact-варіант), QRScanner.tsx
     waybills/WaybillList.tsx, WaybillTable.tsx, WaybillFiltersBar.tsx
     ui/ — Button, Input, Spinner, EmptyState, ErrorBanner, Badge,
-          Pagination, SortHeader (світла нейтральна дизайн-система)
-    fleet/, hired/, carriers/, analystics/ — ПОРОЖНІ заготовки (Фаза 2)
+          Pagination, SortHeader (світла нейтральна дизайн-система,
+          НЕЗАЛЕЖНА від components/driver/ui.tsx — однакові назви,
+          різні файли)
   pages/
-    driver/DriverDashboard.tsx, EventForm.tsx — реальні, живі
-    DriverMiniApp.tsx         — Telegram Mini App логін-екран; після
-                                 логіну сама редіректить за роллю
-                                 (ROLE_LANDING: driver→/driver,
-                                 logist/manager/head→/fleet) — це вже
-                                 набрано (коміт d82b5eb), окремо від
-                                 Фази 14 (`RequireRole`, захист самих
-                                 роутів для прямих переходів в URL —
-                                 досі не набрано)
-    LandingPage.tsx, UnderConstruction.tsx — код є, route відсутній
-    PlaceholderPage.tsx
-    fleet/, waybills/, hired/, carriers/, admin/, analystics/ — порожні
-  hocks/                      — тека названа "hocks", не "hooks" (навмисно)
-    useCars.ts (read-only), useDrivers.ts (read-only), useRouteEvents.ts,
-    useWaybills.ts, useWaybillFilters.ts, useDayMode.ts, useCurrentUser.ts,
-    useAuthModal.ts
-  utils/ — formatters, eventHelpers, calcSummary, calcTransportCost,
-           parseQR.ts (готовий парсер QR ESP/OPT/Rubin), clientFilter
+    driver/DriverDashboard.tsx, EventForm.tsx, DriverHistory.tsx,
+           EventDetail.tsx (Фаза 17 — деталі/видалення/групування подій)
+    fleet/FleetList.tsx, CarForm.tsx, DriverForm.tsx
+    DriverMiniApp.tsx         — Telegram Mini App логін-екран, редіректить
+                                 за роллю (ROLE_LANDING) після логіну
+    LandingPage.tsx, UnderConstruction.tsx, RoleRedirect.tsx, PlaceholderPage.tsx
+  hocks/                      — тека названа "hocks", не "hooks" (навмисно, [[decision_hocks_typo]])
+    useCars.ts, useDrivers.ts, useRouteEvents.ts (+useDeleteRouteEvent, Фаза 17),
+    useWaybills.ts, useWaybillFilters.ts, useDayMode.ts (carId-scoped),
+    useCurrentUser.ts, useAuthModal.ts
+  utils/ — formatters, eventHelpers (+findEventGroup, Фаза 17),
+           calcSummary, calcTransportCost, calcProduct, parseQR.ts, clientFilter
   styles/landing.css
   types/index.ts               — Car/CarSpecs/Trailer/Driver/RouteEvent/
                                   WaybillRecord/HiredTransportTrip/
-                                  CarrierShipment/аналітичні типи
-  mocks/ — cars.json, drivers.json, route-events.json, waybills.json
+                                  CarrierShipment/аналітичні типи;
+                                  CarStatus тепер 5 значень (+pause/driver_downtime)
+  mocks/ — cars.json, drivers.json, route-events.json, waybills.json (лише ці 4)
 
-documents/                    — ТЗ/специфікація проєкту (01-08), 2026-08-24
-                                 повністю ресинхронізована з фактичним
-                                 кодом (кожен розділ позначено ✅
-                                 реалізовано / ⏳ заплановано) — досі
-                                 pre-dev дизайн-документ, НЕ джерело
-                                 правди по факту імплементації, для
-                                 цього CODING_GUIDE.md
-CODING_GUIDE.md                — покроковий навчальний гайд, Фази 1-16,
+documents/                    — ТЗ/специфікація проєкту (01-08), design-
+                                 довідник, ресинхронізовано 2026-08-24 —
+                                 НЕ джерело правди по факту імплементації,
+                                 для цього CODING_GUIDE.md
+CODING_GUIDE.md                — покроковий навчальний гайд, Фази 1-17,
                                  джерело правди по тому, що реально
                                  набрано в код (крок за кроком)
 Dockerfile, docker-compose.yml, nginx.conf — деплой на Raspberry Pi
 .github/workflows/deploy.yml   — автодеплой при push у main
 ```
 
-**Порожні заготовки з Фази 2** (директорії існують, файлів немає):
-`src/pages/{fleet,waybills,hired,carriers,admin,analystics}`,
-`src/components/{fleet,hired,carriers,analystics}`, і typo-директорія
-`src/componentsu/carriers` (сміття, ніде не імпортується).
+Стубів `src/pages/{fleet,hired,carriers,admin,analystics}`,
+`src/components/{fleet,hired,carriers,analystics}` (Фаза 2) уже немає —
+`fleet/` реальний, решта директорій прибрані разом з рештою
+не-`PlaceholderPage`-маршрутів, які досі порожні (`/hired`, `/carriers`,
+`/admin`, `/analytics` — рендерять `PlaceholderPage`, коду під них ще
+нема).
 
 ## Деплой
 
 - Продакшн: **warehouse.mom** (Raspberry Pi вдома, за Cloudflare Tunnel).
-- `main` = задеплоєний код. Кожна фаза — окрема гілка, мерж у `main` →
-  GitHub Actions (`deploy.yml`) сам збирає Docker-образ і викочує на Pi
-  через `ssh.warehouse.mom` (`cloudflared access ssh`).
+- `main` = задеплоєний код. Push у `main` → GitHub Actions (`deploy.yml`)
+  сам збирає Docker-образ і викочує на Pi через `ssh.warehouse.mom`
+  (`cloudflared access ssh`).
 - SSH-доступ на Pi: user `rasberry_kisliy`, ключ у секреті `PI_SSH_KEY`.
 - ⚠️ При будь-якому переписуванні `App.tsx`/`src/api/cars.ts` — звірити,
   що маршрут `/driver-app` і сам `cars.ts` не зникли (вже двічі губили
   при рефакторингах, коментар `⚠️ НЕ ВИДАЛЯТИ` в `App.tsx`).
+- **Перед пушем — обов'язково `npm run build`** (не лише `tsc --noEmit`)
+  — `tsc -b` (реальний білд) ловив помилки, які `--noEmit` пропускав
+  ([[verify-with-npm-run-build]]).
 
 ## Робочий процес
 
 - Гілка на фазу з `CODING_GUIDE.md` → проміжні коміти → PR → merge у `main`
   → автодеплой. Пряма робота в `main` — тільки для ранніх фаз (1-4), поки
-  коду було мало.
+  коду було мало; пізніші фази теж часто йшли напряму в `main` (дивись
+  git log — не завжди суворо через PR).
 - Інший процес (не ця сесія) теж комітить/мержить у `main` незалежно —
   перед висновками про стан репо звіряй `git log`, не покладайся на
   пам'ять попередньої сесії.
 
 ## Бекенд коротко (деталі — vault-тека vehicle_tracker_api)
 
-> ⚠️ Перевірено напряму 2026-08-26 — бекенд пішов значно вперед,
-> нижче виправлено (був застарілий запис "AllowAny").
-
 `apps/cars` (Car/Driver/RouteEvent/MonthlyCosts) — повний CRUD, живий,
-підключений до фронтенду, **вже з рольовим захистом**: `get_permissions()`
-вимагає `IsAuthenticated` на читання й `IsLogistOrAbove` на запис
-(`DJANGO_CODING_GUIDE.md` Фаза 9, змержено PR #1, коміт `5364f32`).
-Фаза 10 (nested `specs`/`trailer` write) — теж змержена (PR #2,
-`6df8ac5`/`2da211f`). `apps/logistics` (найманий транспорт + служби
-доставки, Фаза 11) — моделі закомічені, повна реалізація
-(serializers/views/urls/admin) готова й перевірена (`manage.py check`),
-але ще НЕ закомічена (лежить у робочій копії бекенду). `apps/accounts`
-— ролі (`driver`/`logist`/`manager`/`head`), Telegram-бот для реєстрації
-водіїв, задеплоєний і робочий у проді (деталі —
-`TELEGRAM_BOT_SETUP.md` у бекенд-репо). `products`/`customers`/
-`waybills`(1С-імпорт) — моделі є, API ще не написане.
+рольовий захист: `get_permissions()` вимагає `IsAuthenticated` на
+читання й `IsLogistOrAbove` на запис (DRF `ModelViewSet`). `RouteEventViewSet`
+не перевизначає `get_permissions()` — діє дефолтний `IsAuthenticated`
+на всі дії (включно з `destroy`), `get_queryset()` обмежує водія його
+ж подіями. `CarStatus` — 5 значень (`active`/`repair`/`inactive`/
+`pause`/`driver_downtime`, додано 2026-08-28).
 
-**Наслідок для фронтенду:** `/api/cars/`, `/api/drivers/` тепер
-вимагають автентифікованої сесії навіть на читання — раніше були
-відкриті. Варто перевірити, що живий `/driver`-флоу (вхід через
-Telegram Mini App) досі отримує ці дані без 401/403.
+`apps/logistics` (найманий транспорт + служби доставки, Фаза 15
+бекенду) — **лише моделі** (`HiredTransportTrip`/`CarrierShipment`,
+міграція, комміт `453d461`) і порожні заглушки `views.py`/`admin.py`
+(по 3 рядки) — серіалізатори/URL ще не написані, `config/urls.py`
+підключення закоментоване з `# TODO`. Попередні нотатки в цьому vault
+(2026-08-26) стверджували, що серіалізатори/views/urls вже готові в
+робочій копії — це виявилось хибним/застарілим при прямій перевірці
+2026-08-28, або та робота була відкинута.
+
+`apps/accounts` — ролі (`driver`/`logist`/`manager`/`head`),
+Telegram-бот для реєстрації водіїв, задеплоєний і робочий у проді.
+Email-реєстрація тепер теж створює порожній `Driver`-запис (раніше
+цього не робила — [[telegram-email-account-linking-gap]], пофіксено
+бекенд-комітом `e5b5f7f` 2026-08-28).
+
+`products`/`customers`/`analysis`/`waybills` (1С-імпорт) — app-теки
+існують, моделі мінімальні або відсутні, API ще не написане.
+
+**Наслідок для фронтенду:** усі `/api/cars/`, `/api/drivers/`,
+`/api/route-events/` вимагають автентифікованої сесії; DELETE на
+`/api/route-events/<id>/` уже підтримується без додаткових бекенд-змін
+(Фаза 17 фронтенду просто почала його викликати).
 
 ## Obsidian vault sync
 
@@ -157,8 +167,9 @@ Telegram Mini App) досі отримує ці дані без 401/403.
 `vehicle_tracker_api/task_description/`, для паритету документації
 між репозиторіями):
 - `STATE.md` — ширший наратив поточного стану (те саме, що й
-  `tasks.md`, але детальніше, з контекстом "чому"; не дублюй один в
-  одного механічно — `tasks.md` лишається коротким, `STATE.md` довшим).
+  `tasks.md`, але детальніше, з контекстом "чому"; не дублюй сюди все з
+  `tasks.md` механічно — `tasks.md` лишається коротким, `STATE.md`
+  довшим).
 - `CHANGES.md` — хронологічний журнал змін (детальніше, ніж записи в
   `tasks.md`, з розділами "Що зроблено / Чому / Статус" на кожну подію).
 - `AGENTS_GLOBAL.md` — правила проєкту й стандарти коду (те, що в
@@ -176,3 +187,13 @@ Telegram Mini App) досі отримує ці дані без 401/403.
 
 Онови ці файли одразу наприкінці сесії, якщо було зроблено значущу зміну
 (задача, архітектурне рішення, зміна `.env`) — не відкладай.
+
+> ⚠️ Урок 2026-08-28: цей vault лежав застарілим кілька сесій поспіль
+> (STATE.md/tasks.md/AGENTS_GLOBAL.md/AI_AGENT_CONTEXT.md усі
+> стверджували "Фаза 14-16 не набрана" вже ПІСЛЯ того, як вони були
+> реально задеплоєні) — і кожен новий стверджувальний запис ("✅
+> Резинхронізовано ЦЬОГО ЧИСЛА") сам ставав джерелом хибної інформації
+> для наступної сесії, щойно код рухався далі. Довіряй позначкам
+> "перевірено на дату X" лише як знімку на той момент, а не як
+> постійному факту — перед плануванням завжди звіряй з `git log` і
+> реальними файлами `src/`, а не тільки з текстом іншого нотатника.
