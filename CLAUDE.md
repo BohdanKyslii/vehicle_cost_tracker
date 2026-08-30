@@ -1,7 +1,7 @@
 ## Obsidian vault sync
 Контекст цього проєкту для Obsidian-vault живе прямо в репо: `obsidian/`
 (CLAUDE.md, tasks.md, decisions.md, env.example.md). У vault
-(`C:\Users\b.kysliy\obsidian-vault-Kyslii\`) на цю теку вказує Windows
+(`C:\Users\b.kisliy\obsidian-vault-Kyslii\`) на цю теку вказує Windows
 Junction `projects\vehicle_cost_tracker` — той самий підхід, що й для
 `vehicle_tracker_api` (там `projects\vehicle_tracker_api` — Junction на
 `task_description` всередині його репо).
@@ -19,23 +19,33 @@ Junction `projects\vehicle_cost_tracker` — той самий підхід, щ�
 - Онови ці файли одразу наприкінці сесії, якщо було зроблено значущу зміну
   (задача, архітектурне рішення, зміна `.env`) — не відкладай.
 - Якщо Junction колись зникне (нове клонування репо, нова машина) —
-  перестворити: `New-Item -ItemType Junction -Path "C:\Users\b.kysliy\obsidian-vault-Kyslii\projects\vehicle_cost_tracker" -Target "<шлях-до-репо>\obsidian"`.
+  перестворити: `New-Item -ItemType Junction -Path "C:\Users\b.kisliy\obsidian-vault-Kyslii\projects\vehicle_cost_tracker" -Target "<шлях-до-репо>\obsidian"`.
 
 Пов'язаний репозиторій: **vehicle_tracker_api** (Django-бекенд,
-`C:\Users\b.kysliy\PycharmProjects\vehicle_tracker_api\`) — це один
-застосунок, розділений на два репо. Vault-контекст бекенду: тека
+`C:\Users\b.kisliy\PycharmProjects\DjangoProject\vehicle_tracker_api\`) —
+це один застосунок, розділений на два репо. Vault-контекст бекенду: тека
 `projects\vehicle_tracker_api` у тому ж vault (Junction на
 `task_description` в бекенд-репо).
 
-> Виправлено 2026-08-28: попередня нотатка тут (від 2026-08-24, "хибний
-> шлях... перевірено напряму") сама виявилась невірною — стверджувала
-> путь із зайвою підтекою `DjangoProject\` та юзернеймом `b.kisliy`
-> (через "і"). Обидва не існують на цій машині. Цього разу підтверджено
-> НАПРЯМУ трьома незалежними джерелами: (1) `ls` на
-> `C:\Users\b.kysliy\PycharmProjects\vehicle_tracker_api\` — репо реально
-> там, з git-історією; (2) сама тека користувача `C:\Users\b.kisliy\`
-> взагалі не існує (`ls` дає "No such file or directory"); (3) Junction
-> `projects\vehicle_tracker_api` у vault-і фізично вказує саме на
-> `C:\Users\b.kysliy\PycharmProjects\vehicle_tracker_api\task_description`.
-> Бекенд-репо в цій сесії доступний для читання/редагування/git — не
-> лише "пов'язаний, але недоступний", як вважалось раніше.
+> **Виправлено 2026-08-30 (третій раз — цього разу з поясненням, чому
+> нотатка сама собі суперечила двічі поспіль):** правильний шлях —
+> `C:\Users\b.kisliy\PycharmProjects\DjangoProject\vehicle_tracker_api\`
+> (юзернейм "kisliy" через "і", і ПІД ПІДТЕКОЮ `DjangoProject\`). Це
+> підтверджено 2026-08-30 напряму через `PowerShell`
+> (`Get-ChildItem "C:\Users"`, `Get-ChildItem
+> ...\PycharmProjects\DjangoProject`) — репо реально там, з git-історією
+> й незакомiченими змінами на момент перевірки.
+>
+> **Чому цей шлях "виправляли" в хибний бік двічі (24.08 → 28.08):**
+> обидві попередні "перевірки напряму" робились через `Bash`-інструмент
+> (Git Bash/POSIX sh), а не `PowerShell`. У POSIX-шеллі зворотний слеш
+> — escape-символ, тому `ls "C:\Users\b.kisliy\..."` в Bash ненадійний:
+> може мовчки з'їсти частину шляху або дати хибний "No such file or
+> directory" на РЕАЛЬНО існуючій теці (і навпаки — хибний "успіх" на
+> неіснуючій). Сесія 28.08 отримала саме таку хибну відповідь, повірила
+> їй як "перевірено трьома незалежними джерелами" і записала сюди
+> протилежне до істини. **Правило на майбутнє:** перевіряти
+> Windows-шляхи з `\` через `PowerShell`-інструмент
+> (`Get-ChildItem`/`Test-Path`), не через `Bash`/`ls` — або передавати в
+> Bash шлях з прямими слешами (`C:/Users/...`).
+

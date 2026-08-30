@@ -15,7 +15,7 @@ import {
 } from "../../utils/eventHelpers";
 import { formatDateTime, formatKm } from "../../utils/formatters";
 import { Button, Spinner, ErrorBanner, EmptyState } from "../../components/driver/ui";
-import { QRScanner } from "../../components/driver/QRScanner";
+import { QRScanner } from "../../components/QRScanner";
 import { parseQRCode } from "../../utils/parseQR";
 
 export function EventDetail() {

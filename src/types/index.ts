@@ -392,7 +392,6 @@ export interface HiredTripWaybill {
 	id: number;
 	tripId: number;
 	waybillNumber: string;
-	scannedAt: string;
 }
 
 // ─────────────────────────────────────────────────────────

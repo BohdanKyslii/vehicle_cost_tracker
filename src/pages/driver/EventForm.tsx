@@ -8,7 +8,7 @@ import { useDayMode } from "../../hocks/useDayMode";
 import { useCreateRouteEvent, useLastOdometer, useTodayEvents } from "../../hocks/useRouteEvents";
 import { requiresOdometer, requiresWaybill, requiresPallets, eventTypeLabel, eventTypeIcon, eventTypeGradient, withStopTag } from "../../utils/eventHelpers";
 import { Input, Button, ErrorBanner, Spinner } from "../../components/driver/ui";
-import { QRScanner } from "../../components/driver/QRScanner";
+import { QRScanner } from "../../components/QRScanner";
 import { parseQRCode } from "../../utils/parseQR";
 
 export function EventForm() {

@@ -14,6 +14,8 @@ import { EventDetail } from "./pages/driver/EventDetail";
 import { FleetList } from "./pages/fleet/FleetList";
 import { CarForm } from "./pages/fleet/CarForm";
 import { DriverForm } from "./pages/fleet/DriverForm";
+import { HiredTripList } from "./pages/hired/HiredTripList";
+import { HiredTripForm } from "./pages/hired/HiredTripForm";
 
 // Далі будемо замінювати PlaceholderPage на реальні компоненти
 
@@ -27,13 +29,6 @@ export default function App() {
                 <Route path="import" element={<PlaceholderPage title="Імпорт із 1С" />} />
                 <Route path="unassigned" element={<PlaceholderPage title="Не призначені" />} />
                 <Route path="returns" element={<PlaceholderPage title="Матчинг повернень" />} />
-            </Route>
-
-            {/* ── Найманий транспорт ───────────────────────── */}
-            <Route path="/hired" element={<MainLayout />}>
-                <Route index element={<PlaceholderPage title="Найманий транспорт" />} />
-                <Route path="new" element={<PlaceholderPage title="Новий рейс" />} />
-                <Route path=":tripId" element={<PlaceholderPage title="Деталі рейсу" />} />
             </Route>
 
             {/* ── Служби доставки ──────────────────────────── */}
@@ -94,7 +89,22 @@ export default function App() {
                 <Route path="drivers/:driverId" element={<DriverForm />} />
                 <Route path=":carId" element={<CarForm />} />
             </Route>
-            {/* /waybills, /hired, /carriers, /analytics, /admin — та сама обгортка RequireRole */}
+
+            {/* Найманий транспорт — окрема гілка/фаза від /admin (Фаза 19),
+            спільний з нею лише цей файл */}
+            <Route
+                path="/hired"
+                element={
+                    <RequireRole roles={["logist", "manager", "head"]}>
+                        <MainLayout />
+                    </RequireRole>
+                }
+            >
+                <Route index element={<HiredTripList />} />
+                <Route path="new" element={<HiredTripForm />} />
+                <Route path=":tripId" element={<HiredTripForm />} />
+            </Route>
+            {/* /waybills, /carriers, /analytics, /admin — та сама обгортка RequireRole, поки не реалізовані */}
             
             {/* Telegram Mini App — залишається ЄДИНИМ маршрутом, без RequireRole
             (сам логінить через initData ще до того, як роль відома) */}
