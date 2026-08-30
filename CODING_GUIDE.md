@@ -24,7 +24,10 @@
 14. [Фаза 14 — Рольова маршрутизація](#faza-14)
 15. [Фаза 15 — QR-сканер накладних для водія](#faza-15)
 16. [Фаза 16 — Автопарк для логіста (Fleet CRUD)](#faza-16)
-17. [Що далі](#shcho-dali)
+17. [Фаза 17 — Дешборд водія: компактні плитки, видалення/групування подій](#faza-17)
+18. [Фаза 18 — Найманий транспорт (HiredTransportTrip)](#faza-18)
+19. [Фаза 19 — Витрати по своїх авто (MonthlyCosts)](#faza-19)
+20. [Що далі](#shcho-dali)
 
 > Фази нумеруються так, як вони йшли по факту написання коду — Фази 12
 > у файлі немає (пропущена в нумерації), це не помилка змісту.
@@ -6863,6 +6866,7 @@ export function DriverForm() {
 ---
 
 # ═══════════════════════════════════════════════════════════
+<a id="faza-17"></a>
 # ФАЗА 17 — ДЕШБОРД ВОДІЯ: КОМПАКТНІ ПЛИТКИ, ВИДАЛЕННЯ/ГРУПУВАННЯ ПОДІЙ
 # ═══════════════════════════════════════════════════════════
 
@@ -7524,6 +7528,943 @@ onSuccess: (newEvent) => {
 ---
 
 # ═══════════════════════════════════════════════════════════
+<a id="faza-18"></a>
+# ФАЗА 18 — НАЙМАНИЙ ТРАНСПОРТ (HiredTransportTrip)
+# ═══════════════════════════════════════════════════════════
+
+> Навіщо: логіст поки не має способу внести рейс найманого (не
+> власного) транспорту — з вартістю й прикріпленими накладними
+> (`HiredTransportTrip`). Екран уже має підготовлений маршрут-заглушку
+> в `App.tsx` (`/hired`) і навігацію в `MainLayout` — лишається написати
+> сам API-шар, хуки й форми, той самий CRUD-патерн, що й Фаза 16
+> (`CarForm`/`FleetList`).
+>
+> **Окрема гілка від Фази 19** (витрати по своїх авто, `MonthlyCosts`)
+> навмисно: різні модель/сторінки/маршрут, спільний лише `App.tsx` —
+> об'єднувати їх в одній гілці/PR немає сенсу, це два незалежні
+> функціонали. Обидві гілки чіпають `App.tsx`, але різні секції
+> (`/hired` тут, `/admin/monthly-costs` там) — при мержі обох у `main`
+> це звичайний git-merge різних рядків, не логічний конфлікт.
+
+## Крок 18.1 — Бекенд: перевір перед стартом
+
+Перед тим, як писати фронтенд — переконайся, що бекенд (`vehicle_tracker_api`)
+реально віддає ці ендпоінти:
+
+- **`/api/hired-transport-trips/`**, **`/api/carrier-shipments/`**,
+  **`/api/carrier-costs/`** — моделі існували з `faza_15` (`453d461`), але
+  серіалізатори/`views.py`/`urls.py` довгий час були порожніми заглушками
+  (`config/urls.py` мав закоментований `# TODO`). Дописано, підключено,
+  **закомічено, запушено й задеплоєно** (коміт `faza_15: serializers/views/urls
+  for apps.logistics`, злито з паралельними бекенд-змінами того ж дня,
+  міграція `0002_alter_hiredtripwaybill_waybill_number` застосована).
+  Перевірено напряму: `https://warehouse.mom/api/hired-transport-trips/`
+  віддає `403` (не 404/500) без сесії — так само, як і давно робочий
+  `/api/cars/`. Права коректні одразу (`IsLogistOrAbove` на запис).
+
+Звір формат полів (знадобиться нижче для `RawXxx`-типів):
+- `HiredTransportTrip.car_number` — вільний текст, НЕ зовнішній ключ на
+  `Car` (навмисно — рейс міг виконувати найманий автомобіль, якого
+  взагалі немає в автопарку).
+- `HiredTripWaybill` на бекенді має лише `id`/`waybill_number` — жодної
+  часової позначки (див. Крок 18.2).
+
+## Крок 18.2 — Тип-фікс types/index.ts: HiredTripWaybill.scannedAt не існує на бекенді
+
+`HiredTripWaybill`-модель (`apps/logistics/models.py`) зберігає лише
+прив'язку `trip` + `waybill_number` — жодного поля часу. Той самий
+принцип, що вже застосовували до `Trailer.model` (Фаза 16.5) — прибираємо
+поле з фронтенд-типу, а не вигадуємо значення, якого бекенд не дає:
+
+```typescript
+// src/types/index.ts
+export interface HiredTripWaybill {
+  id: number;
+  tripId: number;
+  waybillNumber: string;
+  // scannedAt прибрано — HiredTripWaybill на бекенді не має такого поля
+}
+```
+
+## Крок 18.3 — src/api/hiredTrips.ts
+
+```typescript
+// src/api/hiredTrips.ts
+import type { HiredTransportTrip, HiredTripWaybill } from "../types";
+import { apiFetch } from "./config.ts";
+
+interface Paginated<T> {
+  results: T[];
+}
+
+interface RawHiredTripWaybill {
+  id: number;
+  waybill_number: string;
+}
+
+interface RawHiredTransportTrip {
+  id: number;
+  car_number: string;
+  route_name: string;
+  trip_date: string;
+  pallets_count?: number | null;
+  cost_uah: string;
+  comment: string;
+  waybills: RawHiredTripWaybill[];
+  created_at: string;
+}
+
+function mapHiredTrip(raw: RawHiredTransportTrip): HiredTransportTrip {
+  return {
+    id: raw.id,
+    carNumber: raw.car_number,
+    routeName: raw.route_name,
+    tripDate: raw.trip_date,
+    palletsCount: raw.pallets_count ?? undefined,
+    costUah: Number(raw.cost_uah),
+    comment: raw.comment || undefined,
+    createdAt: raw.created_at,
+    waybills: raw.waybills.map((w): HiredTripWaybill => ({
+      id: w.id,
+      tripId: raw.id,
+      waybillNumber: w.waybill_number,
+    })),
+  };
+}
+
+export async function fetchHiredTrips(): Promise<HiredTransportTrip[]> {
+  const data = await apiFetch<Paginated<RawHiredTransportTrip>>("/hired-transport-trips/");
+  return data.results.map(mapHiredTrip);
+}
+
+export async function fetchHiredTrip(id: number): Promise<HiredTransportTrip> {
+  const raw = await apiFetch<RawHiredTransportTrip>(`/hired-transport-trips/${id}/`);
+  return mapHiredTrip(raw);
+}
+
+export interface HiredTripPayload {
+  carNumber: string;
+  routeName: string;
+  tripDate: string;
+  palletsCount?: number;
+  costUah: number;
+  comment?: string;
+}
+
+function toHiredTripPayload(data: HiredTripPayload) {
+  return {
+    car_number: data.carNumber,
+    route_name: data.routeName,
+    trip_date: data.tripDate,
+    pallets_count: data.palletsCount ?? null,
+    cost_uah: data.costUah,
+    comment: data.comment ?? "",
+  };
+}
+
+export async function createHiredTrip(data: HiredTripPayload): Promise<HiredTransportTrip> {
+  const raw = await apiFetch<RawHiredTransportTrip>("/hired-transport-trips/", { method: "POST", json: toHiredTripPayload(data) });
+  return mapHiredTrip(raw);
+}
+
+export async function updateHiredTrip(id: number, data: HiredTripPayload): Promise<HiredTransportTrip> {
+  const raw = await apiFetch<RawHiredTransportTrip>(`/hired-transport-trips/${id}/`, { method: "PATCH", json: toHiredTripPayload(data) });
+  return mapHiredTrip(raw);
+}
+
+export async function deleteHiredTrip(id: number): Promise<void> {
+  await apiFetch<void>(`/hired-transport-trips/${id}/`, { method: "DELETE" });
+}
+
+// POST /hired-transport-trips/{id}/attach_waybill/ — прикріплює накладну
+// й виставляє WaybillRecord.delivery_channel="hired" (apps/logistics, Крок 18.1)
+export async function attachWaybillToHiredTrip(id: number, waybillNumber: string): Promise<HiredTransportTrip> {
+  const raw = await apiFetch<RawHiredTransportTrip>(`/hired-transport-trips/${id}/attach_waybill/`, {
+    method: "POST",
+    json: { waybill_number: waybillNumber },
+  });
+  return mapHiredTrip(raw);
+}
+```
+
+## Крок 18.4 — src/hocks/useHiredTrips.ts
+
+```typescript
+// src/hocks/useHiredTrips.ts
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  fetchHiredTrips,
+  fetchHiredTrip,
+  createHiredTrip,
+  updateHiredTrip,
+  deleteHiredTrip,
+  attachWaybillToHiredTrip,
+} from "../api/hiredTrips";
+import type { HiredTripPayload } from "../api/hiredTrips";
+
+export function useHiredTrips() {
+  return useQuery({ queryKey: ["hired-trips"], queryFn: fetchHiredTrips });
+}
+
+export function useHiredTrip(id: number) {
+  return useQuery({
+    queryKey: ["hired-trips", id],
+    queryFn: () => fetchHiredTrip(id),
+    enabled: !!id,
+  });
+}
+
+export function useCreateHiredTrip() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: HiredTripPayload) => createHiredTrip(data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["hired-trips"] }),
+  });
+}
+
+export function useUpdateHiredTrip(id: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: HiredTripPayload) => updateHiredTrip(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["hired-trips"] });
+      queryClient.invalidateQueries({ queryKey: ["hired-trips", id] });
+    },
+  });
+}
+
+export function useDeleteHiredTrip() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => deleteHiredTrip(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["hired-trips"] }),
+  });
+}
+
+// id окремо від аргументів хука — той самий call-time патерн, що
+// useUpdateDriver (Фаза 16): id рейсу відомий лише в момент виклику
+export function useAttachWaybillToHiredTrip() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, waybillNumber }: { id: number; waybillNumber: string }) =>
+      attachWaybillToHiredTrip(id, waybillNumber),
+    onSuccess: (_data, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ["hired-trips"] });
+      queryClient.invalidateQueries({ queryKey: ["hired-trips", id] });
+    },
+  });
+}
+```
+
+## Крок 18.5 — Спільний QRScanner + pages/hired/HiredTripList.tsx і HiredTripForm.tsx
+
+Накладну до рейсу прикріплює не набір номера з клавіатури, а скан
+камерою фізичного QR-коду — той самий спосіб, що вже використовує
+водій в `EventForm` (Фаза 15). `QRScanner.tsx` зараз лежить у
+`components/driver/` — і потрібен там, де тільки водій. Але тепер він
+знадобиться і в офісному розділі (`/hired`, світла тема `MainLayout`,
+не темний `DriverLayout` водія) — переносимо на рівень вище, він
+більше не driver-only:
+
+```bash
+git mv src/components/driver/QRScanner.tsx src/components/QRScanner.tsx
+```
+
+Поправ 2 імпорти, які вже на нього посилаються (Фаза 15/17) — сам файл
+і `utils/parseQR.ts` без змін, жодної driver-специфічної логіки в них
+не було, лише розташування в "driver-теці" було історичним:
+
+```typescript
+// src/pages/driver/EventForm.tsx
+import { QRScanner } from "../../components/QRScanner";
+```
+
+```typescript
+// src/pages/driver/EventDetail.tsx
+import { QRScanner } from "../../components/QRScanner";
+```
+
+```typescript
+// src/pages/hired/HiredTripList.tsx
+import { Link } from "react-router-dom";
+import { useHiredTrips } from "../../hocks/useHiredTrips";
+import { Spinner } from "../../components/ui/Spinner";
+import { EmptyState } from "../../components/ui/EmptyState";
+import { ErrorBanner } from "../../components/ui/ErrorBanner";
+
+export function HiredTripList() {
+  const { data: trips, isLoading, isError, refetch } = useHiredTrips();
+
+  return (
+    <div className="p-6 space-y-4">
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold text-white">Найманий транспорт</h1>
+        <Link to="/hired/new" className="px-3 py-2 text-sm rounded-lg bg-violet-600 text-white hover:bg-violet-500">
+          + Новий рейс
+        </Link>
+      </div>
+
+      {isLoading && <Spinner size="lg" label="Завантаження рейсів..." />}
+      {isError && !isLoading && <ErrorBanner message="Не вдалось завантажити рейси" onRetry={refetch} />}
+      {!isLoading && !isError && trips?.length === 0 && (
+        <EmptyState title="Рейсів ще немає" subtitle="Натисніть «Новий рейс», щоб внести перший" />
+      )}
+
+      {!isLoading && !isError && trips && trips.length > 0 && (
+        <table className="w-full text-sm">
+          <thead className="text-left text-white/50 border-b border-white/10">
+            <tr>
+              <th className="py-2">Дата</th>
+              <th className="py-2">Авто</th>
+              <th className="py-2">Маршрут</th>
+              <th className="py-2">Сума (грн)</th>
+              <th className="py-2">Накладних</th>
+            </tr>
+          </thead>
+          <tbody>
+            {trips.map((t) => (
+              <tr key={t.id} className="border-b border-white/5 hover:bg-white/5">
+                <td className="py-2">{t.tripDate}</td>
+                <td className="py-2">
+                  <Link to={`/hired/${t.id}`} className="text-violet-300 hover:underline">{t.carNumber}</Link>
+                </td>
+                <td className="py-2">{t.routeName}</td>
+                <td className="py-2">{t.costUah.toFixed(2)}</td>
+                <td className="py-2">{t.waybills?.length ?? 0}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+```
+
+`HiredTripForm` — на відміну від `CarForm`, після УСПІШНОГО створення
+переходить одразу на картку щойно створеного рейсу (`/hired/{id}`), а
+не на список: прикріпити накладну можна лише в режимі редагування (`id`
+рейсу потрібен для `attach_waybill`), і робити для цього окремий похід
+"збережи → відкрий знову" — зайве тертя:
+
+```typescript
+// src/pages/hired/HiredTripForm.tsx
+import { useState } from "react";
+import type { FormEvent } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import {
+  useHiredTrip,
+  useCreateHiredTrip,
+  useUpdateHiredTrip,
+  useAttachWaybillToHiredTrip,
+} from "../../hocks/useHiredTrips";
+import { Input } from "../../components/ui/Input";
+import { Button } from "../../components/ui/Button";
+import { ErrorBanner } from "../../components/ui/ErrorBanner";
+import { QRScanner } from "../../components/QRScanner";
+import { parseQRCode } from "../../utils/parseQR";
+import type { HiredTripPayload } from "../../api/hiredTrips";
+
+export function HiredTripForm() {
+  const { tripId } = useParams();
+  const navigate = useNavigate();
+  const isEdit = !!tripId;
+  const { data: existing } = useHiredTrip(isEdit ? Number(tripId) : 0);
+
+  const [carNumber, setCarNumber] = useState(existing?.carNumber ?? "");
+  const [routeName, setRouteName] = useState(existing?.routeName ?? "");
+  const [tripDate, setTripDate] = useState(existing?.tripDate ?? "");
+  const [palletsCount, setPalletsCount] = useState(String(existing?.palletsCount ?? ""));
+  const [costUah, setCostUah] = useState(String(existing?.costUah ?? ""));
+  const [comment, setComment] = useState(existing?.comment ?? "");
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
+
+  const createTrip = useCreateHiredTrip();
+  const updateTrip = useUpdateHiredTrip(Number(tripId));
+  const attachWaybill = useAttachWaybillToHiredTrip();
+  const mutation = isEdit ? updateTrip : createTrip;
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    const payload: HiredTripPayload = {
+      carNumber,
+      routeName,
+      tripDate,
+      palletsCount: palletsCount ? Number(palletsCount) : undefined,
+      costUah: Number(costUah),
+      comment: comment || undefined,
+    };
+    mutation.mutate(payload, {
+      onSuccess: (saved) => navigate(isEdit ? "/hired" : `/hired/${saved.id}`),
+    });
+  }
+
+  // Сканує камерою фізичний QR накладної — та сама логіка, що в EventForm
+  // (Фаза 15), лише waybillNumber ідe в attach_waybill; waybillDate з
+  // parseQRCode тут нема куди класти — HiredTripWaybill дату не зберігає
+  function handleScan(raw: string) {
+    const parsed = parseQRCode(raw);
+    if (!parsed) {
+      setScanError("Не вдалось розпізнати QR — спробуй ще раз");
+      return;
+    }
+    setScanError(null);
+    setScannerOpen(false);
+    if (!existing) return;
+    attachWaybill.mutate(
+      { id: existing.id, waybillNumber: parsed.waybillNumber },
+      { onError: (err) => setScanError((err as Error).message) },
+    );
+  }
+
+  return (
+    <div className="p-6 max-w-lg space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <h1 className="text-xl font-bold text-white">{isEdit ? "Редагувати рейс" : "Новий рейс найманого транспорту"}</h1>
+
+        <Input label="Номер авто" value={carNumber} onChange={(e) => setCarNumber(e.target.value)} required />
+        <Input label="Назва маршруту" value={routeName} onChange={(e) => setRouteName(e.target.value)} required />
+        <Input label="Дата рейсу" type="date" value={tripDate} onChange={(e) => setTripDate(e.target.value)} required />
+        <Input label="Кількість палет" type="number" value={palletsCount} onChange={(e) => setPalletsCount(e.target.value)} />
+        <Input label="Вартість рейсу (грн)" type="number" step="0.01" value={costUah} onChange={(e) => setCostUah(e.target.value)} required />
+        <Input label="Коментар" value={comment} onChange={(e) => setComment(e.target.value)} />
+
+        {mutation.isError && <ErrorBanner message={(mutation.error as Error).message} />}
+
+        <div className="flex gap-3">
+          <Button type="button" variant="ghost" onClick={() => navigate("/hired")}>Скасувати</Button>
+          <Button type="submit" isLoading={mutation.isPending} className="flex-1">Зберегти</Button>
+        </div>
+      </form>
+
+      {isEdit && existing && (
+        <div className="space-y-2 rounded-lg border border-white/10 p-4">
+          <h2 className="text-sm font-semibold text-white">Накладні рейсу</h2>
+          {existing.waybills && existing.waybills.length > 0 ? (
+            <ul className="space-y-1 text-sm text-white/70">
+              {existing.waybills.map((w) => <li key={w.id}>№ {w.waybillNumber}</li>)}
+            </ul>
+          ) : (
+            <p className="text-sm text-white/40">Ще нічого не прикріплено</p>
+          )}
+          <Button type="button" variant="ghost" onClick={() => setScannerOpen(true)} isLoading={attachWaybill.isPending}>
+            📷 Сканувати накладну
+          </Button>
+          {scanError && <ErrorBanner message={scanError} />}
+          {scannerOpen && (
+            <QRScanner onScan={handleScan} onClose={() => setScannerOpen(false)} notice={scanError} />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+> **Хто саме сканує — питання ролі, не техніки.** Доступ на `/hired`
+> дає роль (`RequireRole roles={["logist", "manager", "head"]}`, Крок
+> 18.6), а не посада. `apps/accounts` зараз має лише 4 ролі:
+> `driver`/`logist`/`manager`/`head` — окремої ролі "склад" немає. Якщо
+> реальний співробітник складу, що сканує накладні, — не той самий
+> логіст, що вносить рейси, йому доведеться заходити під обліковим
+> записом з роллю `logist`. Якщо потрібна саме вужча роль (наприклад,
+> тільки сканувати, без права редагувати суму рейсу чи видаляти) — це
+> окреме архітектурне рішення на бекенді (нова роль у `Profile.role` +
+> новий permission-клас), не проста фронтенд-правка.
+
+## Крок 18.6 — Підключення в App.tsx
+
+Заміни плейсхолдер і, найважливіше, — обгорни `/hired` в `RequireRole`,
+як уже зроблено для `/fleet` (Фаза 14): досі він не був гейтований
+взагалі, бо під ним був лише `PlaceholderPage`, і ніхто про це не
+подбав, коли писався коментар "та сама обгортка RequireRole" (Крок
+16.7) — тепер під ним реальна форма запису, і без гейта будь-який
+залогинений (включно з водієм) відкрив би її у браузері (бекенд усе
+одно захищений — Крок 18.1 — але UX мав би показати "немає доступу", а
+не форму, яка потім впаде на збереженні):
+
+```typescript
+// src/App.tsx
+import { HiredTripList } from "./pages/hired/HiredTripList";
+import { HiredTripForm } from "./pages/hired/HiredTripForm";
+
+// ...
+
+{/* ── Найманий транспорт ───────────────────────── */}
+<Route
+  path="/hired"
+  element={
+    <RequireRole roles={["logist", "manager", "head"]}>
+      <MainLayout />
+    </RequireRole>
+  }
+>
+  <Route index element={<HiredTripList />} />
+  <Route path="new" element={<HiredTripForm />} />
+  <Route path=":tripId" element={<HiredTripForm />} />
+</Route>
+```
+
+> `/waybills`, `/carriers`, `/analytics` лишаються НЕ гейтованими й
+> після цього кроку — під ними досі лише `PlaceholderPage`, гейт для
+> них свідомо відкладено до того кроку, коли там з'явиться реальний
+> запис (той самий принцип, що застосований тут). `/admin` гейтується
+> окремо у Фазі 19 (`MonthlyCosts`) — не тут, це інша гілка.
+
+## Крок 18.7 — Перевірка
+
+1. У `vehicle_tracker_api`: `git log --oneline -1` на `main` (локально
+   й на GitHub) має показувати коміт `faza_15: serializers/views/urls
+   for apps.logistics` серед предків — уже запушено й задеплоєно (Крок
+   18.1), окремого деплою тут не треба.
+2. Залогинься `logist` (або `manager`/`head`).
+3. `/hired` → "+ Новий рейс" → заповни, збережи → редирект одразу на
+   картку щойно створеного рейсу → "📷 Сканувати накладну" → наведи на
+   QR → з'явиться в списку "Накладні рейсу".
+4. Спробуй відсканувати ту саму накладну ДРУГИЙ раз (для того самого чи
+   іншого рейсу) — бекенд поверне "Накладна вже прив'язана...", має
+   показатись в `ErrorBanner`, не голе "Request failed: 400."
+5. Залогинься водієм (`driver`) — `/hired` має показати "немає
+   доступу" (`RequireRole`), а не форму.
+6. Перевір у Django Admin (`/admin/logistics/hiredtransporttrip/`) —
+   рейс і прикріплені накладні реально в БД.
+
+---
+
+# ═══════════════════════════════════════════════════════════
+<a id="faza-19"></a>
+# ФАЗА 19 — ВИТРАТИ ПО СВОЇХ АВТО (MonthlyCosts)
+# ═══════════════════════════════════════════════════════════
+
+> Навіщо: логіст поки не має способу внести щомісячні витрати по
+> власному авто (ЗП водія, податки, амортизація, ремонт, інше — модель
+> `MonthlyCosts` бекенду). Екран уже має підготовлений маршрут-заглушку
+> в `App.tsx` (`/admin/monthly-costs`) і навігацію в `MainLayout` —
+> лишається написати сам API-шар, хуки й форму, той самий CRUD-патерн,
+> що й Фаза 16 (`CarForm`/`FleetList`).
+>
+> **Окрема гілка від Фази 18** (найманий транспорт, `HiredTransportTrip`)
+> навмисно: різні модель/сторінки/маршрут, спільний лише `App.tsx` —
+> об'єднувати їх в одній гілці/PR немає сенсу, це два незалежні
+> функціонали. Обидві гілки чіпають `App.tsx`, але різні секції
+> (`/admin/monthly-costs` тут, `/hired` там) — при мержі обох у `main`
+> це звичайний git-merge різних рядків, не логічний конфлікт.
+
+## Крок 19.1 — Бекенд: перевір перед стартом
+
+Переконайся, що `/api/monthly-costs/` реально доступний: повний CRUD,
+живий і задеплоєний уже давно (Фаза 6-7 бекенду). Єдине, що в ньому
+щойно виправлено й теж уже **закомічено, запушено й задеплоєно**:
+`MonthlyCostsViewSet` раніше не перевизначав `get_permissions()` і
+успадковував лише глобальний дефолт (`IsAuthenticated`) — тобто
+ЗМІНЮВАТИ витрати міг будь-який залогинений користувач, включно з
+водієм. Виправлено (той самий `WRITE_ACTIONS` + `IsLogistOrAbove`
+патерн, що в `CarViewSet`) — тепер запис лише для
+`logist`/`manager`/`head`. Перевірено напряму:
+`https://warehouse.mom/api/monthly-costs/` віддає `403` (не 404/500)
+без сесії, так само, як і `/api/cars/`.
+
+Звір формат поля (знадобиться нижче для `RawMonthlyCosts`):
+`MonthlyCosts.month` — `DateField`, зберігається як **перше число
+місяця** (`"2026-08-01"`), НЕ `"2026-08"` — коментар у `types/index.ts`
+про формат `YYYY-MM` застарілий.
+
+## Крок 19.2 — src/api/monthlyCosts.ts
+
+```typescript
+// src/api/monthlyCosts.ts
+import type { MonthlyCosts } from "../types";
+import { apiFetch } from "./config.ts";
+
+interface Paginated<T> {
+  results: T[];
+}
+
+// Форма відповіді бекенду (snake_case) + два розрахункові поля
+// (SerializerMethodField, лише на читання — їх немає в базовому MonthlyCosts)
+interface RawMonthlyCosts {
+  id: number;
+  car: number;
+  car_number: string;
+  month: string;              // "2026-08-01" — перше число місяця
+  salary_uah: string;
+  taxes_uah: string;
+  depreciation_uah: string;
+  repair_actual_uah?: string | null;
+  repair_rate_uah_km: string;
+  other_costs_uah: string;
+  other_costs_comment: string;
+  repair_cost_uah: number;
+  total_cost_uah: number;
+}
+
+export interface MonthlyCostsRecord extends MonthlyCosts {
+  carNumber: string;
+  repairCostUah: number;
+  totalCostUah: number;
+}
+
+function mapMonthlyCosts(raw: RawMonthlyCosts): MonthlyCostsRecord {
+  return {
+    id: raw.id,
+    carId: raw.car,
+    carNumber: raw.car_number,
+    month: raw.month,
+    salaryUah: Number(raw.salary_uah),
+    taxesUah: Number(raw.taxes_uah),
+    depreciationUah: Number(raw.depreciation_uah),
+    repairActualUah: raw.repair_actual_uah != null ? Number(raw.repair_actual_uah) : undefined,
+    repairRateUahKm: Number(raw.repair_rate_uah_km),
+    otherCostUah: Number(raw.other_costs_uah),
+    otherCostComment: raw.other_costs_comment || undefined,
+    repairCostUah: raw.repair_cost_uah,
+    totalCostUah: raw.total_cost_uah,
+  };
+}
+
+// carId — опційний фільтр (бекенд уже підтримує ?car_id=)
+export async function fetchMonthlyCosts(carId?: number): Promise<MonthlyCostsRecord[]> {
+  const query = carId ? `?car_id=${carId}` : "";
+  const data = await apiFetch<Paginated<RawMonthlyCosts>>(`/monthly-costs/${query}`);
+  return data.results.map(mapMonthlyCosts);
+}
+
+export async function fetchMonthlyCost(id: number): Promise<MonthlyCostsRecord> {
+  const raw = await apiFetch<RawMonthlyCosts>(`/monthly-costs/${id}/`);
+  return mapMonthlyCosts(raw);
+}
+
+export interface MonthlyCostsPayload {
+  carId: number;
+  month: string;              // "2026-08-01" — форма конвертує з <input type="month">
+  salaryUah: number;
+  taxesUah: number;
+  depreciationUah: number;
+  repairActualUah?: number;
+  repairRateUahKm: number;
+  otherCostUah: number;
+  otherCostComment?: string;
+}
+
+function toMonthlyCostsPayload(data: MonthlyCostsPayload) {
+  return {
+    car: data.carId,
+    month: data.month,
+    salary_uah: data.salaryUah,
+    taxes_uah: data.taxesUah,
+    depreciation_uah: data.depreciationUah,
+    repair_actual_uah: data.repairActualUah ?? null,
+    repair_rate_uah_km: data.repairRateUahKm,
+    other_costs_uah: data.otherCostUah,
+    other_costs_comment: data.otherCostComment ?? "",
+  };
+}
+
+export async function createMonthlyCost(data: MonthlyCostsPayload): Promise<MonthlyCostsRecord> {
+  const raw = await apiFetch<RawMonthlyCosts>("/monthly-costs/", { method: "POST", json: toMonthlyCostsPayload(data) });
+  return mapMonthlyCosts(raw);
+}
+
+export async function updateMonthlyCost(id: number, data: MonthlyCostsPayload): Promise<MonthlyCostsRecord> {
+  const raw = await apiFetch<RawMonthlyCosts>(`/monthly-costs/${id}/`, { method: "PATCH", json: toMonthlyCostsPayload(data) });
+  return mapMonthlyCosts(raw);
+}
+
+export async function deleteMonthlyCost(id: number): Promise<void> {
+  await apiFetch<void>(`/monthly-costs/${id}/`, { method: "DELETE" });
+}
+```
+
+> `mocks/` не має `monthly-costs.json` (лише `cars`/`drivers`/`route-events`/
+> `waybills` — Фаза 2) — цей модуль свідомо БЕЗ `USE_MOCK`-гілки, завжди
+> реальний бекенд. Той самий компроміс, що вже описаний у Кроці 16.1 для
+> `create`/`update`/`delete`, тут — для всього модуля: перевіряй з
+> `VITE_USE_MOCK=false`.
+
+`car+month` унікальні на бекенді (`unique_together`) — повторний `POST`
+на той самий місяць того самого авто поверне `400` з людським текстом
+помилки (`non_field_errors`) через `extractErrorMessage` у `apiFetch`
+(вже є в `config.ts`) — окремої перевірки на фронтенді не треба,
+`ErrorBanner` покаже причину як є.
+
+## Крок 19.3 — src/hocks/useMonthlyCosts.ts
+
+```typescript
+// src/hocks/useMonthlyCosts.ts
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  fetchMonthlyCosts,
+  fetchMonthlyCost,
+  createMonthlyCost,
+  updateMonthlyCost,
+  deleteMonthlyCost,
+} from "../api/monthlyCosts";
+import type { MonthlyCostsPayload } from "../api/monthlyCosts";
+
+export function useMonthlyCostsList(carId?: number) {
+  return useQuery({
+    queryKey: ["monthly-costs", carId ?? "all"],
+    queryFn: () => fetchMonthlyCosts(carId),
+  });
+}
+
+export function useMonthlyCost(id: number) {
+  return useQuery({
+    queryKey: ["monthly-costs", "one", id],
+    queryFn: () => fetchMonthlyCost(id),
+    enabled: !!id,
+  });
+}
+
+export function useCreateMonthlyCost() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: MonthlyCostsPayload) => createMonthlyCost(data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["monthly-costs"] }),
+  });
+}
+
+export function useUpdateMonthlyCost(id: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: MonthlyCostsPayload) => updateMonthlyCost(id, data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["monthly-costs"] }),
+  });
+}
+
+export function useDeleteMonthlyCost() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => deleteMonthlyCost(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["monthly-costs"] }),
+  });
+}
+```
+
+## Крок 19.4 — pages/admin/MonthlyCostsList.tsx і MonthlyCostsForm.tsx
+
+Та сама структура, що `FleetList`/`CarForm` (Фаза 16) — список зверху з
+кнопкою "+ Додати запис", форма створення/редагування окремою сторінкою:
+
+```typescript
+// src/pages/admin/MonthlyCostsList.tsx
+import { Link } from "react-router-dom";
+import { useMonthlyCostsList } from "../../hocks/useMonthlyCosts";
+import { Spinner } from "../../components/ui/Spinner";
+import { EmptyState } from "../../components/ui/EmptyState";
+import { ErrorBanner } from "../../components/ui/ErrorBanner";
+
+export function MonthlyCostsList() {
+  const { data: records, isLoading, isError, refetch } = useMonthlyCostsList();
+
+  return (
+    <div className="p-6 space-y-4">
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold text-white">Місячні витрати по авто</h1>
+        <Link to="/admin/monthly-costs/new" className="px-3 py-2 text-sm rounded-lg bg-violet-600 text-white hover:bg-violet-500">
+          + Додати запис
+        </Link>
+      </div>
+
+      {isLoading && <Spinner size="lg" label="Завантаження..." />}
+      {isError && !isLoading && <ErrorBanner message="Не вдалось завантажити витрати" onRetry={refetch} />}
+      {!isLoading && !isError && records?.length === 0 && (
+        <EmptyState title="Записів ще немає" subtitle="Натисніть «Додати запис», щоб внести перший місяць" />
+      )}
+
+      {!isLoading && !isError && records && records.length > 0 && (
+        <table className="w-full text-sm">
+          <thead className="text-left text-white/50 border-b border-white/10">
+            <tr>
+              <th className="py-2">Авто</th>
+              <th className="py-2">Місяць</th>
+              <th className="py-2">Разом (грн)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {records.map((r) => (
+              <tr key={r.id} className="border-b border-white/5 hover:bg-white/5">
+                <td className="py-2">
+                  <Link to={`/admin/monthly-costs/${r.id}`} className="text-violet-300 hover:underline">
+                    {r.carNumber}
+                  </Link>
+                </td>
+                <td className="py-2">{r.month.slice(0, 7)}</td>
+                <td className="py-2">{r.totalCostUah.toFixed(2)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+```
+
+```typescript
+// src/pages/admin/MonthlyCostsForm.tsx
+import { useState } from "react";
+import type { FormEvent } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { useCars } from "../../hocks/useCars";
+import { useMonthlyCost, useCreateMonthlyCost, useUpdateMonthlyCost } from "../../hocks/useMonthlyCosts";
+import { Input } from "../../components/ui/Input";
+import { Button } from "../../components/ui/Button";
+import { ErrorBanner } from "../../components/ui/ErrorBanner";
+import type { MonthlyCostsPayload } from "../../api/monthlyCosts";
+
+export function MonthlyCostsForm() {
+  const { costId } = useParams();
+  const navigate = useNavigate();
+  const isEdit = !!costId;
+  const { data: existing } = useMonthlyCost(isEdit ? Number(costId) : 0);
+  const { data: cars } = useCars();
+
+  const [carId, setCarId] = useState<number | "">(existing?.carId ?? "");
+  // <input type="month"> дає "2026-08" — API очікує перше число місяця "2026-08-01"
+  const [month, setMonth] = useState(existing?.month.slice(0, 7) ?? "");
+  const [salaryUah, setSalaryUah] = useState(String(existing?.salaryUah ?? ""));
+  const [taxesUah, setTaxesUah] = useState(String(existing?.taxesUah ?? ""));
+  const [depreciationUah, setDepreciationUah] = useState(String(existing?.depreciationUah ?? ""));
+  const [repairActualUah, setRepairActualUah] = useState(String(existing?.repairActualUah ?? ""));
+  const [repairRateUahKm, setRepairRateUahKm] = useState(String(existing?.repairRateUahKm ?? "2.00"));
+  const [otherCostUah, setOtherCostUah] = useState(String(existing?.otherCostUah ?? ""));
+  const [otherCostComment, setOtherCostComment] = useState(existing?.otherCostComment ?? "");
+
+  const createCost = useCreateMonthlyCost();
+  const updateCost = useUpdateMonthlyCost(Number(costId));
+  const mutation = isEdit ? updateCost : createCost;
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    const payload: MonthlyCostsPayload = {
+      carId: Number(carId),
+      month: `${month}-01`,
+      salaryUah: Number(salaryUah),
+      taxesUah: Number(taxesUah),
+      depreciationUah: Number(depreciationUah),
+      repairActualUah: repairActualUah ? Number(repairActualUah) : undefined,
+      repairRateUahKm: Number(repairRateUahKm),
+      otherCostUah: Number(otherCostUah || 0),
+      otherCostComment: otherCostComment || undefined,
+    };
+    mutation.mutate(payload, { onSuccess: () => navigate("/admin/monthly-costs") });
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="p-6 max-w-lg space-y-4">
+      <h1 className="text-xl font-bold text-white">{isEdit ? "Редагувати витрати" : "Нові місячні витрати"}</h1>
+
+      <div className="flex flex-col gap-1">
+        <label className="text-sm font-medium text-white/70">Авто</label>
+        <select
+          value={carId}
+          onChange={(e) => setCarId(e.target.value ? Number(e.target.value) : "")}
+          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
+          required
+        >
+          <option value="">— оберіть авто —</option>
+          {cars?.map((c) => (
+            <option key={c.idCar} value={c.idCar}>{c.numberCar} — {c.nameCar}</option>
+          ))}
+        </select>
+      </div>
+
+      <Input label="Місяць" type="month" value={month} onChange={(e) => setMonth(e.target.value)} required />
+      <Input label="ЗП водія (грн)" type="number" value={salaryUah} onChange={(e) => setSalaryUah(e.target.value)} required />
+      <Input label="Податки із ЗП (грн)" type="number" value={taxesUah} onChange={(e) => setTaxesUah(e.target.value)} required />
+      <Input label="Амортизація (грн)" type="number" value={depreciationUah} onChange={(e) => setDepreciationUah(e.target.value)} required />
+      <Input
+        label="Ремонт — фактично (грн, необов'язково)"
+        type="number"
+        value={repairActualUah}
+        onChange={(e) => setRepairActualUah(e.target.value)}
+        helpText="Якщо заповнено — переважає над розрахунком за ставкою"
+      />
+      <Input label="Ставка ремонту (грн/км)" type="number" step="0.01" value={repairRateUahKm} onChange={(e) => setRepairRateUahKm(e.target.value)} required />
+      <Input label="Інші витрати (грн)" type="number" value={otherCostUah} onChange={(e) => setOtherCostUah(e.target.value)} />
+      <Input label="Коментар до інших витрат" value={otherCostComment} onChange={(e) => setOtherCostComment(e.target.value)} />
+
+      {isEdit && existing && (
+        <p className="text-xs text-white/40">
+          Розраховано бекендом: ремонт {existing.repairCostUah.toFixed(2)} грн, разом {existing.totalCostUah.toFixed(2)} грн
+        </p>
+      )}
+
+      {mutation.isError && <ErrorBanner message={(mutation.error as Error).message} />}
+
+      <div className="flex gap-3">
+        <Button type="button" variant="ghost" onClick={() => navigate("/admin/monthly-costs")}>Скасувати</Button>
+        <Button type="submit" isLoading={mutation.isPending} className="flex-1">Зберегти</Button>
+      </div>
+    </form>
+  );
+}
+```
+
+## Крок 19.5 — Підключення в App.tsx
+
+Заміни плейсхолдери в `/admin` і, найважливіше, — обгорни весь `/admin`
+в `RequireRole`, як уже зроблено для `/fleet` (Фаза 14): досі він не
+був гейтований взагалі. `/hired` гейтується окремо у Фазі 18 — не тут,
+це інша гілка; якщо обидві гілки вже змержені в `main`, тут просто
+додаєш `monthly-costs`-рядки, а обгортка `RequireRole` навколо `/admin`
+вже на місці:
+
+```typescript
+// src/App.tsx
+import { MonthlyCostsList } from "./pages/admin/MonthlyCostsList";
+import { MonthlyCostsForm } from "./pages/admin/MonthlyCostsForm";
+
+// ...
+
+{/* ── Адміністрування ──────────────────────────── */}
+<Route
+  path="/admin"
+  element={
+    <RequireRole roles={["logist", "manager", "head"]}>
+      <MainLayout />
+    </RequireRole>
+  }
+>
+  <Route index element={<PlaceholderPage title="Адміністрування" />} />
+  <Route path="cars" element={<PlaceholderPage title="Авто" />} />
+  <Route path="drivers" element={<PlaceholderPage title="Водії" />} />
+  <Route path="products" element={<PlaceholderPage title="Товари" />} />
+  <Route path="customers" element={<PlaceholderPage title="Клієнти" />} />
+  <Route path="stores" element={<PlaceholderPage title="Магазини" />} />
+  <Route path="monthly-costs" element={<MonthlyCostsList />} />
+  <Route path="monthly-costs/new" element={<MonthlyCostsForm />} />
+  <Route path="monthly-costs/:costId" element={<MonthlyCostsForm />} />
+</Route>
+```
+
+> `/waybills`, `/carriers`, `/analytics` лишаються НЕ гейтованими й
+> після цього кроку — під ними досі лише `PlaceholderPage`, гейт для
+> них свідомо відкладено до того кроку, коли там з'явиться реальний
+> запис (той самий принцип, що застосований тут).
+
+## Крок 19.6 — Перевірка
+
+1. У `vehicle_tracker_api`: `git log --oneline -1` на `main` має
+   показувати коміт `fix: restrict MonthlyCosts writes to
+   logist/manager/head` серед предків — уже запушено й задеплоєно
+   (Крок 19.1), окремого деплою тут не треба.
+2. Залогинься `logist` (або `manager`/`head`).
+3. `/admin/monthly-costs` → "+ Додати запис" → обери авто й місяць,
+   заповни суми → "Зберегти" → новий рядок у таблиці.
+4. Спробуй додати ДРУГИЙ запис на той самий авто + місяць — має
+   показати повідомлення про унікальність з бекенду, не голе
+   "Request failed: 400."
+5. Залогинься водієм (`driver`) — `/admin` має показати "немає
+   доступу" (`RequireRole`), а не форму.
+6. Перевір у Django Admin (`/admin/cars/monthlycosts/`) — запис
+   реально в БД.
+
+---
+
+# ═══════════════════════════════════════════════════════════
 <a id="shcho-dali"></a>
 # ЩО ДАЛІ
 # ═══════════════════════════════════════════════════════════
@@ -7557,13 +8498,16 @@ onSuccess: (newEvent) => {
 > нова сторінка `EventDetail`) — так само реально набрана й задеплоєна
 > тим самим днем 2026-08-28.
 >
-> Далі логічно продовжувати з Кроку 12/13 нижче (найманий
-> транспорт/служби доставки) — але ті залежать від бекендової
-> `apps/logistics` (`DJANGO_CODING_GUIDE.md` Фаза 11); перевір
-> `obsidian/STATE.md` цього репо на актуальний статус змержування перед
-> стартом.
+> **Оновлено 2026-08-30:** пункт нижче "Крок 12 — HiredTripForm" уже
+> неактуальний — написано текстом як **Фаза 18** (найманий транспорт) і
+> **Фаза 19** (витрати по своїх авто) вище, окремими гілками, щоб не
+> змішувати два незалежні функціонали в одному PR. Бекенд для обох —
+> `apps.logistics` API і фікс прав `MonthlyCostsViewSet` — уже
+> закомічений, запушений і задеплоєний (перевірено напряму: обидва
+> ендпоінти віддають `403`, не 404/500, на `warehouse.mom`). Фронтенд
+> (файли в `src/`) для обох фаз ще НЕ набраний — перевір `git log`/`git
+> status` цього репо, а не просто читай текст.
 
-### Крок 12 — HiredTripForm (найманий транспорт)
 ### Крок 13 — CarrierShipmentForm (служби доставки)
 ### Крок 14 — Аналітика і графіки (Recharts)
 
