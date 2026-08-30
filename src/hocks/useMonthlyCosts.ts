@@ -46,3 +46,16 @@ export function useDeleteMonthlyCost() {
 		onSuccess: () => queryClient.invalidateQueries({ queryKey: ["monthly-costs"] }),
 	});
 }
+
+// id окремо від аргументів хука — той самий call-time патерн, що
+// useAttachWaybillToHiredTrip (Фаза 18): масове введення (BulkMonthlyCostsForm)
+// зберігає по кілька різних авто за один сабміт, частину як create, частину
+// як update — одному хук-виклику це не прив'язати заздалегідь до одного id
+export function useSaveMonthlyCost() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: ({ id, data }: { id?: number; data: MonthlyCostsPayload }) =>
+			id ? updateMonthlyCost(id, data) : createMonthlyCost(data),
+		onSuccess: () => queryClient.invalidateQueries({ queryKey: ["monthly-costs"] }),
+	});
+}

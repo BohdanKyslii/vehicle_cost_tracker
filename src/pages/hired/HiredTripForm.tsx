@@ -12,6 +12,7 @@ import { Button } from "../../components/ui/Button";
 import { ErrorBanner } from "../../components/ui/ErrorBanner";
 import { QRScanner } from "../../components/QRScanner";
 import { parseQRCode } from "../../utils/parseQR";
+import { formatCarNumber } from "../../utils/carNumber";
 import type { HiredTripPayload } from "../../api/hiredTrips";
 
 export function HiredTripForm() {
@@ -28,6 +29,13 @@ export function HiredTripForm() {
 	const [comment, setComment] = useState(existing?.comment ?? "");
 	const [scannerOpen, setScannerOpen] = useState(false);
 	const [scanError, setScanError] = useState<string | null>(null);
+
+	// Той самий патерн, що й CarForm (Фаза 16.5) — тепер стандарт для всіх
+	// карток запису (див. [[decision_locked_edit_form_pattern]]): відкрита
+	// картка заблокована, "Редагувати" розблоковує поля. Для нового рейсу
+	// (isEdit=false) блокування не має сенсу.
+	const [isEditingDetails, setIsEditingDetails] = useState(false);
+	const detailsLocked = isEdit && !isEditingDetails;
 
 	const createTrip = useCreateHiredTrip();
 	const updateTrip = useUpdateHiredTrip(Number(tripId));
@@ -68,21 +76,46 @@ export function HiredTripForm() {
 	}
 
 	return (
-		<div className="p-6 max-w-lg space-y-6">
-			<form onSubmit={handleSubmit} className="space-y-4">
-				<h1 className="text-xl font-bold text-white">{isEdit ? "Редагувати рейс" : "Новий рейс найманого транспорту"}</h1>
+		<div className="p-6 max-w-lg mx-auto space-y-6">
+			<form onSubmit={handleSubmit} className="space-y-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm p-6">
+				<div className="flex items-center justify-between">
+					<h1 className="text-xl font-bold text-white">{isEdit ? "Рейс найманого транспорту" : "Новий рейс найманого транспорту"}</h1>
+					{isEdit && !isEditingDetails && (
+						<Button type="button" variant="ghost" onClick={() => setIsEditingDetails(true)}>
+							✏️ Редагувати
+						</Button>
+					)}
+				</div>
+				{detailsLocked && (
+					<p className="text-xs text-white/40 -mt-2">
+						Дані заблоковані від випадкової правки. Натисніть "Редагувати", щоб змінити.
+					</p>
+				)}
 
-				<Input label="Номер авто" value={carNumber} onChange={(e) => setCarNumber(e.target.value)} required />
-				<Input label="Назва маршруту" value={routeName} onChange={(e) => setRouteName(e.target.value)} required />
-				<Input label="Дата рейсу" type="date" value={tripDate} onChange={(e) => setTripDate(e.target.value)} required />
-				<Input label="Кількість палет" type="number" value={palletsCount} onChange={(e) => setPalletsCount(e.target.value)} />
-				<Input label="Вартість рейсу (грн)" type="number" step="0.01" value={costUah} onChange={(e) => setCostUah(e.target.value)} required />
-				<Input label="Коментар" value={comment} onChange={(e) => setComment(e.target.value)} />
+				<div className="grid grid-cols-2 gap-3">
+					<Input label="Дата рейсу" type="date" value={tripDate} onChange={(e) => setTripDate(e.target.value)} required disabled={detailsLocked} />
+					<Input
+						label="Номер авто"
+						value={carNumber}
+						onChange={(e) => setCarNumber(formatCarNumber(e.target.value))}
+						maxLength={8}
+						required
+						disabled={detailsLocked}
+					/>
+				</div>
+				<Input label="Назва маршруту" value={routeName} onChange={(e) => setRouteName(e.target.value)} required disabled={detailsLocked} />
+				<div className="grid grid-cols-2 gap-3">
+					<Input label="Кількість палет" type="number" value={palletsCount} onChange={(e) => setPalletsCount(e.target.value)} disabled={detailsLocked} />
+					<Input label="Вартість рейсу (грн)" type="number" step="0.01" value={costUah} onChange={(e) => setCostUah(e.target.value)} required disabled={detailsLocked} />
+				</div>
+				<Input label="Коментар" value={comment} onChange={(e) => setComment(e.target.value)} disabled={detailsLocked} />
 
 				{mutation.isError && <ErrorBanner message={(mutation.error as Error).message} />}
 
 				<div className="flex gap-3">
-					<Button type="button" variant="ghost" onClick={() => navigate("/hired")}>Скасувати</Button>
+					<Button type="button" variant="ghost" onClick={() => navigate("/hired")}>
+						{detailsLocked ? "← Назад" : "Скасувати"}
+					</Button>
 					<Button type="submit" isLoading={mutation.isPending} className="flex-1">Зберегти</Button>
 				</div>
 			</form>

@@ -10,6 +10,15 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
+      // Без цього Service Worker перехоплював УСІ навігації (Workbox
+      // NavigationRoute за замовчуванням без винятків) і віддавав
+      // закешований index.html навіть для /admin/ — який на проді nginx
+      // проксіює напряму на Django admin (nginx.conf). SPA-шелл
+      // перехоплював запит раніше, ніж він узагалі йшов у мережу, тож
+      // замість Django-логіну користувач бачив 404 самого React-застосунку.
+      workbox: {
+        navigateFallbackDenylist: [/^\/admin/],
+      },
       manifest: {
        name: 'Vehicle Cost Tracker',
        short_name: 'Vehicle Tracker',
