@@ -3,15 +3,14 @@
 // ─────────────────────────────────────────────────────────
 
 
-// Product category
+// Product category — ProductCategorySerializer (бекенд) НЕ віддає
+// description/created_at/updated_at, хоч модель їх і має — лише поля нижче
 export interface ProductCategory {
-	idCategory: number;
+	id: number;
 	nameCategory: string;
-	parentID: number | null;
-	description: string;
-	createdAt: Date;
-	updatedAt: Date;
-	
+	parent: number | null;
+	isRoot: boolean;
+	parentName: string | null;
 }
 
 // Constant IDs for convenience in the code
@@ -22,35 +21,38 @@ export const CATEGORY_DEFAULTS = {
 
 // Product from the 1C accounting system
 export interface Product {
-	idProduct: number;
+	idProduct: number;    // PK — артикул 1С, вводиться вручну (не auto-id)
 	nameProduct: string;
-	idCategory: number; // default: 15 ("Other" → "Accessories")
-	isActive: boolean;  // default: true
+	category: number | null; // FK id категорії; default: 15 ("Інше" → "Супутка")
+	categoryName?: string;
 	description?: string;
+	isActive: boolean;  // default: true
+	logistics?: ProductLogistics;
 	createdAt: string;
 	updatedAt: string;
-	// Optional nested objects (loaded via a separate request)
-	category?: ProductCategory;
-	logistics?: ProductLogistics;
 }
 
 // Default values — use when creating a new product in the form
 export const PRODUCT_DEFAULTS: Partial<Product> = {
-	idCategory: CATEGORY_DEFAULTS.CHILD_OTHER, // 15
+	category: CATEGORY_DEFAULTS.CHILD_OTHER, // 15
 	isActive: true,
 };
 
-// Product logistics data — a separate table in the database
+// Product logistics data — окрема таблиця в БД, ProductLogisticsSerializer
+// не віддає id/product (лише поля товару + обчислювані *_cbm/calculated_*)
 export interface ProductLogistics {
-	idProduct: number;
 	unitWeightKg?: number;
 	unitLengthCm?: number;
 	unitWidthCm?: number;
 	unitHeightCm?: number;
 	unitsPerBox?: number;
+	boxWeightKg?: number;
 	boxLengthCm?: number;
 	boxWidthCm?: number;
 	boxHeightCm?: number;
+	unitVolumeCbm?: number | null;
+	boxVolumeCbm?: number | null;
+	calculatedBoxWeight?: number | null;
 }
 
 // Client (purchasing company) to whom the goods are shipped
@@ -59,30 +61,32 @@ export interface Customer {
 	nameCustomer: string;
 	networkCustomer?: string;
 	isActive: boolean;
-	createdAt: Date;
-	updatedAt: Date;
+	storesCount?: number;
+	createdAt: string;
+	updatedAt: string;
 }
 
 // Client's store / retail outlet where goods are delivered
 export interface Store {
 	idStore: number;
-	idCustomer: number;
+	customer: number;    // FK id клієнта
+	customerName?: string;
 	nameStore: string;
 	storeAddress?: string;
 	isActive: boolean;
-	// Nested objects
-	customer?: Customer;
-	deliveryAddress?: StoreDeliveryAddress[];
+	updatedAt: string;
+	deliveryAddresses?: StoreDeliveryAddress[];
 }
 
 // Additional store delivery address
 // A single store can have multiple addresses
 export interface StoreDeliveryAddress {
 	id: number;
-	idStore: number;
+	store: number;
 	deliveryAddress: string;
 	isPrimary: boolean; // main address delivery address
 	notes?: string;
+	createdAt: string;
 }
 
 // ─────────────────────────────────────────────────────────
@@ -557,4 +561,29 @@ export interface ScannedWaybill {
 	customerName?: string;
 	storeName?: string;
 	deliveryChannel?: DeliveryChannel;  // to verify exclusivity
+}
+
+// ─────────────────────────────────────────────────────────
+// ADMIN — КЕРУВАННЯ КОРИСТУВАЧАМИ (/panel/users, head-only)
+// ─────────────────────────────────────────────────────────
+
+// Той самий набір ролей, що UserProfile["role"] (src/api/auth.ts) — не
+// імпортуємо звідти напряму (types/index.ts свідомо не залежить від api/),
+// дублювання тут те саме джерело правди, що CarStatus/TrackingMode вище.
+export type UserRole = "driver" | "logist" | "manager" | "head";
+
+// Користувач у панелі керування — і активні акаунти, і pending-заявки
+// (isActive: false). Заявки, зареєстровані через Telegram-бот, мають
+// username "tg_<telegram_id>" і вже заповнений telegramId.
+export interface AdminUser {
+	id: number;
+	username: string;
+	email: string;
+	isActive: boolean;
+	dateJoined: string;
+	role: UserRole;
+	phone?: string;
+	telegramId?: number | null;
+	driverId?: number | null;
+	driverName?: string | null;
 }

@@ -20,6 +20,13 @@ import { MonthlyCostsList } from "./pages/costs/MonthlyCostsList";
 import { MonthlyCostsForm } from "./pages/costs/MonthlyCostsForm";
 import { BulkMonthlyCostsForm } from "./pages/costs/BulkMonthlyCostsForm";
 import { PanelHome } from "./pages/panel/PanelHome";
+import { ProductList } from "./pages/panel/ProductList";
+import { ProductForm } from "./pages/panel/ProductForm";
+import { CustomerList } from "./pages/panel/CustomerList";
+import { CustomerForm } from "./pages/panel/CustomerForm";
+import { StoreList } from "./pages/panel/StoreList";
+import { StoreForm } from "./pages/panel/StoreForm";
+import { UserManagement } from "./pages/panel/UserManagement";
 import { rolesForRoute } from "./utils/roleAccess";
 
 // Далі будемо замінювати PlaceholderPage на реальні компоненти
@@ -148,11 +155,16 @@ export default function App() {
                 }
             >
                 <Route index element={<PanelHome />} />
-                <Route path="cars" element={<PlaceholderPage title="Авто" />} />
-                <Route path="drivers" element={<PlaceholderPage title="Водії" />} />
-                <Route path="products" element={<PlaceholderPage title="Товари" />} />
-                <Route path="customers" element={<PlaceholderPage title="Клієнти" />} />
-                <Route path="stores" element={<PlaceholderPage title="Магазини" />} />
+                <Route path="products" element={<ProductList />} />
+                <Route path="products/new" element={<ProductForm />} />
+                <Route path="products/:productId" element={<ProductForm />} />
+                <Route path="customers" element={<CustomerList />} />
+                <Route path="customers/new" element={<CustomerForm />} />
+                <Route path="customers/:customerId" element={<CustomerForm />} />
+                <Route path="stores" element={<StoreList />} />
+                <Route path="stores/new" element={<StoreForm />} />
+                <Route path="stores/:storeId" element={<StoreForm />} />
+                <Route path="users" element={<UserManagement />} />
             </Route>
 
             {/* Telegram Mini App — залишається ЄДИНИМ маршрутом, без RequireRole
