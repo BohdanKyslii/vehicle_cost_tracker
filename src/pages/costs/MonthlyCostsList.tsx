@@ -11,7 +11,7 @@ export function MonthlyCostsList() {
 		<div className="p-6 space-y-4">
 			<div className="flex items-center justify-between">
 				<h1 className="text-xl font-bold text-white">Місячні витрати по авто</h1>
-				<Link to="/admin/monthly-costs/new" className="px-3 py-2 text-sm rounded-lg bg-violet-600 text-white hover:bg-violet-500">
+				<Link to="/costs/new" className="px-3 py-2 text-sm rounded-lg bg-violet-600 text-white hover:bg-violet-500">
 					+ Додати запис
 				</Link>
 			</div>
@@ -35,7 +35,7 @@ export function MonthlyCostsList() {
 						{records.map((r) => (
 							<tr key={r.id} className="border-b border-white/5 hover:bg-white/5">
 								<td className="py-2">
-									<Link to={`/admin/monthly-costs/${r.id}`} className="text-violet-300 hover:underline">
+									<Link to={`/costs/${r.id}`} className="text-violet-300 hover:underline">
 										{r.carNumber}
 									</Link>
 								</td>

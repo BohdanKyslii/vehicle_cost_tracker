@@ -16,16 +16,25 @@ import { CarForm } from "./pages/fleet/CarForm";
 import { DriverForm } from "./pages/fleet/DriverForm";
 import { HiredTripList } from "./pages/hired/HiredTripList";
 import { HiredTripForm } from "./pages/hired/HiredTripForm";
-import { MonthlyCostsList } from "./pages/admin/MonthlyCostsList";
-import { MonthlyCostsForm } from "./pages/admin/MonthlyCostsForm";
+import { MonthlyCostsList } from "./pages/costs/MonthlyCostsList";
+import { MonthlyCostsForm } from "./pages/costs/MonthlyCostsForm";
+import { PanelHome } from "./pages/panel/PanelHome";
+import { rolesForRoute } from "./utils/roleAccess";
 
 // Далі будемо замінювати PlaceholderPage на реальні компоненти
 
 export default function App() {
     return (
         <Routes>
-            {/* ── Накладні ─────────────────────────────────── */}
-            <Route path="/waybills" element={<MainLayout />}>
+            {/* ── Накладні — тільки manager/head (логіст сюди не ходить) ─── */}
+            <Route
+                path="/waybills"
+                element={
+                    <RequireRole roles={rolesForRoute("/waybills")}>
+                        <MainLayout />
+                    </RequireRole>
+                }
+            >
                 <Route index element={<WaybillList />} />
                 <Route path=":waybillNumber" element={<PlaceholderPage title="Деталі накладної" />} />
                 <Route path="import" element={<PlaceholderPage title="Імпорт із 1С" />} />
@@ -34,14 +43,28 @@ export default function App() {
             </Route>
 
             {/* ── Служби доставки ──────────────────────────── */}
-            <Route path="/carriers" element={<MainLayout />}>
+            <Route
+                path="/carriers"
+                element={
+                    <RequireRole roles={rolesForRoute("/carriers")}>
+                        <MainLayout />
+                    </RequireRole>
+                }
+            >
                 <Route index element={<PlaceholderPage title="Служби доставки" />} />
                 <Route path="new" element={<PlaceholderPage title="Нове відправлення" />} />
                 <Route path="import-costs" element={<PlaceholderPage title="Імпорт реєстру витрат" />} />
             </Route>
 
             {/* ── Аналітика ────────────────────────────────── */}
-            <Route path="/analytics" element={<MainLayout />}>
+            <Route
+                path="/analytics"
+                element={
+                    <RequireRole roles={rolesForRoute("/analytics")}>
+                        <MainLayout />
+                    </RequireRole>
+                }
+            >
                 <Route index element={<PlaceholderPage title="Аналітика" />} />
                 <Route path="transport-costs" element={<PlaceholderPage title="Транспортна собівартість" />} />
                 <Route path="customers" element={<PlaceholderPage title="По клієнтах" />} />
@@ -65,11 +88,11 @@ export default function App() {
                 <Route path="history" element={<DriverHistory />} />
             </Route>
             
-            {/* Офісні розділи — logist/manager/head, той самий гейт на кожен */}
+            {/* Автопарк — тільки logist/head (менеджер сюди не ходить) */}
             <Route
                 path="/fleet"
                 element={
-                    <RequireRole roles={["logist", "manager", "head"]}>
+                    <RequireRole roles={rolesForRoute("/fleet")}>
                         <MainLayout />
                     </RequireRole>
                 }
@@ -81,12 +104,11 @@ export default function App() {
                 <Route path=":carId" element={<CarForm />} />
             </Route>
 
-            {/* Найманий транспорт — окрема гілка/фаза від /admin (Фаза 19),
-            спільний з нею лише цей файл */}
+            {/* Найманий транспорт — доступний усім трьом офісним ролям */}
             <Route
                 path="/hired"
                 element={
-                    <RequireRole roles={["logist", "manager", "head"]}>
+                    <RequireRole roles={rolesForRoute("/hired")}>
                         <MainLayout />
                     </RequireRole>
                 }
@@ -96,28 +118,41 @@ export default function App() {
                 <Route path=":tripId" element={<HiredTripForm />} />
             </Route>
 
-            {/* Адміністрування (Фаза 19) — окрема гілка від /hired вище
-            (Фаза 18), спільний з нею лише цей файл */}
+            {/* Витрати по своїх авто — окремий розділ, не під /panel: ним
+            щодня користується логіст, а /panel нижче — лише для head */}
             <Route
-                path="/admin"
+                path="/costs"
                 element={
-                    <RequireRole roles={["logist", "manager", "head"]}>
+                    <RequireRole roles={rolesForRoute("/costs")}>
                         <MainLayout />
                     </RequireRole>
                 }
             >
-                <Route index element={<PlaceholderPage title="Адміністрування" />} />
+                <Route index element={<MonthlyCostsList />} />
+                <Route path="new" element={<MonthlyCostsForm />} />
+                <Route path=":costId" element={<MonthlyCostsForm />} />
+            </Route>
+
+            {/* Адміністрування — кастомний UI замість Django admin, тільки
+            head. НЕ "/admin": nginx на проді проксіює "/admin/" напряму
+            на Django admin (nginx.conf) — SPA-роут з такою назвою був би
+            недосяжний */}
+            <Route
+                path="/panel"
+                element={
+                    <RequireRole roles={rolesForRoute("/panel")}>
+                        <MainLayout />
+                    </RequireRole>
+                }
+            >
+                <Route index element={<PanelHome />} />
                 <Route path="cars" element={<PlaceholderPage title="Авто" />} />
                 <Route path="drivers" element={<PlaceholderPage title="Водії" />} />
                 <Route path="products" element={<PlaceholderPage title="Товари" />} />
                 <Route path="customers" element={<PlaceholderPage title="Клієнти" />} />
                 <Route path="stores" element={<PlaceholderPage title="Магазини" />} />
-                <Route path="monthly-costs" element={<MonthlyCostsList />} />
-                <Route path="monthly-costs/new" element={<MonthlyCostsForm />} />
-                <Route path="monthly-costs/:costId" element={<MonthlyCostsForm />} />
             </Route>
-            {/* /waybills, /carriers, /analytics — та сама обгортка RequireRole, поки не реалізовані */}
-            
+
             {/* Telegram Mini App — залишається ЄДИНИМ маршрутом, без RequireRole
             (сам логінить через initData ще до того, як роль відома) */}
             <Route path="/driver-app" element={<DriverMiniApp />} />
