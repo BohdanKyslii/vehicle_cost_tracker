@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import logo from '../../assets/logo.png';
 import { useCurrentUser } from '../../hocks/useCurrentUser';
+import { rolesForRoute } from '../../utils/roleAccess';
 
 interface Props {
   onOpenAuth: () => void;
@@ -61,7 +62,7 @@ export function TopNav({ onOpenAuth }: Props) {
               <li>
                 <Link to="/carriers" onClick={closeMenu}>Служби доставки</Link>
               </li>
-              {user?.profile?.role === 'head' && (
+              {user?.profile && rolesForRoute('/panel').includes(user.profile.role) && (
                 <li>
                   <Link to="/panel" onClick={closeMenu}>Адмін</Link>
                 </li>

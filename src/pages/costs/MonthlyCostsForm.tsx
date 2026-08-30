@@ -43,7 +43,7 @@ export function MonthlyCostsForm() {
 			otherCostUah: Number(otherCostUah || 0),
 			otherCostComment: otherCostComment || undefined,
 		};
-		mutation.mutate(payload, { onSuccess: () => navigate("/admin/monthly-costs") });
+		mutation.mutate(payload, { onSuccess: () => navigate("/costs") });
 	}
 
 	return (
@@ -89,7 +89,7 @@ export function MonthlyCostsForm() {
 			{mutation.isError && <ErrorBanner message={(mutation.error as Error).message} />}
 
 			<div className="flex gap-3">
-				<Button type="button" variant="ghost" onClick={() => navigate("/admin/monthly-costs")}>Скасувати</Button>
+				<Button type="button" variant="ghost" onClick={() => navigate("/costs")}>Скасувати</Button>
 				<Button type="submit" isLoading={mutation.isPending} className="flex-1">Зберегти</Button>
 			</div>
 		</form>

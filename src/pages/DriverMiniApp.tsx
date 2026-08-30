@@ -2,21 +2,22 @@ import { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useCurrentUser } from '../hocks/useCurrentUser';
 import type { UserProfile } from '../api/auth';
+import { ROLE_ROUTES } from '../utils/roleAccess';
 
 const BOT_USERNAME = import.meta.env.VITE_TELEGRAM_BOT_USERNAME as string | undefined;
 
 type Status = 'loading' | 'not_registered' | 'pending_approval' | 'error' | 'ready';
 
 // Куди веде кожна роль після логіну через Mini App. driver — єдина роль з
-// повноцінним готовим екраном (DriverDashboard, Фаза 13); logist/manager/head
-// ведуть на /fleet — правильний за змістом розділ (авто + водії), навіть
-// поки він сам ще PlaceholderPage (Фаза 16 CODING_GUIDE.md не набрана
-// руками) — головне, щоб адмін/логіст більше не потрапляв на екран водія.
+// повноцінним готовим екраном (DriverDashboard, Фаза 13); офісні ролі
+// ведуть на перший розділ, дозволений їм у ROLE_ROUTES (те саме джерело
+// правди, що гейтує самі маршрути) — не завжди /fleet, бо не всі офісні
+// ролі мають туди доступ (напр. manager).
 const ROLE_LANDING: Record<UserProfile['role'], string> = {
 	driver: '/driver',
-	logist: '/fleet',
-	manager: '/fleet',
-	head: '/fleet',
+	logist: ROLE_ROUTES.logist[0],
+	manager: ROLE_ROUTES.manager[0],
+	head: ROLE_ROUTES.head[0],
 };
 
 // Рендериться всередині Telegram WebView (кнопка бота), не сайту — тому без TopNav/AuthModal.
