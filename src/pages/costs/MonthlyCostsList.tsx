@@ -11,9 +11,14 @@ export function MonthlyCostsList() {
 		<div className="p-6 space-y-4">
 			<div className="flex items-center justify-between">
 				<h1 className="text-xl font-bold text-white">Місячні витрати по авто</h1>
-				<Link to="/costs/new" className="px-3 py-2 text-sm rounded-lg bg-violet-600 text-white hover:bg-violet-500">
-					+ Додати запис
-				</Link>
+				<div className="flex gap-2">
+					<Link to="/costs/bulk" className="px-3 py-2 text-sm rounded-lg border border-white/10 text-white/80 hover:bg-white/5">
+						📋 Масове введення
+					</Link>
+					<Link to="/costs/new" className="px-3 py-2 text-sm rounded-lg bg-violet-600 text-white hover:bg-violet-500">
+						+ Додати запис
+					</Link>
+				</div>
 			</div>
 
 			{isLoading && <Spinner size="lg" label="Завантаження..." />}

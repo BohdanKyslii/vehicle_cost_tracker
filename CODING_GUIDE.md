@@ -27,7 +27,9 @@
 17. [Фаза 17 — Дешборд водія: компактні плитки, видалення/групування подій](#faza-17)
 18. [Фаза 18 — Найманий транспорт (HiredTransportTrip)](#faza-18)
 19. [Фаза 19 — Витрати по своїх авто (MonthlyCosts)](#faza-19)
-20. [Що далі](#shcho-dali)
+20. [Фаза 20 — Рольовий доступ і мобільна навігація](#faza-20)
+21. [Фаза 21 — Інфраструктурні фікси, уніфікація форм, масове введення витрат](#faza-21)
+22. [Що далі](#shcho-dali)
 
 > Фази нумеруються так, як вони йшли по факту написання коду — Фази 12
 > у файлі немає (пропущена в нумерації), це не помилка змісту.
@@ -8462,6 +8464,824 @@ import { MonthlyCostsForm } from "./pages/admin/MonthlyCostsForm";
 6. Перевір у Django Admin (`/admin/cars/monthlycosts/`) — запис
    реально в БД.
 
+> ⚠️ **Оновлено 2026-08-31 — Фаза 20 переписала все з `/admin`
+> нижче.** І сам маршрут (`/admin` → `/panel`), і місце "Місячних
+> витрат" (`/costs`, окремо від `/panel`), і спосіб гейтувати ролі
+> (`rolesForRoute()` замість жорсткого масиву). Крок 19.4/19.5 вище —
+> історичний запис того, як це виглядало одразу після Фази 19; реальний
+> код зараз відповідає Фазі 20, дивись нижче.
+
+---
+
+# ═══════════════════════════════════════════════════════════
+<a id="faza-20"></a>
+# ФАЗА 20 — РОЛЬОВИЙ ДОСТУП І МОБІЛЬНА НАВІГАЦІЯ
+# ═══════════════════════════════════════════════════════════
+
+> Навіщо: логіст заходить через Telegram-бот і одразу потрапляє на
+> `/fleet` — а бічне меню `MainLayout` (посилання на решту розділів)
+> мало клас `hidden md:flex`, тобто на мобільному екрані не показувалось
+> ВЗАГАЛІ. З `/fleet` нікуди було перейти. Заразом виявилось, що доступ
+> до розділів був неточний: усі три офісні ролі (`logist`/`manager`/
+> `head`) бачили і могли відкрити одне й те саме, хоча логісту не
+> потрібні `/waybills`, а менеджеру — `/fleet`. І окремо: маршрут
+> `/admin`, обраний для "Місячних витрат" у Фазі 19, на проді
+> конфліктує зі справжньою Django-адмінкою (`nginx.conf` проксіює
+> `/admin/` напряму на Django, SPA-роут з такою назвою недосяжний).
+
+## Крок 20.1 — src/utils/roleAccess.ts: єдине джерело правди роль↔маршрут
+
+Замість двох окремих, неминуче розбіжних списків (один — які посилання
+показувати в меню, другий — які ролі пускає `RequireRole` на маршрут) —
+один файл, з якого читають обидва місця:
+
+```typescript
+// src/utils/roleAccess.ts
+import type { UserProfile } from "../api/auth";
+
+// Єдине джерело правди для того, які офісні розділи бачить/може
+// відкрити кожна роль — використовується і для реального гейта маршруту
+// (RequireRole у App.tsx), і для видимого списку посилань у навігації
+// (MainLayout). Водій сюди не потрапляє — в нього окремий
+// DriverLayout/DriverMiniApp.
+//
+// "/admin" НЕ використовується як власний маршрут SPA навмисно — на
+// проді nginx проксіює "/admin/" напряму на Django admin (nginx.conf),
+// тож клієнтський роут з такою назвою був би недосяжний. Кастомний
+// адмін-розділ застосунку живе на "/panel" (той самий шлях, під який
+// TopNav.tsx вже давно мав посилання "Адмін"). "/costs" — окремо від
+// /panel: ним щодня користується логіст, а /panel — лише для head.
+export const ROLE_ROUTES: Record<UserProfile["role"], string[]> = {
+  driver: [],
+  logist: ["/fleet", "/costs", "/hired", "/carriers", "/analytics"],
+  manager: ["/waybills", "/hired", "/carriers", "/analytics"],
+  head: ["/fleet", "/waybills", "/costs", "/hired", "/carriers", "/analytics", "/panel"],
+};
+
+// Обертає ROLE_ROUTES навпаки — які ролі мають доступ до конкретного
+// шляху; передається напряму як `roles` у <RequireRole>.
+export function rolesForRoute(path: string): UserProfile["role"][] {
+  return (Object.keys(ROLE_ROUTES) as UserProfile["role"][]).filter((role) =>
+    ROLE_ROUTES[role].includes(path),
+  );
+}
+```
+
+## Крок 20.2 — MainLayout.tsx: гамбургер-меню на мобільному + фільтр за роллю
+
+Десктопне бічне меню (`hidden md:flex`) лишається, але тепер список
+посилань і на ньому, і в новому мобільному варіанті фільтрується через
+`ROLE_ROUTES` — а не показує всі шість пунктів усім:
+
+```typescript
+// src/components/layouts/MainLayout.tsx
+import { useState } from "react";
+import { Outlet, NavLink } from "react-router-dom";
+import { useCurrentUser } from "../../hocks/useCurrentUser";
+import { ROLE_ROUTES } from "../../utils/roleAccess";
+
+const allNavItems = [
+  { to: "/fleet",     label: "Автопарк",      icon: "🚛" },
+  { to: "/costs",     label: "Витрати",        icon: "🧾" },
+  { to: "/waybills",  label: "Накладні",       icon: "📄" },
+  { to: "/hired",     label: "Найманий",       icon: "🔄" },
+  { to: "/carriers",  label: "Служби",         icon: "📮" },
+  { to: "/analytics", label: "Аналітика",      icon: "📊" },
+  { to: "/panel",     label: "Адміністрування", icon: "⚙️" },
+];
+
+export function MainLayout() {
+  const { user } = useCurrentUser();
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const allowed = user?.profile ? ROLE_ROUTES[user.profile.role] : [];
+  const navItems = allNavItems.filter((item) => allowed.includes(item.to));
+
+  return (
+    <div
+      className="min-h-screen flex flex-col md:flex-row text-white"
+      style={{ background: "linear-gradient(180deg, #2b1330 0%, #0f1724 100%)" }}
+    >
+      {/* Мобільний хедер з гамбургером — тільки < md, на десктопі його
+      заміняє бічне меню нижче */}
+      <header className="md:hidden sticky top-0 z-20 backdrop-blur-md bg-white/5 border-b border-white/10 px-4 py-3 flex items-center justify-between">
+        <h1 className="font-bold text-sm bg-gradient-to-r from-violet-300 to-pink-300 bg-clip-text text-transparent">
+          Vehicle Tracker
+        </h1>
+        <button
+          onClick={() => setMenuOpen((v) => !v)}
+          className="text-white/70 text-2xl leading-none px-1"
+          aria-label={menuOpen ? "Закрити меню" : "Відкрити меню"}
+        >
+          {menuOpen ? "✕" : "☰"}
+        </button>
+      </header>
+
+      {/* Випадне меню на мобільному — той самий список посилань, що
+      й бічне меню на десктопі, звужений за роллю (ROLE_ROUTES) */}
+      {menuOpen && (
+        <nav className="md:hidden bg-[#0f1724]/95 backdrop-blur-md border-b border-white/10 px-2 py-2 space-y-1">
+          {navItems.map(({ to, label, icon }) => (
+            <NavLink
+              key={to}
+              to={to}
+              onClick={() => setMenuOpen(false)}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors
+                ${isActive
+                  ? "bg-white/10 text-violet-300 font-medium"
+                  : "text-white/60 hover:bg-white/5 hover:text-white"
+                }`
+              }
+            >
+              <span>{icon}</span>
+              {label}
+            </NavLink>
+          ))}
+        </nav>
+      )}
+
+      {/* Sidebar — тільки на великих екранах (hidden на мобільному) */}
+      <aside className="hidden md:flex w-56 backdrop-blur-md bg-white/5 border-r border-white/10 flex-col">
+        <div className="p-4 border-b border-white/10">
+          <h1 className="font-bold bg-gradient-to-r from-violet-300 to-pink-300 bg-clip-text text-transparent">
+            Vehicle Tracker
+          </h1>
+          <p className="text-xs text-white/50 mt-0.5">Облік витрат</p>
+        </div>
+        <nav className="flex-1 p-2 space-y-1">
+          {navItems.map(({ to, label, icon }) => (
+            <NavLink
+              key={to}
+              to={to}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors
+                ${isActive
+                  ? "bg-white/10 text-violet-300 font-medium"
+                  : "text-white/60 hover:bg-white/5 hover:text-white"
+                }`
+              }
+            >
+              <span>{icon}</span>
+              {label}
+            </NavLink>
+          ))}
+        </nav>
+      </aside>
+
+      {/* Основний контент */}
+      <main className="flex-1 overflow-auto">
+        <Outlet />
+      </main>
+    </div>
+  );
+}
+```
+
+## Крок 20.3 — pages/panel/PanelHome.tsx: index-сторінка "Адміністрування"
+
+Раніше `/admin` (тепер `/panel`) index був голим `PlaceholderPage` — з
+нього нікуди не можна було перейти, навіть коли під ним з'явився
+реальний розділ. Тепер index сам показує сітку розділів:
+
+```typescript
+// src/pages/panel/PanelHome.tsx
+import { Link } from "react-router-dom";
+
+// Кастомний адмін-розділ застосунку (не Django admin — той на "/admin/",
+// проксійований nginx-ом напряму на бекенд, звідси інша назва шляху,
+// "/panel"). Доступ лише для head — усе, чим користується логіст щодня
+// (Автопарк, Витрати, Найманий...), живе окремими верхньорівневими
+// розділами, не тут. Поки всі пункти нижче — PlaceholderPage-заглушки
+// (Крок 6-8 "Що далі" CODING_GUIDE.md), `ready` вмикати по мірі готовності.
+const sections = [
+  { to: "/panel/cars", label: "Авто", icon: "🚛", ready: false },
+  { to: "/panel/drivers", label: "Водії", icon: "🧑‍✈️", ready: false },
+  { to: "/panel/products", label: "Товари", icon: "📦", ready: false },
+  { to: "/panel/customers", label: "Клієнти", icon: "🧑‍💼", ready: false },
+  { to: "/panel/stores", label: "Магазини", icon: "🏬", ready: false },
+];
+
+export function PanelHome() {
+  return (
+    <div className="p-6 space-y-4">
+      <h1 className="text-xl font-bold text-white">Адміністрування</h1>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {sections.map(({ to, label, icon, ready }) => (
+          <Link
+            key={to}
+            to={to}
+            className={`flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors
+              ${ready
+                ? "border-white/10 bg-white/5 hover:bg-white/10 text-white"
+                : "border-white/5 bg-white/[0.02] text-white/40 hover:text-white/60"
+              }`}
+          >
+            <span className="text-xl">{icon}</span>
+            <span className="text-sm font-medium">{label}</span>
+            {!ready && <span className="ml-auto text-xs text-white/30">скоро</span>}
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+```
+
+## Крок 20.4 — pages/costs/: перенесення з pages/panel/
+
+`MonthlyCostsList.tsx`/`MonthlyCostsForm.tsx` переїхали з `pages/panel/`
+у власну теку `pages/costs/` (`git mv`), і всі внутрішні посилання в
+них — з `/panel/monthly-costs...` на `/costs...` (`/costs`, `/costs/new`,
+`/costs/:costId`).
+
+## Крок 20.5 — RoleRedirect.tsx і DriverMiniApp.tsx: landing по ROLE_ROUTES, не завжди /fleet
+
+Побічний ефект Кроку 20.1: якщо `/fleet` тепер недоступний `manager`,
+а обидва файли жорстко вели туди ВСІ офісні ролі одразу після логіну —
+менеджер після входу вперся б у "Доступ заборонено". Обидва файли
+тепер беруть перший дозволений роллю маршрут з `ROLE_ROUTES`:
+
+```typescript
+// src/pages/RoleRedirect.tsx
+import { Navigate } from "react-router-dom";
+import { useCurrentUser } from "../hocks/useCurrentUser";
+import { LandingPage } from "./LandingPage";
+import { ROLE_ROUTES } from "../utils/roleAccess";
+
+export function RoleRedirect() {
+  const { user, isLoading } = useCurrentUser();
+
+  if (isLoading) return null;
+  if (!user) return <LandingPage />;
+
+  // Водій — одразу в мобільний екран; решта ролей — на перший дозволений
+  // їм розділ офісного застосунку (ROLE_ROUTES) — не завжди /fleet,
+  // бо тепер не всі офісні ролі мають туди доступ (напр. manager)
+  if (user.profile?.role === "driver") return <Navigate to="/driver" replace />;
+  const landing = user.profile ? ROLE_ROUTES[user.profile.role][0] : "/fleet";
+  return <Navigate to={landing ?? "/fleet"} replace />;
+}
+```
+
+```typescript
+// src/pages/DriverMiniApp.tsx — фрагмент
+import { ROLE_ROUTES } from './utils/roleAccess';
+
+const ROLE_LANDING: Record<UserProfile['role'], string> = {
+  driver: '/driver',
+  logist: ROLE_ROUTES.logist[0],
+  manager: ROLE_ROUTES.manager[0],
+  head: ROLE_ROUTES.head[0],
+};
+```
+
+## Крок 20.6 — App.tsx: rolesForRoute на кожному маршруті, /waybills+/carriers+/analytics теж гейтовані
+
+До цього кроку `/waybills`, `/carriers`, `/analytics` не мали
+`RequireRole` ВЗАГАЛІ (просто `<Route path="/waybills" element={<MainLayout />}>`)
+— тепер кожен офісний розділ обгорнутий однаково, а список ролей
+береться з `rolesForRoute()`, не дублюється хардкодом:
+
+```typescript
+// src/App.tsx — кожен офісний Route тепер такого вигляду
+import { rolesForRoute } from "./utils/roleAccess";
+import { PanelHome } from "./pages/panel/PanelHome";
+
+<Route
+  path="/waybills"
+  element={
+    <RequireRole roles={rolesForRoute("/waybills")}>
+      <MainLayout />
+    </RequireRole>
+  }
+>
+  {/* ...той самий вміст, що й раніше... */}
+</Route>
+
+{/* /carriers, /analytics — та сама обгортка */}
+
+<Route
+  path="/costs"
+  element={
+    <RequireRole roles={rolesForRoute("/costs")}>
+      <MainLayout />
+    </RequireRole>
+  }
+>
+  <Route index element={<MonthlyCostsList />} />
+  <Route path="new" element={<MonthlyCostsForm />} />
+  <Route path=":costId" element={<MonthlyCostsForm />} />
+</Route>
+
+<Route
+  path="/panel"
+  element={
+    <RequireRole roles={rolesForRoute("/panel")}>
+      <MainLayout />
+    </RequireRole>
+  }
+>
+  <Route index element={<PanelHome />} />
+  <Route path="cars" element={<PlaceholderPage title="Авто" />} />
+  <Route path="drivers" element={<PlaceholderPage title="Водії" />} />
+  <Route path="products" element={<PlaceholderPage title="Товари" />} />
+  <Route path="customers" element={<PlaceholderPage title="Клієнти" />} />
+  <Route path="stores" element={<PlaceholderPage title="Магазини" />} />
+</Route>
+```
+
+`/fleet` і `/hired` — той самий `rolesForRoute("/fleet")`/
+`rolesForRoute("/hired")` замість жорсткого масиву `["logist","manager","head"]`
+з Кроків 16.7/18.6.
+
+## Крок 20.7 — Перевірка
+
+1. `logist` → після логіну потрапляє на `/fleet`; у меню бачить лише
+   Автопарк/Витрати/Найманий/Служби/Аналітика — без Накладних і
+   Адміністрування.
+2. `manager` → після логіну потрапляє на `/waybills` (не на `/fleet` —
+   туди йому заборонено); у меню бачить Накладні/Найманий/Служби/
+   Аналітика.
+3. `head` → бачить усі пункти меню, включно з Адміністрування.
+4. На мобільній ширині (<768px) — сайдбар зникає, з'являється хедер із
+   `☰`, клік відкриває той самий список посилань.
+5. `https://.../panel` (не `/admin`!) відкривається як застосунок, а не
+   як Django-логін.
+
+---
+
+# ═══════════════════════════════════════════════════════════
+<a id="faza-21"></a>
+# ФАЗА 21 — ІНФРАСТРУКТУРНІ ФІКСИ, УНІФІКАЦІЯ ФОРМ, МАСОВЕ ВВЕДЕННЯ ВИТРАТ
+# ═══════════════════════════════════════════════════════════
+
+> Навіщо: живе тестування Фаз 18-20 виявило три окремі проблеми —
+> (1) `/panel` показував 404 в браузері, хоча сервер відповідав
+> коректно; (2) форма витрат/найманого транспорту незручна для щоденного
+> заповнення (білий селект серед темних, довгий список полів по одному
+> в рядок, ручний ввід номера авто без нормалізації); (3) створення
+> рейсу найманого транспорту падало з "Request failed: 500" — а логісту
+> ще й потрібен спосіб внести витрати одразу по всіх авто за місяць, а
+> не по одному запису.
+
+## Крок 21.1 — Service Worker і nginx: чому `/panel` показував 404
+
+**Симптом:** `curl https://.../panel/` (без Service Worker'а) отримує
+коректну відповідь сервера, а той самий URL у браузері — власну
+404-сторінку React-застосунку ("Сторінку не знайдено").
+
+**Причина:** `vite-plugin-pwa` (Workbox `generateSW`) за замовчуванням
+реєструє `NavigationRoute` без жодного винятку — це означає, що
+**будь-яка навігація браузером** (не `fetch`, а перехід за URL)
+перехоплюється Service Worker'ом ще ДО мережі й отримує закешований
+`index.html`. React Router вантажиться, бачить шлях, якого нема серед
+клієнтських маршрутів (для старого `/admin` — так само), і рендерить
+власну 404. Перевірити напряму: у зібраному `dist/sw.js` — рядок
+`registerRoute(new NavigationRoute(createHandlerBoundToURL("index.html")))`
+без `denylist`.
+
+Фікс — виняток у конфігурації Workbox:
+
+```typescript
+// vite.config.ts — фрагмент VitePWA(...)
+VitePWA({
+  registerType: 'autoUpdate',
+  // Без цього SW перехоплював УСІ навігації, включно з /admin(/panel) —
+  // тими шляхами, які на проді nginx проксіює напряму на бекенд
+  // (Django admin), а не рендерить самим React-застосунком.
+  workbox: {
+    navigateFallbackDenylist: [/^\/admin/],
+  },
+  manifest: { /* ...без змін... */ },
+}),
+```
+
+> Denylist лишений саме на `/admin` (не `/panel`) — nginx на проді все
+> ще перехоплює саме `/admin/` для Django-адмінки (Крок 20.1); `/panel`
+> — звичайний клієнтський SPA-маршрут, кешування йому не заважає.
+
+Другорядний, окремий баг у `nginx.conf`: редирект без кінцевого слеша
+"протікав" внутрішній Docker-порт (8080) і схему (http, не https) у
+публічний `Location`-заголовок:
+
+```
+curl https://warehouse.mom/admin
+→ 301 Location: http://warehouse.mom:8080/admin/   # непридатний ззовні URL
+```
+
+```nginx
+# nginx.conf
+location = /admin {
+    return 301 https://$http_host/admin/;
+}
+```
+
+## Крок 21.2 — Уніфікація форм: локед-режим, темний select, компактні пари полів
+
+Той самий UX-патерн, що вже є в `CarForm` (Крок 16.5/17.10), тепер —
+**стандарт для всіх карток запису в цьому застосунку**, не лише для
+авто (див. пам'ять сесії `feedback_locked_edit_form_pattern`, якщо
+працюєш з AI-агентом — попроси звірити з нею перед новою формою):
+
+- Відкрита картка ІСНУЮЧОГО запису — заблокована (`disabled` на всіх
+  полях); кнопка "✏️ Редагувати" в шапці розблоковує.
+- Кнопка внизу зліва: `{locked ? "← Назад" : "Скасувати"}` — той самий
+  `onClick`, підпис лише відображає намір.
+- Для НОВОГО запису (`isEdit === false`) блокування нема сенсу — усе
+  відразу редаговане, кнопки "Редагувати" немає.
+
+Заразом виправлено дрібніші несумісності зі стилем решти застосунку:
+
+**Селект авто в `MonthlyCostsForm` був білим** (`border-gray-300
+bg-white`) серед темних полів — той самий стиль `<select>`, що вже
+в `CarForm` (`bg-white/5`, `[&>option]:bg-slate-900`).
+
+**Компактні пари полів** — `MonthlyCostsForm`: ЗП водія/Податки,
+Амортизація/Ремонт-фактично, Інші витрати/Ставка ремонту, по двоє в
+рядок (`grid grid-cols-2 gap-3`), той самий прийом, що в `CarForm`.
+`HiredTripForm`: Дата рейсу/Номер авто в одному рядку, Кількість
+палет/Вартість рейсу — в іншому.
+
+**Номер авто в `HiredTripForm` вводиться вручну** (на відміну від
+`CarForm`, де це вибір з довідника) — тож типова помилка: логіст пише
+"ка4532ер" замість "КА4532ЕР". Нормалізуємо на кожному натисканні
+клавіші: перші два й останні два символи — у верхній регістр (як на
+номерному знаку "АА1234ВВ"), обрізаємо до 8 символів:
+
+```typescript
+// src/utils/carNumber.ts
+// Нормалізує номер авто під час вводу: перші два й останні два символи —
+// у верхній регістр (як у номерного знаку "АА1234ВВ"), середина — як є,
+// обрізає до 8 символів. Застосовується на onChange у формах, де номер
+// вводить людина вручну (найманий транспорт — carNumber вільний текст,
+// не з довідника авто).
+export function formatCarNumber(raw: string): string {
+  const value = raw.slice(0, 8);
+  if (value.length <= 4) return value.toUpperCase();
+  return value.slice(0, 2).toUpperCase() + value.slice(2, -2) + value.slice(-2).toUpperCase();
+}
+```
+
+```typescript
+// src/pages/hired/HiredTripForm.tsx — фрагмент
+import { formatCarNumber } from "../../utils/carNumber";
+
+<div className="grid grid-cols-2 gap-3">
+  <Input label="Дата рейсу" type="date" value={tripDate} onChange={(e) => setTripDate(e.target.value)} required disabled={detailsLocked} />
+  <Input
+    label="Номер авто"
+    value={carNumber}
+    onChange={(e) => setCarNumber(formatCarNumber(e.target.value))}
+    maxLength={8}
+    required
+    disabled={detailsLocked}
+  />
+</div>
+<Input label="Назва маршруту" value={routeName} onChange={(e) => setRouteName(e.target.value)} required disabled={detailsLocked} />
+<div className="grid grid-cols-2 gap-3">
+  <Input label="Кількість палет" type="number" value={palletsCount} onChange={(e) => setPalletsCount(e.target.value)} disabled={detailsLocked} />
+  <Input label="Вартість рейсу (грн)" type="number" step="0.01" value={costUah} onChange={(e) => setCostUah(e.target.value)} required disabled={detailsLocked} />
+</div>
+```
+
+Повний файл — `isEditingDetails`/`detailsLocked` стейт (той самий, що
+в `CarForm`), обидва форми обгорнуті у скляну картку
+(`rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm`), як
+і `CarForm`. Блок "Накладні рейсу" (сканування QR) у `HiredTripForm`
+свідомо НЕ підпадає під `detailsLocked` — прикріплення накладної не
+редагує саму картку рейсу, той самий принцип, що звільняв
+режим/статус/водій у `CarForm` від блокування.
+
+## Крок 21.3 — Масове введення витрат: BulkMonthlyCostsForm
+
+Логіст щомісяця вносить витрати одразу по всьому автопарку — форма на
+одне авто за раз (`MonthlyCostsForm`) для цього незручна. Нова сторінка
+`/costs/bulk`: рядки — статті витрат, стовпці — авто, клітинка —
+сума. Амортизація — окремий випадок: вона майже стала (міняється раз
+на рік), тож коли на обраний місяць запису ще немає, підставляється
+останнє відоме значення з попереднього місяця автоматично.
+
+Спершу — гнучкий хук у `useMonthlyCosts.ts`, той самий call-time
+`id`-патерн, що вже є в `useAttachWaybillToHiredTrip` (Крок 18.4):
+create чи update по кожному авто вирішується в момент виклику, не
+заздалегідь одним хуком на один id:
+
+```typescript
+// src/hocks/useMonthlyCosts.ts — доповнення
+export function useSaveMonthlyCost() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id?: number; data: MonthlyCostsPayload }) =>
+      id ? updateMonthlyCost(id, data) : createMonthlyCost(data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["monthly-costs"] }),
+  });
+}
+```
+
+```typescript
+// src/pages/costs/BulkMonthlyCostsForm.tsx
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useCars } from "../../hocks/useCars";
+import { useMonthlyCostsList, useSaveMonthlyCost } from "../../hocks/useMonthlyCosts";
+import { Input } from "../../components/ui/Input";
+import { Button } from "../../components/ui/Button";
+import { ErrorBanner } from "../../components/ui/ErrorBanner";
+import { Spinner } from "../../components/ui/Spinner";
+import type { MonthlyCostsPayload } from "../../api/monthlyCosts";
+
+type FieldKey =
+  | "salaryUah"
+  | "taxesUah"
+  | "depreciationUah"
+  | "repairActualUah"
+  | "repairRateUahKm"
+  | "otherCostUah";
+
+type Row = Record<FieldKey, string>;
+
+const FIELDS: { key: FieldKey; label: string }[] = [
+  { key: "salaryUah", label: "ЗП водія (грн)" },
+  { key: "taxesUah", label: "Податки із ЗП (грн)" },
+  { key: "depreciationUah", label: "Амортизація (грн)" },
+  { key: "repairActualUah", label: "Ремонт — фактично (грн)" },
+  { key: "repairRateUahKm", label: "Ставка ремонту (грн/км)" },
+  { key: "otherCostUah", label: "Інші витрати (грн)" },
+];
+
+const cellClass =
+  "w-24 rounded border border-white/10 bg-white/5 text-white text-xs px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-violet-400";
+
+export function BulkMonthlyCostsForm() {
+  const navigate = useNavigate();
+  const { data: cars, isLoading: carsLoading } = useCars();
+  // Без carId — усі записи всіх авто одразу: звідси й беремо (1) чи вже є
+  // запис на обраний місяць для цього авто (create vs update), і (2)
+  // останню відому амортизацію ДО обраного місяця для автопідстановки
+  const { data: allCosts, isLoading: costsLoading } = useMonthlyCostsList();
+  const saveMonthlyCost = useSaveMonthlyCost();
+
+  const [month, setMonth] = useState("");
+  const [rows, setRows] = useState<Record<number, Row>>({});
+  // Зберігаємо тільки авто, які реально чіпали на цій сторінці — інакше
+  // автопідстановка амортизації (нижче) позначила б УСІ авто як готові
+  // до збереження, навіть ті, по яких цього місяця нічого не вносили
+  const [touchedCars, setTouchedCars] = useState<Set<number>>(new Set());
+  const [saveErrors, setSaveErrors] = useState<Record<number, string>>({});
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (!month || !cars || !allCosts) return;
+    const monthISO = `${month}-01`;
+    const next: Record<number, Row> = {};
+    for (const car of cars) {
+      const existing = allCosts.find((c) => c.carId === car.idCar && c.month === monthISO);
+      if (existing) {
+        next[car.idCar] = {
+          salaryUah: String(existing.salaryUah),
+          taxesUah: String(existing.taxesUah),
+          depreciationUah: String(existing.depreciationUah),
+          repairActualUah: existing.repairActualUah != null ? String(existing.repairActualUah) : "",
+          repairRateUahKm: String(existing.repairRateUahKm),
+          otherCostUah: String(existing.otherCostUah),
+        };
+      } else {
+        // Немає запису на обраний місяць — амортизація підтягується
+        // з останнього попереднього місяця (вона майже стала, міняється
+        // раз на рік); решта полів — з чистого аркуша
+        const prevDepreciation = allCosts
+          .filter((c) => c.carId === car.idCar && c.month < monthISO)
+          .sort((a, b) => b.month.localeCompare(a.month))[0]?.depreciationUah;
+        next[car.idCar] = {
+          salaryUah: "",
+          taxesUah: "",
+          depreciationUah: prevDepreciation != null ? String(prevDepreciation) : "",
+          repairActualUah: "",
+          repairRateUahKm: "2.00",
+          otherCostUah: "",
+        };
+      }
+    }
+    setRows(next);
+    setTouchedCars(new Set());
+    setSaveErrors({});
+  }, [month, cars, allCosts]);
+
+  function setCell(carId: number, key: FieldKey, value: string) {
+    setRows((prev) => ({ ...prev, [carId]: { ...prev[carId], [key]: value } }));
+    setTouchedCars((prev) => new Set(prev).add(carId));
+  }
+
+  async function handleSave() {
+    if (!month || touchedCars.size === 0) return;
+    setIsSaving(true);
+    const monthISO = `${month}-01`;
+    const errors: Record<number, string> = {};
+
+    for (const carId of touchedCars) {
+      const row = rows[carId];
+      if (!row) continue;
+      const existing = allCosts?.find((c) => c.carId === carId && c.month === monthISO);
+      const payload: MonthlyCostsPayload = {
+        carId,
+        month: monthISO,
+        salaryUah: Number(row.salaryUah || 0),
+        taxesUah: Number(row.taxesUah || 0),
+        depreciationUah: Number(row.depreciationUah || 0),
+        repairActualUah: row.repairActualUah ? Number(row.repairActualUah) : undefined,
+        repairRateUahKm: Number(row.repairRateUahKm || 2),
+        otherCostUah: Number(row.otherCostUah || 0),
+      };
+      try {
+        await saveMonthlyCost.mutateAsync({ id: existing?.id, data: payload });
+      } catch (err) {
+        errors[carId] = (err as Error).message;
+      }
+    }
+
+    setIsSaving(false);
+    setSaveErrors(errors);
+    if (Object.keys(errors).length === 0) navigate("/costs");
+  }
+
+  const isLoading = carsLoading || costsLoading;
+
+  return (
+    <div className="p-6 space-y-4">
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold text-white">Масове введення витрат</h1>
+        <Button type="button" variant="ghost" onClick={() => navigate("/costs")}>← Назад</Button>
+      </div>
+
+      <div className="max-w-xs">
+        <Input label="Місяць" type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
+      </div>
+
+      {isLoading && <Spinner size="lg" label="Завантаження..." />}
+
+      {!isLoading && !month && (
+        <p className="text-sm text-white/40">Обери місяць, щоб побачити таблицю по всіх авто.</p>
+      )}
+
+      {!isLoading && month && cars && cars.length > 0 && (
+        <>
+          <p className="text-xs text-white/40">
+            Амортизація підставляється з останнього відомого місяця автоматично — зміни, якщо треба.
+            Зберігаються лише авто, у яких щось змінено на цій сторінці.
+          </p>
+          <div className="overflow-x-auto rounded-xl border border-white/10">
+            <table className="text-sm">
+              <thead className="bg-white/5">
+                <tr>
+                  <th className="sticky left-0 bg-[#0f1724] text-left text-white/60 font-medium px-3 py-2 whitespace-nowrap">
+                    Стаття витрат
+                  </th>
+                  {cars.map((car) => (
+                    <th key={car.idCar} className="text-left text-white/60 font-medium px-2 py-2 whitespace-nowrap">
+                      {car.numberCar}
+                      {touchedCars.has(car.idCar) && <span className="ml-1 text-violet-300">●</span>}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {FIELDS.map(({ key, label }) => (
+                  <tr key={key} className="border-t border-white/5">
+                    <td className="sticky left-0 bg-[#0f1724] text-white/70 px-3 py-2 whitespace-nowrap">{label}</td>
+                    {cars.map((car) => (
+                      <td key={car.idCar} className="px-2 py-1.5">
+                        <input
+                          type="number"
+                          step={key === "repairRateUahKm" ? "0.01" : undefined}
+                          value={rows[car.idCar]?.[key] ?? ""}
+                          onChange={(e) => setCell(car.idCar, key, e.target.value)}
+                          className={cellClass}
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex gap-3">
+            <Button type="button" variant="ghost" onClick={() => navigate("/costs")}>Скасувати</Button>
+            <Button type="button" onClick={handleSave} isLoading={isSaving} disabled={touchedCars.size === 0}>
+              Зберегти {touchedCars.size > 0 ? `(${touchedCars.size})` : ""}
+            </Button>
+          </div>
+
+          {Object.keys(saveErrors).length > 0 && (
+            <div className="space-y-1">
+              {Object.entries(saveErrors).map(([carId, message]) => {
+                const car = cars.find((c) => c.idCar === Number(carId));
+                return (
+                  <ErrorBanner
+                    key={carId}
+                    message={`${car?.numberCar ?? `Авто #${carId}`}: ${message}`}
+                  />
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {!isLoading && month && cars && cars.length === 0 && (
+        <p className="text-sm text-white/40">Немає жодного авто в автопарку.</p>
+      )}
+    </div>
+  );
+}
+```
+
+"Коментар до інших витрат" у масовому режимі свідомо не додано —
+вільний текст незручний у щільній таблиці; якщо коментар потрібен для
+конкретного авто, відкрий його окремим записом (`/costs/:costId`)
+після масового збереження.
+
+Підключення — кнопка на списку й маршрут:
+
+```typescript
+// src/pages/costs/MonthlyCostsList.tsx — фрагмент
+<div className="flex gap-2">
+  <Link to="/costs/bulk" className="px-3 py-2 text-sm rounded-lg border border-white/10 text-white/80 hover:bg-white/5">
+    📋 Масове введення
+  </Link>
+  <Link to="/costs/new" className="px-3 py-2 text-sm rounded-lg bg-violet-600 text-white hover:bg-violet-500">
+    + Додати запис
+  </Link>
+</div>
+```
+
+```typescript
+// src/App.tsx — фрагмент /costs
+<Route path="bulk" element={<BulkMonthlyCostsForm />} />
+{/* до :costId — React Router сам ранжує статичні сегменти вище динамічних,
+але для читабельності тримай bulk над :costId */}
+```
+
+## Крок 21.4 — Бекенд: права Postgres на нові таблиці apps.logistics
+
+**Це не зміна коду** — операційний фікс прямо в продовій БД, тому й
+не буде в жодному коміті. Симптом: створення рейсу найманого транспорту
+через `/hired/new` падало з "Request failed: 500", хоча той самий запит
+проти тієї самої бази через `Client(...).force_login(...)` локально
+проходив нормально (201).
+
+**Причина:** таблиці `apps.logistics` (`hired_transport_trips`,
+`hired_trip_waybills`, `carrier_shipments`, `carrier_shipment_waybills`,
+`carrier_costs`) належали ролі `dev_bogdan_pc` (хто останнім ганяв
+`migrate` локально проти прод-БД), а не `vt_user` — ролі, від якої
+реально працює задеплоєний застосунок. Порівняння з давно робочою
+`cars` (власник `vt_user`) це й виявило. `SELECT` через API виглядав
+робочим лише тому, що блокувався правами (`RequireRole`/`IsAuthenticated`)
+РАНІШЕ, ніж запит узагалі діставався бази — а `INSERT` цю перевірку
+проходив і впирався прямо в `permission denied for table ...`.
+
+```sql
+-- виконано напряму на прод-БД, роль-власник (dev_bogdan_pc) видає права
+-- ролі застосунку (vt_user) на 5 таблиць apps.logistics + їхні sequence
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE hired_transport_trips TO vt_user;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE hired_trip_waybills TO vt_user;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE carrier_shipments TO vt_user;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE carrier_shipment_waybills TO vt_user;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE carrier_costs TO vt_user;
+
+GRANT USAGE, SELECT ON SEQUENCE hired_transport_trips_id_seq TO vt_user;
+GRANT USAGE, SELECT ON SEQUENCE hired_trip_waybills_id_seq TO vt_user;
+GRANT USAGE, SELECT ON SEQUENCE carrier_shipments_id_seq TO vt_user;
+GRANT USAGE, SELECT ON SEQUENCE carrier_shipment_waybills_id_seq TO vt_user;
+GRANT USAGE, SELECT ON SEQUENCE carrier_costs_id_seq TO vt_user;
+```
+
+> **Урок на майбутнє:** якщо міграцію для НОВОЇ таблиці колись
+> запускали вручну локально проти прод-БД (а не через задеплоєний
+> контейнер) — перевір власника нової таблиці (`SELECT tablename,
+> tableowner FROM pg_tables WHERE tablename = '...'`) і звір із
+> робочою таблицею того самого застосунку. Мовчазний симптом саме
+> такий: читання ніби працює (403 на рівні permission-класу до бази
+> справа не доходить), а запис падає з голим 500.
+
+## Крок 21.5 — Перевірка
+
+1. `npm run build` — `dist/sw.js` містить `denylist:[/^\/admin/]`.
+2. `https://.../admin/` (не `/panel`!) відкриває Django-логін і в
+   браузері з уже встановленим Service Worker'ом, не 404 застосунку.
+3. `/costs/:costId` (існуючий запис) і `/hired/:tripId` — відкриваються
+   заблокованими, "✏️ Редагувати" розблоковує, "← Назад" не зберігає.
+4. `/hired/new` — вводь номер авто рядковими буквами й більше 8
+   символів, перевір автопідстановку верхнього регістру по краях і
+   обрізання довжини.
+5. `/hired/new` → "Зберегти" — рейс реально створюється (`201`), не
+   "Request failed: 500."
+6. `/costs/bulk` → обери місяць → заповни 2-3 авто → "Зберегти" →
+   з'являються в `/costs`; авто, яких не торкався, записів не отримали.
+7. `/costs/bulk` на місяць, де по авто вже була амортизація раніше —
+   поле "Амортизація" одразу показує те саме значення, не порожнє.
+
 ---
 
 # ═══════════════════════════════════════════════════════════
@@ -8498,15 +9318,19 @@ import { MonthlyCostsForm } from "./pages/admin/MonthlyCostsForm";
 > нова сторінка `EventDetail`) — так само реально набрана й задеплоєна
 > тим самим днем 2026-08-28.
 >
-> **Оновлено 2026-08-30:** пункт нижче "Крок 12 — HiredTripForm" уже
-> неактуальний — написано текстом як **Фаза 18** (найманий транспорт) і
-> **Фаза 19** (витрати по своїх авто) вище, окремими гілками, щоб не
-> змішувати два незалежні функціонали в одному PR. Бекенд для обох —
-> `apps.logistics` API і фікс прав `MonthlyCostsViewSet` — уже
-> закомічений, запушений і задеплоєний (перевірено напряму: обидва
-> ендпоінти віддають `403`, не 404/500, на `warehouse.mom`). Фронтенд
-> (файли в `src/`) для обох фаз ще НЕ набраний — перевір `git log`/`git
-> status` цього репо, а не просто читай текст.
+> **Оновлено 2026-08-31 (перевірено напряму проти коду):** пункт нижче
+> "Крок 12 — HiredTripForm" уже неактуальний. **Фаза 18** (найманий
+> транспорт) і **Фаза 19** (витрати по своїх авто) — реально набрані,
+> змержені (PR #14, #15). **Фаза 20** (рольовий доступ через
+> `ROLE_ROUTES`/`rolesForRoute`, гамбургер-меню на мобільному, `/admin`
+> → `/panel`, `/costs` окремо від `/panel`) — теж змержена (PR #16).
+> **Фаза 21** (Service Worker/nginx фікси для `/admin`, уніфікація
+> форм під локед-режим `CarForm`, масове введення витрат
+> `BulkMonthlyCostsForm`, права Postgres для `apps.logistics`) —
+> написана й реалізована в коді (гілка `faza-21-fixes`), бекендовий
+> `GRANT`-фікс уже застосований напряму на прод-БД (не потребує
+> коміту/деплою), фронтенд-частина ще НЕ закомічена — перевір
+> `git log`/`git status` цього репо перед тим, як вважати готовим.
 
 ### Крок 13 — CarrierShipmentForm (служби доставки)
 ### Крок 14 — Аналітика і графіки (Recharts)

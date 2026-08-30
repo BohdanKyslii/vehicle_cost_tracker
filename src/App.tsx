@@ -18,6 +18,7 @@ import { HiredTripList } from "./pages/hired/HiredTripList";
 import { HiredTripForm } from "./pages/hired/HiredTripForm";
 import { MonthlyCostsList } from "./pages/costs/MonthlyCostsList";
 import { MonthlyCostsForm } from "./pages/costs/MonthlyCostsForm";
+import { BulkMonthlyCostsForm } from "./pages/costs/BulkMonthlyCostsForm";
 import { PanelHome } from "./pages/panel/PanelHome";
 import { rolesForRoute } from "./utils/roleAccess";
 
@@ -130,6 +131,7 @@ export default function App() {
             >
                 <Route index element={<MonthlyCostsList />} />
                 <Route path="new" element={<MonthlyCostsForm />} />
+                <Route path="bulk" element={<BulkMonthlyCostsForm />} />
                 <Route path=":costId" element={<MonthlyCostsForm />} />
             </Route>
 
