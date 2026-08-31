@@ -172,6 +172,33 @@ export async function deleteRouteEvent(id: number): Promise<void> {
     await apiFetch<void>(`/route-events/${id}/`, { method: "DELETE" });
 }
 
+// Часткове редагування вже збереженої накладної (виправити помилку скану) —
+// лише поля, які реально можна поправити з EventDetail, PATCH, не PUT:
+// решта полів події (тип, час, авто/водій) лишаються недоторканими.
+export interface RouteEventPatch {
+    waybillNumber?: string;
+    waybillDate?: string;
+    customerName?: string;
+    odometerKm?: number;
+    palletsCount?: number;
+}
+
+export async function updateRouteEvent(id: number, patch: RouteEventPatch): Promise<RouteEvent> {
+    if (USE_MOCK) {
+        await mockDelay(300);
+        const existing = (mockEvents as RouteEvent[]).find(e => e.id === id);
+        return { ...(existing as RouteEvent), ...patch };
+    }
+    const body: Record<string, unknown> = {};
+    if (patch.waybillNumber !== undefined) body.waybill_number = patch.waybillNumber;
+    if (patch.waybillDate !== undefined) body.waybill_date = patch.waybillDate;
+    if (patch.customerName !== undefined) body.customer_name = patch.customerName;
+    if (patch.odometerKm !== undefined) body.odometer_km = patch.odometerKm;
+    if (patch.palletsCount !== undefined) body.pallets_count = patch.palletsCount;
+    const raw = await apiFetch<RawRouteEvent>(`/route-events/${id}/`, { method: "PATCH", json: body });
+    return mapRouteEvent(raw);
+}
+
 // Створення нової події (POST запит)
 export async function createRouteEvent(data: RouteEventCreate): Promise<RouteEvent> {
     if (USE_MOCK) {

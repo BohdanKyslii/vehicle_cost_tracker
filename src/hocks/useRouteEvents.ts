@@ -9,10 +9,12 @@ import {
     fetchLastOdometer,
     createRouteEvent,
     deleteRouteEvent,
+    updateRouteEvent,
 } from "../api/routeEvents.ts";
 import type {
     RouteEventCreate
 } from "../types";
+import type { RouteEventPatch } from "../api/routeEvents.ts";
 
 export function useTodayEvents(carId: number) {
     return useQuery({
@@ -74,6 +76,19 @@ export function useDeleteRouteEvent() {
                 queryClient.invalidateQueries({ queryKey: ["route-events", variables.carId] }),
                 queryClient.invalidateQueries({ queryKey: ["lastOdometer", variables.carId] }),
             ]);
+        },
+    });
+}
+
+// Виправлення помилково відсканованої накладної (номер/дата/клієнт,
+// за наявності — одометр/палети) без повторного сканування з нуля
+export function useUpdateRouteEvent() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ id, patch }: { id: number; carId: number; patch: RouteEventPatch }) => updateRouteEvent(id, patch),
+        onSuccess: (_data, variables) => {
+            return queryClient.invalidateQueries({ queryKey: ["route-events", variables.carId] });
         },
     });
 }
