@@ -4,7 +4,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useCars } from "../../hocks/useCars";
 import { useDrivers } from "../../hocks/useDrivers";
 import { useRouteEvent, useAllRouteEvents, useCreateRouteEvent, useUpdateRouteEvent, useDeleteRouteEvent } from "../../hocks/useRouteEvents";
-import { requiresOdometer, requiresWaybill, requiresPallets, eventTypeLabel, findEventGroup, groupRootIdOf, withStopTag } from "../../utils/eventHelpers";
+import { requiresOdometer, requiresWaybill, requiresPallets, eventTypeLabel, findEventGroup, groupRootIdOf, withStopTag, stripStopTag } from "../../utils/eventHelpers";
 import type { RouteEventType, RouteEventCreate, RouteEvent, TrackingMode } from "../../types";
 import { Input } from "../../components/ui/Input";
 import { Button } from "../../components/ui/Button";
@@ -88,10 +88,20 @@ export function EventAdminForm() {
 		{ enabled: groupQueryEnabled },
 	);
 	const group: RouteEvent[] = groupQueryEnabled && existing && dayEvents ? findEventGroup(dayEvents, existing) : [];
+	// Інші delivery-події цього ж авто того ж дня, які ще НЕ в цій групі —
+	// кандидати для "приєднати" (водій відсканував їх окремими заходами,
+	// хоча фізично це та сама точка вивантаження). НЕ "+ Ще одна
+	// накладна" — та кнопка створює НОВУ подію і для вже відсканованих
+	// водієм накладних дає дублікат, саме це й сталось при живому
+	// тестуванні 2026-08-31.
+	const attachable: RouteEvent[] = groupQueryEnabled && existing && dayEvents
+		? dayEvents.filter((e) => e.eventType === "delivery" && groupRootIdOf(e) !== groupRootIdOf(existing))
+		: [];
 	const [addingWaybill, setAddingWaybill] = useState(false);
 	const [newWaybillNumber, setNewWaybillNumber] = useState("");
 	const [newWaybillDate, setNewWaybillDate] = useState("");
 	const [confirmDeleteSiblingId, setConfirmDeleteSiblingId] = useState<number | null>(null);
+	const [attachingId, setAttachingId] = useState<number | "">("");
 
 	// Підвантажені дані існуючої події заповнюють форму — окремим
 	// ефектом, бо useRouteEvent(id) резолвиться асинхронно вже ПІСЛЯ
@@ -197,6 +207,25 @@ export function EventAdminForm() {
 	function handleDeleteSibling(id: number) {
 		if (!existing) return;
 		deleteEvent.mutate({ id, carId: existing.carId }, { onSuccess: () => setConfirmDeleteSiblingId(null) });
+	}
+
+	// Приєднує вже існуючу окрему подію до групи цієї точки — PATCH її
+	// notes міткою [stop:rootId], зберігаючи решту тексту notes, якщо
+	// там уже щось було (не перезаписує). Нової події НЕ створює.
+	function handleAttachExisting() {
+		if (!existing || attachingId === "") return;
+		const target = attachable.find((e) => e.id === attachingId);
+		if (!target) return;
+		const rootId = groupRootIdOf(existing);
+		const preservedNotes = stripStopTag(target.notes);
+		updateEvent.mutate(
+			{
+				id: target.id,
+				carId: target.carId,
+				patch: { notes: preservedNotes ? `${withStopTag(rootId)} ${preservedNotes}` : withStopTag(rootId) },
+			},
+			{ onSuccess: () => setAttachingId("") },
+		);
 	}
 
 	return (
@@ -365,6 +394,44 @@ export function EventAdminForm() {
 						})}
 					</div>
 
+					{/* Приєднати вже відскановану водієм ОКРЕМУ накладну до цієї
+					    точки — не створює нову подію, лише позначає наявну
+					    міткою [stop:N]. Саме це потрібно, коли водій
+					    відсканував кожну накладну точки окремим заходом
+					    (типовий випадок), а НЕ "+ Ще одна накладна" нижче
+					    (та створює нову подію — дублікат, якщо накладна вже
+					    існує окремим записом). */}
+					{attachable.length > 0 && (
+						<div className="flex flex-col gap-2 rounded-lg border border-white/10 bg-white/5 p-3">
+							<label className="text-xs text-white/50">
+								Приєднати вже відскановану накладну цього ж авто/дня
+							</label>
+							<div className="flex gap-2">
+								<select
+									value={attachingId}
+									onChange={(e) => setAttachingId(e.target.value ? Number(e.target.value) : "")}
+									className="flex-1 rounded-lg border border-white/10 bg-white/5 text-white px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 [&>option]:bg-slate-900 [&>option]:text-white"
+								>
+									<option value="">— обрати накладну —</option>
+									{attachable.map((e) => (
+										<option key={e.id} value={e.id}>
+											№ {e.waybillNumber} · {e.customerName || "—"} · {toDatetimeLocal(e.eventTs).slice(11)}
+										</option>
+									))}
+								</select>
+								<Button
+									type="button"
+									size="sm"
+									onClick={handleAttachExisting}
+									isLoading={updateEvent.isPending}
+									disabled={attachingId === ""}
+								>
+									Приєднати
+								</Button>
+							</div>
+						</div>
+					)}
+
 					{addingWaybill ? (
 						<div className="flex flex-col gap-2 rounded-lg border border-violet-400/30 bg-white/5 p-3">
 							<Input label="Номер накладної" value={newWaybillNumber} onChange={(e) => setNewWaybillNumber(e.target.value)} />
@@ -376,7 +443,7 @@ export function EventAdminForm() {
 						</div>
 					) : (
 						<Button type="button" variant="ghost" onClick={() => setAddingWaybill(true)}>
-							+ Ще одна накладна цієї точки
+							+ Нова накладна цієї точки (якщо водій ще не сканував)
 						</Button>
 					)}
 				</div>
