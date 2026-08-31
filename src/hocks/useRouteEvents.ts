@@ -74,10 +74,11 @@ export function useDriverEvents(carId: number) {
 // починається з ["route-events", carId], тому мутації нижче інвалідують
 // ["route-events"] цілим префіксом, а не по конкретному carId, — інакше
 // правка з адмінки не оновила б цей список і навпаки
-export function useAllRouteEvents(filters: { date?: string; carId?: number } = {}) {
+export function useAllRouteEvents(filters: { date?: string; carId?: number } = {}, options: { enabled?: boolean } = {}) {
     return useQuery({
         queryKey: ["route-events", "admin", filters],
         queryFn: () => fetchAllRouteEvents(filters),
+        enabled: options.enabled ?? true,
     });
 }
 

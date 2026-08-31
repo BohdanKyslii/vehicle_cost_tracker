@@ -9,6 +9,7 @@ import { Spinner } from "../../components/ui/Spinner";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorBanner } from "../../components/ui/ErrorBanner";
 import { Button } from "../../components/ui/Button";
+import { ConfirmDelete } from "../../components/ui/ConfirmDelete";
 
 function todayIso(): string {
 	const now = new Date();
@@ -23,6 +24,7 @@ export function EventsAdminList() {
 	const [date, setDate] = useState(todayIso());
 	const [carId, setCarId] = useState<number | "">("");
 	const [driverId, setDriverId] = useState<number | "">("");
+	const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
 	const { data: cars } = useCars();
 	const { data: drivers } = useDrivers();
@@ -44,9 +46,8 @@ export function EventsAdminList() {
 		return drivers?.find((d) => d.idDriver === id)?.nameDriver ?? `#${id}`;
 	}
 
-	function handleDelete(id: number, eventCarId: number) {
-		if (!window.confirm("Видалити цю подію?")) return;
-		deleteEvent.mutate({ id, carId: eventCarId });
+	function handleDeleteConfirmed(id: number, eventCarId: number) {
+		deleteEvent.mutate({ id, carId: eventCarId }, { onSuccess: () => setConfirmDeleteId(null) });
 	}
 
 	return (
@@ -115,35 +116,45 @@ export function EventsAdminList() {
 						</tr>
 					</thead>
 					<tbody>
-						{filtered.map((e) => (
-							<tr key={e.id} className="border-b border-white/5 hover:bg-white/5">
-								<td className="py-2 text-white/70 whitespace-nowrap">{formatDateTime(e.eventTs)}</td>
-								<td className="py-2">{carLabel(e.carId)}</td>
-								<td className="py-2">{driverLabel(e.driverId)}</td>
-								<td className="py-2 whitespace-nowrap">
-									{eventTypeIcon(e.eventType)} {eventTypeLabel(e.eventType, e.trackingMode)}
-								</td>
-								<td className="py-2 text-white/60 truncate max-w-[16rem]">
-									{[e.waybillNumber && `№ ${e.waybillNumber}`, e.customerName, eventComment(e)]
-										.filter(Boolean)
-										.join(" · ") || "—"}
-								</td>
-								<td className="py-2 text-right whitespace-nowrap">
-									<Link to={`/panel/events/${e.id}`} className="text-violet-300 hover:underline mr-3">
-										Редагувати
-									</Link>
-									<Button
-										type="button"
-										variant="ghost"
-										size="sm"
-										onClick={() => handleDelete(e.id, e.carId)}
-										isLoading={deleteEvent.isPending && deleteEvent.variables?.id === e.id}
-									>
-										🗑
-									</Button>
-								</td>
-							</tr>
-						))}
+						{filtered.map((e) => {
+							if (confirmDeleteId === e.id) {
+								return (
+									<tr key={e.id} className="border-b border-white/5">
+										<td colSpan={6} className="py-2">
+											<ConfirmDelete
+												message={`Видалити подію "${eventTypeLabel(e.eventType, e.trackingMode)}"${e.waybillNumber ? ` (№ ${e.waybillNumber})` : ""}?`}
+												pending={deleteEvent.isPending && deleteEvent.variables?.id === e.id}
+												onCancel={() => setConfirmDeleteId(null)}
+												onConfirm={() => handleDeleteConfirmed(e.id, e.carId)}
+											/>
+										</td>
+									</tr>
+								);
+							}
+							return (
+								<tr key={e.id} className="border-b border-white/5 hover:bg-white/5">
+									<td className="py-2 text-white/70 whitespace-nowrap">{formatDateTime(e.eventTs)}</td>
+									<td className="py-2">{carLabel(e.carId)}</td>
+									<td className="py-2">{driverLabel(e.driverId)}</td>
+									<td className="py-2 whitespace-nowrap">
+										{eventTypeIcon(e.eventType)} {eventTypeLabel(e.eventType, e.trackingMode)}
+									</td>
+									<td className="py-2 text-white/60 truncate max-w-[16rem]">
+										{[e.waybillNumber && `№ ${e.waybillNumber}`, e.customerName, eventComment(e)]
+											.filter(Boolean)
+											.join(" · ") || "—"}
+									</td>
+									<td className="py-2 text-right whitespace-nowrap">
+										<Link to={`/panel/events/${e.id}`} className="text-violet-300 hover:underline mr-3">
+											Редагувати
+										</Link>
+										<Button type="button" variant="ghost" size="sm" onClick={() => setConfirmDeleteId(e.id)}>
+											🗑
+										</Button>
+									</td>
+								</tr>
+							);
+						})}
 					</tbody>
 				</table>
 			)}
