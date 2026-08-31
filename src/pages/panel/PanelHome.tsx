@@ -10,6 +10,7 @@ import { Link } from "react-router-dom";
 // DriverForm, Фаза 16), дублювати його тут не було сенсу.
 const sections = [
 	{ to: "/fleet", label: "Автопарк (авто, водії)", icon: "🚛", ready: true },
+	{ to: "/panel/events", label: "Події водіїв", icon: "🧾", ready: true },
 	{ to: "/panel/products", label: "Товари", icon: "📦", ready: true },
 	{ to: "/panel/customers", label: "Клієнти", icon: "🧑‍💼", ready: true },
 	{ to: "/panel/stores", label: "Магазини", icon: "🏬", ready: true },

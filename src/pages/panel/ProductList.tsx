@@ -14,9 +14,14 @@ export function ProductList() {
 		<div className="p-6 space-y-4">
 			<div className="flex items-center justify-between">
 				<h1 className="text-xl font-bold text-white">Товари</h1>
-				<Link to="/panel/products/new" className="px-3 py-2 text-sm rounded-lg bg-violet-600 text-white hover:bg-violet-500">
-					+ Товар
-				</Link>
+				<div className="flex gap-2">
+					<Link to="/panel/products/import" className="px-3 py-2 text-sm rounded-lg border border-white/10 text-white/70 hover:bg-white/5">
+						⬇️ Імпорт з Excel
+					</Link>
+					<Link to="/panel/products/new" className="px-3 py-2 text-sm rounded-lg bg-violet-600 text-white hover:bg-violet-500">
+						+ Товар
+					</Link>
+				</div>
 			</div>
 
 			<Input placeholder="Пошук за назвою або артикулом..." value={search} onChange={(e) => setSearch(e.target.value)} />

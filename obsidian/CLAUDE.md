@@ -4,22 +4,21 @@ Frontend-репозиторій застосунку обліку транспо
 навчальний проєкт (JS/React/TS з нуля) — весь процес написання коду
 задокументований крок за кроком у `CODING_GUIDE.md` у корені репо.
 
-> ⚠️ **Резинхронізовано 2026-08-30** — шлях бекенду нижче знову
-> виправлено, третій раз поспіль: сесія 2026-08-28 "перевірила напряму"
-> й записала шлях БЕЗ підтеки `DjangoProject\` та з друкарською
-> помилкою `b.kysliy` — і те, й інше хибне. Причина: та перевірка
-> йшла через `Bash` (POSIX sh), де зворотний слеш у Windows-шляхах —
-> escape-символ і `ls` на такому шляху ненадійний. Перевірено 2026-08-30
-> через `PowerShell` (`Get-ChildItem`) — правильний шлях нижче. Правило
-> на майбутнє: Windows-шляхи з `\` перевіряти через `PowerShell`, не
-> `Bash`. Деталі — `CLAUDE.md` цього репо (не vault-копія).
+> ⚠️ **Резинхронізовано 2026-08-31 (двічі того самого дня)** — Фази
+> 18-21 (найманий транспорт, місячні витрати, навігація/ролі, уніфікація
+> форм), `panel-management` (products/customers/stores CRUD + керування
+> користувачами) і `/panel/events` + масовий Excel-імпорт довідників —
+> усе поза нумерацією `CODING_GUIDE.md`. Деталі й дати —
+> `STATE.md`/`tasks.md`/`decisions.md`.
+> Бекенд-шлях нижче не перевірявся цієї сесії повторно (востаннє
+> підтверджено 2026-08-30 через `PowerShell`) — правило на майбутнє:
+> Windows-шляхи з `\` перевіряти через `PowerShell`, не `Bash` (POSIX
+> `ls` на такому шляху ненадійний). Деталі — `CLAUDE.md` цього репо
+> (не vault-копія).
 >
-> Того самого дня (2026-08-30) написано й закодовано **Фазу 18**
-> (`CODING_GUIDE.md`) — `MonthlyCosts`/`HiredTransportTrip` для логіста
-> (витрати по своїх авто + найманий транспорт). Бекендова частина
-> (`apps.logistics` serializers/views/urls, і виправлення прав
-> `MonthlyCostsViewSet`) закомічена в `vehicle_tracker_api` (`main`,
-> локально) — ще НЕ запушена.
+> **Не перевірено цією сесією:** чи запушено бекенд `vehicle_tracker_api`
+> для `apps.logistics` (Фази 18-19) — за нотатками 2026-08-30 було
+> закомічено лише локально.
 
 Пов'язаний репозиторій: **vehicle_tracker_api** (Django-бекенд,
 `C:\Users\b.kisliy\PycharmProjects\DjangoProject\vehicle_tracker_api\`) — один
@@ -38,6 +37,10 @@ Frontend-репозиторій застосунку обліку транспо
   відкладено)
 - html5-qrcode v2.3.8 — реально використовується (`QRScanner.tsx`,
   Фаза 15)
+- xlsx (SheetJS) — масовий Excel-імпорт довідників (2026-08-31),
+  `src/utils/excelImport.ts`. Встановлено НЕ з npm-реєстру (там 2
+  непофікшені CVE) а з `https://cdn.sheetjs.com/xlsx-latest/xlsx-latest.tgz`
+  — `package.json` посилається на URL, це очікувано ([[decisions.md]]).
 
 ## Структура репо (реальний стан коду, не лише гайд)
 
@@ -64,41 +67,68 @@ src/
           різні файли)
   pages/
     driver/DriverDashboard.tsx, EventForm.tsx, DriverHistory.tsx,
-           EventDetail.tsx (Фаза 17 — деталі/видалення/групування подій)
+           EventDetail.tsx (Фаза 17 + inline-edit накладної, 2026-08-31)
     fleet/FleetList.tsx, CarForm.tsx, DriverForm.tsx
+    hired/HiredTripList.tsx, HiredTripForm.tsx (Фаза 18)
+    costs/MonthlyCostsList.tsx, MonthlyCostsForm.tsx, BulkMonthlyCostsForm.tsx
+          (Фаза 19/21, переїхало з admin/ у Фазі 20)
+    panel/ — /panel, head-only "суперкористувацький" розділ
+      PanelHome.tsx           — тайли-посилання (Автопарк, Події водіїв,
+                                 Товари, Клієнти, Магазини, Користувачі)
+      ProductList/Form.tsx, ProductImport.tsx      (2026-08-30/31)
+      CustomerList/Form.tsx, CustomerImport.tsx    (2026-08-30/31)
+      StoreList/Form.tsx, StoreImport.tsx          (2026-08-30/31)
+      UserManagement.tsx      — підтвердження реєстрацій/зміна ролі
+      EventsAdminList.tsx, EventAdminForm.tsx      (2026-08-31) — повний
+                                 CRUD подій ВСІХ водіїв (не лише свого),
+                                 бекенд не змінювався ([[decisions.md]])
     DriverMiniApp.tsx         — Telegram Mini App логін-екран, редіректить
-                                 за роллю (ROLE_LANDING) після логіну
+                                 за роллю (ROLE_ROUTES) після логіну
     LandingPage.tsx, UnderConstruction.tsx, RoleRedirect.tsx, PlaceholderPage.tsx
   hocks/                      — тека названа "hocks", не "hooks" (навмисно, [[decision_hocks_typo]])
-    useCars.ts, useDrivers.ts, useRouteEvents.ts (+useDeleteRouteEvent, Фаза 17),
-    useWaybills.ts, useWaybillFilters.ts, useDayMode.ts (carId-scoped),
-    useCurrentUser.ts, useAuthModal.ts
-  utils/ — formatters, eventHelpers (+findEventGroup, Фаза 17),
-           calcSummary, calcTransportCost, calcProduct, parseQR.ts, clientFilter
+    useCars.ts, useDrivers.ts, useRouteEvents.ts (+useAllRouteEvents/
+      useRouteEvent, 2026-08-31), useWaybills.ts, useWaybillFilters.ts,
+    useHiredTrips.ts, useMonthlyCosts.ts, useProducts.ts, useCustomers.ts,
+    useAdminUsers.ts, useBulkImport.ts (2026-08-31 — спільний хук
+      масового імпорту, послідовний цикл зі збором помилок по рядку),
+    useDayMode.ts (carId-scoped), useCurrentUser.ts, useAuthModal.ts
+  api/ — routeEvents.ts, cars.ts, drivers.ts, waybills.ts, hiredTrips.ts,
+         monthlyCosts.ts, products.ts, customers.ts, adminUsers.ts, config.ts,
+         auth.ts (жоден з products/customers/adminUsers НЕ має USE_MOCK
+         гілки — завжди б'ють у реальний бекенд, навіть при VITE_USE_MOCK=true)
+  utils/ — formatters, eventHelpers (+findEventGroup — явний маркер
+           [stop:N], НЕ часова евристика, з 2026-08-28), calcSummary,
+           calcTransportCost, calcProduct, parseQR.ts, clientFilter,
+           roleAccess.ts (ROLE_ROUTES/rolesForRoute — єдине джерело
+           правди роль↔маршрут, Фаза 20), carNumber.ts,
+           excelImport.ts (2026-08-31 — parse/generate .xlsx на фронтенді)
   styles/landing.css
   types/index.ts               — Car/CarSpecs/Trailer/Driver/RouteEvent/
                                   WaybillRecord/HiredTransportTrip/
-                                  CarrierShipment/аналітичні типи;
-                                  CarStatus тепер 5 значень (+pause/driver_downtime)
-  mocks/ — cars.json, drivers.json, route-events.json, waybills.json (лише ці 4)
+                                  CarrierShipment/Product/Customer/Store/
+                                  аналітичні типи; CarStatus 5 значень
+  mocks/ — cars.json, drivers.json, route-events.json, waybills.json (лише ці 4 —
+           Product/Customer/Store/HiredTrip НЕ мають mock-файлів, бо їхні
+           api/*.ts завжди б'ють у реальний бекенд, USE_MOCK їх не стосується)
 
 documents/                    — ТЗ/специфікація проєкту (01-08), design-
                                  довідник, ресинхронізовано 2026-08-24 —
                                  НЕ джерело правди по факту імплементації,
                                  для цього CODING_GUIDE.md
-CODING_GUIDE.md                — покроковий навчальний гайд, Фази 1-17,
-                                 джерело правди по тому, що реально
-                                 набрано в код (крок за кроком)
+CODING_GUIDE.md                — покроковий навчальний гайд, Фази 1-21
+                                 задокументовані (Крок 22-23 написані,
+                                 код ще не набраний); panel-management і
+                                 /panel/events + Excel-імпорт — НЕ в гайді
+                                 ([[decisions.md]])
 Dockerfile, docker-compose.yml, nginx.conf — деплой на Raspberry Pi
 .github/workflows/deploy.yml   — автодеплой при push у main
 ```
 
 Стубів `src/pages/{fleet,hired,carriers,admin,analystics}`,
-`src/components/{fleet,hired,carriers,analystics}` (Фаза 2) уже немає —
-`fleet/` реальний, решта директорій прибрані разом з рештою
-не-`PlaceholderPage`-маршрутів, які досі порожні (`/hired`, `/carriers`,
-`/admin`, `/analytics` — рендерять `PlaceholderPage`, коду під них ще
-нема).
+`src/components/{fleet,hired,carriers,analystics}` (Фаза 2) уже немає.
+`/carriers` і `/analytics` усе ще `PlaceholderPage` (Крок 23/аналітика
+не набрані); `/admin` навмисно НЕ SPA-маршрут — nginx проксіює напряму
+на Django admin, кастомна адмінка живе на `/panel` ([[decisions.md]]).
 
 ## Деплой
 

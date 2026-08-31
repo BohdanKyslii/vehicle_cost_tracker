@@ -148,6 +148,39 @@ export async function fetchDriverEvents(carId: number): Promise<RouteEvent[]> {
     return data.results.map(mapRouteEvent).sort((a, b) => b.eventTs.localeCompare(a.eventTs));
 }
 
+// Усі події за фільтром (адмінка /panel/events) — на відміну від
+// fetchTodayEvents/fetchDriverEvents, НЕ прив'язано до одного carId:
+// без car_id бекенд віддає всі авто (RouteEventViewSet.get_queryset()
+// фільтрує по водію лише для role=driver — logist/manager/head бачать
+// усіх водіїв без додаткового параметра)
+export async function fetchAllRouteEvents(filters: { date?: string; carId?: number } = {}): Promise<RouteEvent[]> {
+    if (USE_MOCK) {
+        await mockDelay(200);
+        let events = mockEvents as RouteEvent[];
+        if (filters.carId != null) events = events.filter(e => e.carId === filters.carId);
+        if (filters.date) events = events.filter(e => e.eventTs.startsWith(filters.date!));
+        return events.sort((a, b) => b.eventTs.localeCompare(a.eventTs));
+    }
+    const params = new URLSearchParams();
+    if (filters.carId != null) params.set("car_id", String(filters.carId));
+    if (filters.date) params.set("date", filters.date);
+    const query = params.toString();
+    const data = await apiFetch<Paginated<RawRouteEvent>>(`/route-events/${query ? `?${query}` : ""}`);
+    return data.results.map(mapRouteEvent).sort((a, b) => b.eventTs.localeCompare(a.eventTs));
+}
+
+// Одна подія за id (форма редагування в адмінці)
+export async function fetchRouteEvent(id: number): Promise<RouteEvent> {
+    if (USE_MOCK) {
+        await mockDelay(150);
+        const existing = (mockEvents as RouteEvent[]).find(e => e.id === id);
+        if (!existing) throw new Error("Подію не знайдено");
+        return existing;
+    }
+    const raw = await apiFetch<RawRouteEvent>(`/route-events/${id}/`);
+    return mapRouteEvent(raw);
+}
+
 // Останній одометр авто (для розрахунку пробігу daily режиму)
 export async function fetchLastOdometer(carId: number): Promise<number | null> {
     if (USE_MOCK) {
@@ -172,16 +205,15 @@ export async function deleteRouteEvent(id: number): Promise<void> {
     await apiFetch<void>(`/route-events/${id}/`, { method: "DELETE" });
 }
 
-// Часткове редагування вже збереженої накладної (виправити помилку скану) —
-// лише поля, які реально можна поправити з EventDetail, PATCH, не PUT:
-// решта полів події (тип, час, авто/водій) лишаються недоторканими.
-export interface RouteEventPatch {
-    waybillNumber?: string;
-    waybillDate?: string;
-    customerName?: string;
-    odometerKm?: number;
-    palletsCount?: number;
-}
+// Часткове редагування вже збереженої події — PATCH, не PUT: шле лише
+// поля, що прийшли в patch, решта на бекенді лишається недоторканою.
+// Той самий тип/функція обслуговує і вузьке водійське редагування
+// (EventDetail.tsx шле підмножину — номер/дата/клієнт/одометр/палети) і
+// повне адмінське (EventAdminForm.tsx, /panel/events, може прислати
+// будь-яке поле події, включно з типом/часом/авто/водієм) — увесь набір
+// полів тут той самий, що приймає RouteEventCreateSerializer на бекенді
+// (усе, крім id/createdAt).
+export type RouteEventPatch = Partial<Omit<RouteEvent, "id" | "createdAt">>;
 
 export async function updateRouteEvent(id: number, patch: RouteEventPatch): Promise<RouteEvent> {
     if (USE_MOCK) {
@@ -190,11 +222,35 @@ export async function updateRouteEvent(id: number, patch: RouteEventPatch): Prom
         return { ...(existing as RouteEvent), ...patch };
     }
     const body: Record<string, unknown> = {};
+    if (patch.carId !== undefined) body.car = patch.carId;
+    if (patch.driverId !== undefined) body.driver = patch.driverId;
+    if (patch.trackingMode !== undefined) body.tracking_mode = patch.trackingMode;
+    if (patch.eventType !== undefined) body.event_type = patch.eventType;
+    if (patch.eventTs !== undefined) body.event_ts = patch.eventTs;
+    if (patch.odometerKm !== undefined) body.odometer_km = patch.odometerKm;
+    if (patch.palletsCount !== undefined) body.pallets_count = patch.palletsCount;
     if (patch.waybillNumber !== undefined) body.waybill_number = patch.waybillNumber;
     if (patch.waybillDate !== undefined) body.waybill_date = patch.waybillDate;
     if (patch.customerName !== undefined) body.customer_name = patch.customerName;
-    if (patch.odometerKm !== undefined) body.odometer_km = patch.odometerKm;
-    if (patch.palletsCount !== undefined) body.pallets_count = patch.palletsCount;
+    if (patch.rejection !== undefined) {
+        body.rejection_full = patch.rejection?.isFull ?? null;
+        body.rejection_product_id = patch.rejection?.productId != null ? String(patch.rejection.productId) : "";
+        body.rejection_qty = patch.rejection?.quantity ?? null;
+        body.rejection_comment = patch.rejection?.comment ?? "";
+    }
+    if (patch.fuelLiters !== undefined) body.fuel_liters = patch.fuelLiters;
+    if (patch.fuelCostUah !== undefined) body.fuel_cost_uah = patch.fuelCostUah;
+    if (patch.adBlueLiters !== undefined) body.ad_blue_liters = patch.adBlueLiters;
+    if (patch.adBlueCostUah !== undefined) body.ad_blue_cost_uah = patch.adBlueCostUah;
+    if (patch.otherCostUah !== undefined) body.other_costs_uah = patch.otherCostUah;
+    if (patch.otherCostComment !== undefined) body.other_costs_comment = patch.otherCostComment;
+    if (patch.returnClientWaybill !== undefined) body.return_client_waybill = patch.returnClientWaybill;
+    if (patch.extraFrom !== undefined) body.extra_from = patch.extraFrom;
+    if (patch.extraTo !== undefined) body.extra_to = patch.extraTo;
+    if (patch.extraWeightKg !== undefined) body.extra_weight_kg = patch.extraWeightKg;
+    if (patch.extraWaybill !== undefined) body.extra_waybill = patch.extraWaybill;
+    if (patch.extraComment !== undefined) body.extra_comment = patch.extraComment;
+    if (patch.notes !== undefined) body.notes = patch.notes;
     const raw = await apiFetch<RawRouteEvent>(`/route-events/${id}/`, { method: "PATCH", json: body });
     return mapRouteEvent(raw);
 }

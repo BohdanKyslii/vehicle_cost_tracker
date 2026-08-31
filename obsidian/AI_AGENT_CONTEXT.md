@@ -6,7 +6,10 @@
 
 > Створено 2026-08-24, резинхронізовано 2026-08-28 (Фази 14-17 вже
 > реальні — попередня версія стверджувала протилежне для 14-16;
-> `RouteEvent` мав набагато більше полів, ніж тут документувалось).
+> `RouteEvent` мав набагато більше полів, ніж тут документувалось) і
+> 2026-08-31 (Фази 18-21 + `panel-management` уже в коді; виправлено
+> застарілий опис `findEventGroup()` — часова евристика замінена на
+> явний маркер `[stop:N]` ще 2026-08-28, але тут це не було відображено).
 
 ---
 
@@ -89,10 +92,14 @@ type DeliveryStage = 'load' | 'unload'; // лише UI, тільки для deli
 ```
 
 ⚠️ Немає жодного поля-групи для "кілька накладних однієї точки" —
-кожна лягає окремим `RouteEvent` (Фаза 15, групове сканування). Щоб
-показати їх разом (Фаза 17, `EventDetail.tsx`), група вираховується
-заднім числом евристикою `findEventGroup()` (`eventHelpers.ts`) — за
-близькістю `eventTs` (вікно 10 хв), не за явним зв'язком у БД.
+кожна лягає окремим `RouteEvent` (Фаза 15, групове сканування). Група
+для `EventDetail.tsx` вираховується через `findEventGroup()`
+(`eventHelpers.ts`) за явним маркером `[stop:<rootId>]` у `notes`
+(додає `withStopTag()`), НЕ за близькістю `eventTs` — часова евристика
+(вікно 10 хв) використовувалась у першій версії Фази 17 (2026-08-28) і
+того ж дня була замінена, бо хибно об'єднувала самостійні накладні, що
+випадково потрапляли в те саме 10-хвилинне вікно ([[decisions.md]]).
+Подія без маркера в `notes` завжди сама собі група.
 
 ### `Driver`
 ```typescript
@@ -174,15 +181,22 @@ vs `components/driver/ui`), інакше правки підуть не в то�
 | `/driver`, `/driver/event/new`, `/driver/event/:eventId`, `/driver/history` | ✅ реальні (`DriverDashboard`, `EventForm`, `EventDetail` — Фаза 17, `DriverHistory`), під `RequireRole roles={["driver","head"]}` |
 | `/driver-app` | ✅ `DriverMiniApp` — Telegram Mini App логін, БЕЗ `RequireRole` (сам логінить через `initData` до того, як роль відома) |
 | `/waybills` (index) | ✅ реальний `WaybillList` |
-| `/waybills/:id`, `/import`, `/unassigned`, `/returns` | ⏳ `PlaceholderPage` |
-| `/fleet`, `/fleet/new`, `/fleet/:carId`, `/fleet/drivers/new`, `/fleet/drivers/:driverId` | ✅ реальні (`FleetList`, `CarForm`, `DriverForm` — Фаза 16), під `RequireRole roles={["logist","manager","head"]}` |
-| `/hired`, `/carriers`, `/analytics`, `/admin` (усі під-маршрути) | ⏳ `PlaceholderPage` |
+| `/waybills/:id`, `/import`, `/unassigned`, `/returns` | ⏳ `PlaceholderPage` (Крок 22 гайду написано, код не набраний) |
+| `/fleet`, `/fleet/new`, `/fleet/:carId`, `/fleet/drivers/new`, `/fleet/drivers/:driverId` | ✅ реальні (`FleetList`, `CarForm`, `DriverForm` — Фаза 16) |
+| `/hired`, `/hired/new`, `/hired/:tripId` | ✅ реальні (`HiredTripList`/`HiredTripForm` — Фаза 18) |
+| `/costs`, `/costs/new`, `/costs/bulk`, `/costs/:costId` | ✅ реальні (`MonthlyCostsList`/`Form`/`BulkMonthlyCostsForm` — Фаза 19/21) |
+| `/panel`, `/panel/products(/new,/:id,/import)`, `/panel/customers(/new,/:id,/import)`, `/panel/stores(/new,/:id,/import)`, `/panel/users` | ✅ реальні (`PanelHome`, `ProductList/Form/Import`, `CustomerList/Form/Import`, `StoreList/Form/Import`, `UserManagement` — panel-management 2026-08-30 + Excel-імпорт 2026-08-31, головно head-only) |
+| `/panel/events`, `/panel/events/new`, `/panel/events/:eventId` | ✅ реальні (`EventsAdminList`/`EventAdminForm`, 2026-08-31) — повний CRUD подій ВСІХ водіїв, не лише свого; бекенд не змінювався, `logist`/`manager`/`head` вже мали повний доступ ([[decisions.md]]) |
+| `/carriers`, `/analytics` | ⏳ `PlaceholderPage` (Крок 23 гайду написано, код не набраний) |
+| `/admin` | НЕ SPA-маршрут навмисно — nginx проксіює напряму на Django admin ([[decisions.md]]) |
 | `/` | `RoleRedirect` — неавторизований бачить `LandingPage`, авторизований редіректиться за роллю |
 
-`RequireRole` (`components/auth/RequireRole.tsx`) — гейтить `/driver` і
-`/fleet` за `user.profile.role`; неавторизований → `Navigate to="/"`,
-неправильна роль → "Доступ заборонено". `LandingPage`/`TopNav`/
-`AuthModal` реально рендеряться через `RoleRedirect` на `/`.
+Гейт ролей іде через єдине джерело правди `src/utils/roleAccess.ts`
+(`ROLE_ROUTES`/`rolesForRoute(path)`) — і `RequireRole` в `App.tsx`, і
+видимі пункти меню в `MainLayout` читають той самий список, не
+дублюють його окремо (Фаза 20 замінила розрізнений гейт саме через це
+— раніше `App.tsx` і навігація могли розійтись). `LandingPage`/
+`TopNav`/`AuthModal` реально рендеряться через `RoleRedirect` на `/`.
 
 ---
 
@@ -213,6 +227,6 @@ vs `components/driver/ui`), інакше правки підуть не в то�
 | Auth | Django-сесія + `X-CSRFToken` cookie (`apiFetch`), НЕ JWT, НЕ `localStorage`-токен |
 | `useDayMode` сигнатура | `useDayMode(carId, carDefaultMode)` — carId-scoped ключ у localStorage, НЕ `useDayMode(defaultMode)` |
 | Видалення/оновлення `RouteEvent` | DELETE вже дозволений бекендом без змін (`IsAuthenticated`, `get_queryset()` водія) — не питай дозволу на бекенд-роботу, якої не треба |
-| "Кілька накладних однієї точки" | Немає поля-групи в БД — групуй заднім числом через `findEventGroup()` (часове вікно), не шукай зв'язок у моделі |
+| "Кілька накладних однієї точки" | Немає поля-групи в БД — `findEventGroup()` групує за явним маркером `[stop:N]` у `notes` (НЕ часове вікно — замінено 2026-08-28) |
 | Довіра "виконано" в `CODING_GUIDE.md`/vault-файлах | Перевіряй, що файл справді існує в `src/`, перш ніж вважати крок готовим — тут уже кілька разів (Фаза 15/16, потім і сам vault) позначки "виконано"/"резинхронізовано" виявлялись застарілими вже за пару сесій |
 | Пошук актуального стану | `CODING_GUIDE.md` = факт коду (Фаза 1-17); `documents/*.md` = design-довідник (ресинхронізовано 2026-08-24, не Фаза 17) |

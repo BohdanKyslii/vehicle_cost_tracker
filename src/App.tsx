@@ -27,6 +27,11 @@ import { CustomerForm } from "./pages/panel/CustomerForm";
 import { StoreList } from "./pages/panel/StoreList";
 import { StoreForm } from "./pages/panel/StoreForm";
 import { UserManagement } from "./pages/panel/UserManagement";
+import { EventsAdminList } from "./pages/panel/EventsAdminList";
+import { EventAdminForm } from "./pages/panel/EventAdminForm";
+import { ProductImport } from "./pages/panel/ProductImport";
+import { CustomerImport } from "./pages/panel/CustomerImport";
+import { StoreImport } from "./pages/panel/StoreImport";
 import { rolesForRoute } from "./utils/roleAccess";
 
 // Далі будемо замінювати PlaceholderPage на реальні компоненти
@@ -157,14 +162,20 @@ export default function App() {
                 <Route index element={<PanelHome />} />
                 <Route path="products" element={<ProductList />} />
                 <Route path="products/new" element={<ProductForm />} />
+                <Route path="products/import" element={<ProductImport />} />
                 <Route path="products/:productId" element={<ProductForm />} />
                 <Route path="customers" element={<CustomerList />} />
                 <Route path="customers/new" element={<CustomerForm />} />
+                <Route path="customers/import" element={<CustomerImport />} />
                 <Route path="customers/:customerId" element={<CustomerForm />} />
                 <Route path="stores" element={<StoreList />} />
                 <Route path="stores/new" element={<StoreForm />} />
+                <Route path="stores/import" element={<StoreImport />} />
                 <Route path="stores/:storeId" element={<StoreForm />} />
                 <Route path="users" element={<UserManagement />} />
+                <Route path="events" element={<EventsAdminList />} />
+                <Route path="events/new" element={<EventAdminForm />} />
+                <Route path="events/:eventId" element={<EventAdminForm />} />
             </Route>
 
             {/* Telegram Mini App — залишається ЄДИНИМ маршрутом, без RequireRole

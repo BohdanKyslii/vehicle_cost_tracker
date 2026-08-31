@@ -6,6 +6,8 @@ import {
 import {
     fetchTodayEvents,
     fetchDriverEvents,
+    fetchAllRouteEvents,
+    fetchRouteEvent,
     fetchLastOdometer,
     createRouteEvent,
     deleteRouteEvent,
@@ -49,7 +51,11 @@ export function useCreateRouteEvent() {
         // накладної проходив, хоча мав блокуватись.
         onSuccess: (newEvent) => {
            return Promise.all([
-              queryClient.invalidateQueries({ queryKey: ["route-events", newEvent.carId] }),
+              // Увесь префікс "route-events", не лише [.., newEvent.carId] —
+              // адмінський список /panel/events (ключ ["route-events","admin",...])
+              // теж мусить побачити щойно створену подію, не тільки водійський
+              // useTodayEvents/useDriverEvents по конкретному авто.
+              queryClient.invalidateQueries({ queryKey: ["route-events"] }),
               queryClient.invalidateQueries({ queryKey: ["lastOdometer", newEvent.carId] }),
            ]);
         },
@@ -64,6 +70,25 @@ export function useDriverEvents(carId: number) {
     });
 }
 
+// Усі події всіх водіїв/авто (адмінка /panel/events) — ключ навмисно НЕ
+// починається з ["route-events", carId], тому мутації нижче інвалідують
+// ["route-events"] цілим префіксом, а не по конкретному carId, — інакше
+// правка з адмінки не оновила б цей список і навпаки
+export function useAllRouteEvents(filters: { date?: string; carId?: number } = {}) {
+    return useQuery({
+        queryKey: ["route-events", "admin", filters],
+        queryFn: () => fetchAllRouteEvents(filters),
+    });
+}
+
+export function useRouteEvent(id: number) {
+    return useQuery({
+        queryKey: ["route-events", "detail", id],
+        queryFn: () => fetchRouteEvent(id),
+        enabled: !!id,
+    });
+}
+
 // Видалення події (напр. зайва/помилково відскановна накладна) — carId
 // передаємо окремо, бо DELETE не повертає видалений об'єкт
 export function useDeleteRouteEvent() {
@@ -73,7 +98,7 @@ export function useDeleteRouteEvent() {
         mutationFn: ({ id }: { id: number; carId: number }) => deleteRouteEvent(id),
         onSuccess: (_data, variables) => {
             return Promise.all([
-                queryClient.invalidateQueries({ queryKey: ["route-events", variables.carId] }),
+                queryClient.invalidateQueries({ queryKey: ["route-events"] }),
                 queryClient.invalidateQueries({ queryKey: ["lastOdometer", variables.carId] }),
             ]);
         },
@@ -88,7 +113,15 @@ export function useUpdateRouteEvent() {
     return useMutation({
         mutationFn: ({ id, patch }: { id: number; carId: number; patch: RouteEventPatch }) => updateRouteEvent(id, patch),
         onSuccess: (_data, variables) => {
-            return queryClient.invalidateQueries({ queryKey: ["route-events", variables.carId] });
+            return Promise.all([
+                queryClient.invalidateQueries({ queryKey: ["route-events"] }),
+                queryClient.invalidateQueries({ queryKey: ["lastOdometer", variables.carId] }),
+                // Адмінська форма могла перепризначити подію іншому авто —
+                // інвалідувати одометр і нового carId теж, якщо він змінився
+                ...(variables.patch.carId != null && variables.patch.carId !== variables.carId
+                    ? [queryClient.invalidateQueries({ queryKey: ["lastOdometer", variables.patch.carId] })]
+                    : []),
+            ]);
         },
     });
 }
