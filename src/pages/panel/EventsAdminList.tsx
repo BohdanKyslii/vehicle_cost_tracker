@@ -3,8 +3,9 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useCars } from "../../hocks/useCars";
 import { useDrivers } from "../../hocks/useDrivers";
 import { useAllRouteEvents, useDeleteRouteEvent } from "../../hocks/useRouteEvents";
-import { eventTypeLabel, eventTypeIcon, eventComment } from "../../utils/eventHelpers";
+import { eventTypeLabel, eventTypeIcon, eventComment, findEventGroup, groupRootIdOf } from "../../utils/eventHelpers";
 import { formatDateTime } from "../../utils/formatters";
+import type { RouteEvent } from "../../types";
 import { Spinner } from "../../components/ui/Spinner";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorBanner } from "../../components/ui/ErrorBanner";
@@ -52,6 +53,23 @@ export function EventsAdminList() {
 	// driver_id (лише car_id/date), обсяг подій за день для одного парку
 	// малий, фільтрувати вже отриманий масив достатньо
 	const filtered = driverId === "" ? events : events?.filter((e) => e.driverId === driverId);
+
+	// Кожна накладна — окремий RouteEvent (свідоме рішення, без зміни
+	// схеми — [[decisions.md]]), але ОДНА точка вивантаження з кількома
+	// накладними має виглядати ОДНИМ рядком тут, так само, як driver
+	// бачить це в EventDetail.tsx — інакше 3 накладні однієї точки
+	// виглядають як 3 самостійні точки, що й спантеличило при живому
+	// тестуванні 2026-08-31.
+	const rows: RouteEvent[][] = [];
+	if (filtered) {
+		const seen = new Set<number>();
+		for (const e of filtered) {
+			if (seen.has(e.id)) continue;
+			const group = e.eventType === "delivery" ? findEventGroup(filtered, e) : [e];
+			group.forEach((g) => seen.add(g.id));
+			rows.push(group);
+		}
+	}
 
 	function carLabel(id: number): string {
 		return cars?.find((c) => c.idCar === id)?.numberCar ?? `#${id}`;
@@ -113,11 +131,11 @@ export function EventsAdminList() {
 
 			{isLoading && <Spinner size="lg" label="Завантаження подій..." />}
 			{isError && !isLoading && <ErrorBanner message="Не вдалось завантажити події" onRetry={refetch} />}
-			{!isLoading && !isError && filtered?.length === 0 && (
+			{!isLoading && !isError && rows.length === 0 && (
 				<EmptyState title="Подій не знайдено" subtitle="Змініть фільтр або додайте подію вручну" />
 			)}
 
-			{!isLoading && !isError && filtered && filtered.length > 0 && (
+			{!isLoading && !isError && rows.length > 0 && (
 				<table className="w-full text-sm">
 					<thead className="text-left text-white/50 border-b border-white/10">
 						<tr>
@@ -130,41 +148,56 @@ export function EventsAdminList() {
 						</tr>
 					</thead>
 					<tbody>
-						{filtered.map((e) => {
-							if (confirmDeleteId === e.id) {
+						{rows.map((group) => {
+							const rootId = groupRootIdOf(group[0]);
+							const root = group.find((g) => g.id === rootId) ?? group[0];
+							const isGroup = group.length > 1;
+
+							if (!isGroup && confirmDeleteId === root.id) {
 								return (
-									<tr key={e.id} className="border-b border-white/5">
+									<tr key={root.id} className="border-b border-white/5">
 										<td colSpan={6} className="py-2">
 											<ConfirmDelete
-												message={`Видалити подію "${eventTypeLabel(e.eventType, e.trackingMode)}"${e.waybillNumber ? ` (№ ${e.waybillNumber})` : ""}?`}
-												pending={deleteEvent.isPending && deleteEvent.variables?.id === e.id}
+												message={`Видалити подію "${eventTypeLabel(root.eventType, root.trackingMode)}"${root.waybillNumber ? ` (№ ${root.waybillNumber})` : ""}?`}
+												pending={deleteEvent.isPending && deleteEvent.variables?.id === root.id}
 												onCancel={() => setConfirmDeleteId(null)}
-												onConfirm={() => handleDeleteConfirmed(e.id, e.carId)}
+												onConfirm={() => handleDeleteConfirmed(root.id, root.carId)}
 											/>
 										</td>
 									</tr>
 								);
 							}
 							return (
-								<tr key={e.id} className="border-b border-white/5 hover:bg-white/5">
-									<td className="py-2 text-white/70 whitespace-nowrap">{formatDateTime(e.eventTs)}</td>
-									<td className="py-2">{carLabel(e.carId)}</td>
-									<td className="py-2">{driverLabel(e.driverId)}</td>
+								<tr key={rootId} className="border-b border-white/5 hover:bg-white/5">
+									<td className="py-2 text-white/70 whitespace-nowrap">{formatDateTime(root.eventTs)}</td>
+									<td className="py-2">{carLabel(root.carId)}</td>
+									<td className="py-2">{driverLabel(root.driverId)}</td>
 									<td className="py-2 whitespace-nowrap">
-										{eventTypeIcon(e.eventType)} {eventTypeLabel(e.eventType, e.trackingMode)}
+										{eventTypeIcon(root.eventType)} {eventTypeLabel(root.eventType, root.trackingMode)}
+										{isGroup && <span className="ml-1 text-xs text-violet-300">· {group.length} накладні</span>}
 									</td>
-									<td className="py-2 text-white/60 truncate max-w-[16rem]">
-										{[e.waybillNumber && `№ ${e.waybillNumber}`, e.customerName, eventComment(e)]
+									<td className="py-2 text-white/60 truncate max-w-[20rem]">
+										{[
+											group.map((g) => `№ ${g.waybillNumber}`).join(", "),
+											root.customerName,
+											eventComment(root),
+										]
 											.filter(Boolean)
 											.join(" · ") || "—"}
 									</td>
 									<td className="py-2 text-right whitespace-nowrap">
-										<Link to={`/panel/events/${e.id}`} className="text-violet-300 hover:underline mr-3">
+										<Link to={`/panel/events/${rootId}`} className="text-violet-300 hover:underline mr-3">
 											Редагувати
 										</Link>
-										<Button type="button" variant="ghost" size="sm" onClick={() => setConfirmDeleteId(e.id)}>
-											🗑
-										</Button>
+										{/* Видалення одним кліком лишається лише для одиночних подій —
+										    для групи з кількома накладними неоднозначно, яку саме
+										    видаляти, туди йдуть через "Редагувати" (там є видалення
+										    кожної накладної окремо) */}
+										{!isGroup && (
+											<Button type="button" variant="ghost" size="sm" onClick={() => setConfirmDeleteId(root.id)}>
+												🗑
+											</Button>
+										)}
 									</td>
 								</tr>
 							);
