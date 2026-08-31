@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useCars } from "../../hocks/useCars";
 import { useDrivers } from "../../hocks/useDrivers";
 import { useAllRouteEvents, useDeleteRouteEvent } from "../../hocks/useRouteEvents";
@@ -21,10 +21,24 @@ function todayIso(): string {
 // подію за будь-кого, не чекаючи, поки водій сам це зробить у EventDetail
 // (там лише вузький PATCH підмножини полів своєї ж події).
 export function EventsAdminList() {
-	const [date, setDate] = useState(todayIso());
-	const [carId, setCarId] = useState<number | "">("");
-	const [driverId, setDriverId] = useState<number | "">("");
+	// Фільтри живуть в URL (searchParams), не в локальному useState —
+	// інакше вони скидались на дефолт при поверненні з /panel/events/:id
+	// (список розмонтовується/монтується заново, useState втрачає
+	// значення). Тепер "Редагувати"/"+ Подія" → "← Назад"/"Скасувати" в
+	// EventAdminForm.tsx роблять navigate(-1), що повертає саме на цей
+	// URL з тими самими параметрами.
+	const [searchParams, setSearchParams] = useSearchParams();
+	const date = searchParams.get("date") ?? todayIso();
+	const carId: number | "" = searchParams.get("carId") ? Number(searchParams.get("carId")) : "";
+	const driverId: number | "" = searchParams.get("driverId") ? Number(searchParams.get("driverId")) : "";
 	const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+
+	function updateFilter(key: "date" | "carId" | "driverId", value: string) {
+		const next = new URLSearchParams(searchParams);
+		if (value) next.set(key, value);
+		else next.delete(key);
+		setSearchParams(next);
+	}
 
 	const { data: cars } = useCars();
 	const { data: drivers } = useDrivers();
@@ -65,7 +79,7 @@ export function EventsAdminList() {
 					<input
 						type="date"
 						value={date}
-						onChange={(e) => setDate(e.target.value)}
+						onChange={(e) => updateFilter("date", e.target.value)}
 						className="rounded-lg border border-white/10 bg-white/5 text-white px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
 					/>
 				</div>
@@ -73,7 +87,7 @@ export function EventsAdminList() {
 					<label className="text-xs text-white/50">Авто</label>
 					<select
 						value={carId}
-						onChange={(e) => setCarId(e.target.value ? Number(e.target.value) : "")}
+						onChange={(e) => updateFilter("carId", e.target.value)}
 						className="rounded-lg border border-white/10 bg-white/5 text-white px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 [&>option]:bg-slate-900 [&>option]:text-white"
 					>
 						<option value="">Усі авто</option>
@@ -86,7 +100,7 @@ export function EventsAdminList() {
 					<label className="text-xs text-white/50">Водій</label>
 					<select
 						value={driverId}
-						onChange={(e) => setDriverId(e.target.value ? Number(e.target.value) : "")}
+						onChange={(e) => updateFilter("driverId", e.target.value)}
 						className="rounded-lg border border-white/10 bg-white/5 text-white px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 [&>option]:bg-slate-900 [&>option]:text-white"
 					>
 						<option value="">Усі водії</option>

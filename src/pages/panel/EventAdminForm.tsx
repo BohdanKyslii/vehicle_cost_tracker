@@ -158,10 +158,10 @@ export function EventAdminForm() {
 		if (isEdit) {
 			updateEvent.mutate(
 				{ id: Number(eventId), carId, patch: data },
-				{ onSuccess: () => navigate("/panel/events") },
+				{ onSuccess: () => navigate(-1) },
 			);
 		} else {
-			createEvent.mutate(data, { onSuccess: () => navigate("/panel/events") });
+			createEvent.mutate(data, { onSuccess: () => navigate(-1) });
 		}
 	}
 
@@ -173,7 +173,12 @@ export function EventAdminForm() {
 				driverId: existing.driverId,
 				trackingMode: existing.trackingMode ?? "daily",
 				eventType: "delivery",
-				eventTs: new Date().toISOString(),
+				// Той самий час, що основна подія точки, НЕ "зараз" — інакше
+				// додаткова накладна лягає під СЬОГОДНІШНЬОЮ датою (реальний
+				// час збереження), випадає з фільтра "дата" адмінського
+				// списку/групи (обидва фільтрують за датою ОСНОВНОЇ події) і
+				// виглядає як самостійна нова подія, а не частина цієї точки.
+				eventTs: existing.eventTs,
 				waybillNumber: newWaybillNumber,
 				waybillDate: newWaybillDate || undefined,
 				customerName: customerName || undefined,
@@ -319,7 +324,7 @@ export function EventAdminForm() {
 				{mutation.isError && <ErrorBanner message={(mutation.error as Error).message} />}
 
 				<div className="flex gap-3">
-					<Button type="button" variant="ghost" onClick={() => navigate("/panel/events")}>
+					<Button type="button" variant="ghost" onClick={() => navigate(-1)}>
 						{detailsLocked ? "← Назад" : "Скасувати"}
 					</Button>
 					<Button type="submit" isLoading={mutation.isPending} className="flex-1" disabled={detailsLocked}>Зберегти</Button>
