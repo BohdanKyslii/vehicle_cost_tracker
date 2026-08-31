@@ -29,7 +29,9 @@
 19. [Фаза 19 — Витрати по своїх авто (MonthlyCosts)](#faza-19)
 20. [Фаза 20 — Рольовий доступ і мобільна навігація](#faza-20)
 21. [Фаза 21 — Інфраструктурні фікси, уніфікація форм, масове введення витрат](#faza-21)
-22. [Що далі](#shcho-dali)
+22. [Фаза 22 — Імпорт накладних з 1С (форма завантаження файлу)](#faza-22)
+23. [Фаза 23 — Служби доставки (CarrierShipment + CarrierCost)](#faza-23)
+24. [Що далі](#shcho-dali)
 
 > Фази нумеруються так, як вони йшли по факту написання коду — Фази 12
 > у файлі немає (пропущена в нумерації), це не помилка змісту.
@@ -9285,6 +9287,1084 @@ GRANT USAGE, SELECT ON SEQUENCE carrier_costs_id_seq TO vt_user;
 ---
 
 # ═══════════════════════════════════════════════════════════
+<a id="faza-22"></a>
+# ФАЗА 22 — ІМПОРТ НАКЛАДНИХ З 1С (форма завантаження файлу)
+# ═══════════════════════════════════════════════════════════
+
+> Навіщо: `/waybills/import` — порожній `PlaceholderPage` ще з Фази 11,
+> і жодного механізму імпорту накладних з 1С немає взагалі — ні на
+> бекенді (upload-ендпоінт, парсери CSV/XLS), ні тут. Менеджер раз на
+> тиждень вивантажує дані з 1С трьома різними форматами (РУБІН — CSV,
+> ЄСП/ОПТ — XLS) для трьох юросіб; ця фаза — сама форма завантаження.
+> Дизайн-рішення (чому парсинг на бекенді, як формується номер
+> накладної, що робити з незнайденим клієнтом/точкою тощо) — у
+> запланованому файлі сесії плану (`woolly-dancing-hopcroft.md`) і в
+> `task_description/IMPORT_1C_SPEC.md` бекенд-репо — тут лише
+> фронтенд-наслідок цих рішень.
+
+## Крок 22.1 — Бекенд: перевір перед стартом
+
+> **Оновлено після того, як бекенд написав `Крок 16.x` (Фаза 12
+> `DJANGO_CODING_GUIDE.md`, `IMPORT_1C_SPEC.md` Q1-Q12) — нижче вже
+> звірено з реальним текстом того розділу, не лише з планом.**
+> Ендпоінт, форма відповіді і поля збіглись з початковим припущенням
+> плану один-в-один; розійшлось лише одне — права доступу (деталі
+> нижче). Якщо бекенд-гайд ще раз зміниться до того, як це реально
+> набирається код — звір ще раз, а не покладайся на цей запис.
+
+- Ендпоінт: `POST /api/waybill-records/import_file/`
+  (`multipart/form-data`: поля `legal_entity` + `file`).
+- Відповідь: `{batch_id, imported, deleted, dates: string[], errors:
+  [{row, field, message}]}`.
+- Права: **`IsManagerOrHeadOnly`** — НЕ `IsManagerOrHead`. Бекенд
+  спершу планував переюзати вже наявний `IsManagerOrHead`
+  (`apps/accounts/permissions.py`), але той клас навмисно впускає й
+  `logist` (лишено заради `Car.change_status` і
+  `CarrierShipment`/`CarrierCost` з Фази 11) — а бізнес-процес тут
+  (`IMPORT_1C_SPEC.md` §1: «менеджер-операціоніст в офісі») explicitly
+  не включає logist. Тому бекенд завів окремий, вужчий клас
+  `IsManagerOrHeadOnly` (`manager`+`head`, без `logist`) саме для
+  `WaybillRecordViewSet` (CRUD-запис + `import_file`). Для фронтенду це
+  нічого не міняє в коді нижче (перевірка все одно серверна) — важливо
+  тільки для Кроку 22.8, п.5: тест "`logist` → `403`" тепер справді
+  проходить, а не тільки мав би.
+
+## Крок 22.2 — types/index.ts: ImportResult отримує нові поля
+
+`ImportResult`/`ImportError` вже були описані в типах (Фаза 2) про
+запас, але досі ніде не використовувались — тепер це реальна відповідь
+ендпоінта імпорту. Додаємо два нові поля (перезаливка за датами,
+рішення 3 плану):
+
+```typescript
+// src/types/index.ts — фрагмент, поля deleted/dates нові
+export interface ImportResult {
+  batchId: string;
+  imported: number;
+  deleted?: number;    // скільки старих рядків видалено при перезаливці
+  dates?: string[];     // які waybill_date охопило це завантаження
+  skipped: number;
+  errors: ImportError[];
+}
+```
+
+`WaybillRecord.customerId`/`storeId` (відома неузгодженість типів,
+`string` на фронтенді проти FK на бекенді) для цієї фічі НЕ
+використовуються взагалі — імпорт працює лише з `legalEntity` + файлом
+і повертає агреговані лічильники, не окремі записи.
+
+## Крок 22.3 — src/api/config.ts: apiFetchMultipart
+
+`apiFetch()` жорстко ставить `Content-Type: application/json` і робить
+`JSON.stringify(body)` — для завантаження файлу це ламає запит:
+браузер сам мусить виставити свій `multipart/form-data;
+boundary=...`, інакше бекенд не розбере тіло. Окрема функція поруч,
+той самий принцип обробки помилок (`extractErrorMessage`, уже є в
+цьому файлі):
+
+```typescript
+// src/api/config.ts — доповнення
+export async function apiFetchMultipart<T>(path: string, formData: FormData): Promise<T> {
+	const res = await fetch(`${API_BASE}${path}`, {
+		method: "POST",
+		credentials: "include",
+		headers: {
+			"X-CSRFToken": getCookie("csrftoken") ?? "",
+		},
+		body: formData,
+	});
+
+	if (!res.ok) {
+		const body = await res.json().catch(() => ({}));
+		throw new Error(extractErrorMessage(body) ?? `Request failed: ${res.status}.`);
+	}
+	return res.json();
+}
+```
+
+## Крок 22.4 — src/api/waybillImport.ts
+
+```typescript
+// src/api/waybillImport.ts
+import type { ImportResult, LegalEntity } from "../types";
+import { apiFetchMultipart } from "./config.ts";
+
+interface RawImportResult {
+	batch_id: string;
+	imported: number;
+	deleted?: number;
+	dates?: string[];
+	errors: { row: number; field: string; message: string }[];
+}
+
+function mapImportResult(raw: RawImportResult): ImportResult {
+	return {
+		batchId: raw.batch_id,
+		imported: raw.imported,
+		deleted: raw.deleted,
+		dates: raw.dates,
+		skipped: raw.errors.length,
+		errors: raw.errors,
+	};
+}
+
+// Бекенд сам парсить CSV (РУБІН) чи XLS (ЄСП/ОПТ) залежно від
+// legalEntity — фронтенд лише передає файл, нічого не парсить сам
+// (свідоме рішення плану: один парсер на бекенді, не два на двох мовах)
+export async function uploadWaybillFile(legalEntity: LegalEntity, file: File): Promise<ImportResult> {
+	const formData = new FormData();
+	formData.append("legal_entity", legalEntity);
+	formData.append("file", file);
+	const raw = await apiFetchMultipart<RawImportResult>("/waybill-records/import_file/", formData);
+	return mapImportResult(raw);
+}
+```
+
+## Крок 22.5 — src/hocks/useWaybillImport.ts
+
+```typescript
+// src/hocks/useWaybillImport.ts
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { uploadWaybillFile } from "../api/waybillImport";
+import type { LegalEntity } from "../types";
+
+export function useUploadWaybillFile() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: ({ legalEntity, file }: { legalEntity: LegalEntity; file: File }) =>
+			uploadWaybillFile(legalEntity, file),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["waybills"] });
+			queryClient.invalidateQueries({ queryKey: ["waybills-unassigned"] });
+		},
+	});
+}
+```
+
+## Крок 22.6 — pages/waybills/WaybillImportForm.tsx
+
+Замінює `PlaceholderPage` на `/waybills/import`. Без локед-режиму
+(Крок 21.2) — це не форма редагування існуючого запису, а
+одноразова дія "обрав юрособу й файл → завантажив":
+
+```typescript
+// src/pages/waybills/WaybillImportForm.tsx
+import { useState } from "react";
+import type { FormEvent } from "react";
+import { useNavigate } from "react-router-dom";
+import { useUploadWaybillFile } from "../../hocks/useWaybillImport";
+import { Button } from "../../components/ui/Button";
+import { ErrorBanner } from "../../components/ui/ErrorBanner";
+import type { LegalEntity } from "../../types";
+
+export function WaybillImportForm() {
+	const navigate = useNavigate();
+	const [legalEntity, setLegalEntity] = useState<LegalEntity | "">("");
+	const [file, setFile] = useState<File | null>(null);
+	const upload = useUploadWaybillFile();
+
+	function handleSubmit(e: FormEvent) {
+		e.preventDefault();
+		if (!legalEntity || !file) return;
+		upload.mutate({ legalEntity, file });
+	}
+
+	return (
+		<div className="p-6">
+			<form onSubmit={handleSubmit} className="max-w-lg mx-auto p-6 space-y-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
+				<h1 className="text-xl font-bold text-white">Імпорт із 1С</h1>
+
+				<div className="flex flex-col gap-1">
+					<label className="text-sm font-medium text-white/70">Юридична особа</label>
+					<select
+						value={legalEntity}
+						onChange={(e) => setLegalEntity(e.target.value as LegalEntity)}
+						className="w-full rounded-lg border border-white/10 bg-white/5 text-white px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 [&>option]:bg-slate-900 [&>option]:text-white"
+						required
+					>
+						<option value="">— оберіть —</option>
+						<option value="Rubin">РУБІН (CSV)</option>
+						<option value="ESP">ЄСП (XLS)</option>
+						<option value="OPT">ОПТ (XLS)</option>
+					</select>
+				</div>
+
+				<div className="flex flex-col gap-1">
+					<label className="text-sm font-medium text-white/70">Файл вивантаження</label>
+					<input
+						type="file"
+						accept=".csv,.xls"
+						onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+						className="text-sm text-white/70 file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-violet-600 file:text-white file:text-sm hover:file:bg-violet-500"
+						required
+					/>
+				</div>
+
+				{upload.isError && <ErrorBanner message={(upload.error as Error).message} />}
+
+				{upload.isSuccess && (
+					<div className="rounded-lg border border-white/10 p-4 space-y-2 text-sm">
+						<p className="text-white">
+							Імпортовано {upload.data.imported} рядків
+							{upload.data.deleted != null && `, видалено старих: ${upload.data.deleted}`}.
+						</p>
+						{upload.data.dates && upload.data.dates.length > 0 && (
+							<p className="text-white/50">Дати: {upload.data.dates.join(", ")}</p>
+						)}
+						{upload.data.errors.length > 0 && (
+							<div className="space-y-1">
+								<p className="text-amber-300">Рядки з помилками (пропущені):</p>
+								<ul className="text-white/60 max-h-40 overflow-y-auto space-y-0.5">
+									{upload.data.errors.map((err, i) => (
+										<li key={i}>Рядок {err.row}, {err.field}: {err.message}</li>
+									))}
+								</ul>
+							</div>
+						)}
+					</div>
+				)}
+
+				<div className="flex gap-3">
+					<Button type="button" variant="ghost" onClick={() => navigate("/waybills")}>← Назад</Button>
+					<Button type="submit" isLoading={upload.isPending} className="flex-1">Завантажити</Button>
+				</div>
+			</form>
+		</div>
+	);
+}
+```
+
+`upload.isError` покриває і мережеві помилки, і `HeaderMismatchError`
+із бекенду (400 з точним переліком розбіжності колонок — актуально,
+поки файл ОПТ не перевірено на реальних даних, Крок 22.1).
+
+## Крок 22.7 — Підключення в App.tsx
+
+```typescript
+// src/App.tsx — фрагмент /waybills
+import { WaybillImportForm } from "./pages/waybills/WaybillImportForm";
+
+// ...
+
+<Route path="import" element={<WaybillImportForm />} />
+{/* було: <Route path="import" element={<PlaceholderPage title="Імпорт із 1С" />} /> */}
+```
+
+Маршрут уже під гейтом `rolesForRoute("/waybills")` = manager+head
+(Фаза 20) — окремого `RequireRole` тут не треба, він на рівні
+батьківського `/waybills` Route. Посилання "Імпорт із 1С" у
+`WaybillList.tsx` вже веде сюди (`Link to="/waybills/import"`) — не
+змінюється.
+
+## Крок 22.8 — Перевірка
+
+1. Залогинься `manager` (або `head`) — `logist` не повинен бачити
+   пункт "Накладні" в меню (Фаза 20) і не повинен мати доступу напряму
+   за URL.
+2. `/waybills/import` → обери "РУБІН" → завантаж реальний
+   `documents/file_1C/SalesLineItem_history.csv` → перевір лічильник
+   `imported` і відсутність помилок.
+3. Той самий файл вдруге → ті самі дати перезаписались (лічильник
+   `imported` той самий, `deleted` — не нуль), а НЕ подвоївся список у
+   `/waybills`.
+4. Обери НЕ ту юрособу для файлу (напр. "ЄСП" для РУБІН CSV) →
+   читабельна помилка з `ErrorBanner` (розбіжність заголовка), не голе
+   "Request failed: 500."
+5. Залогинься `logist`/`driver` — виклик ендпоінта напряму (DevTools)
+   має повернути `403`, форма й так недосяжна через `RequireRole`.
+
+---
+
+# ═══════════════════════════════════════════════════════════
+<a id="faza-23"></a>
+# ФАЗА 23 — СЛУЖБИ ДОСТАВКИ (CarrierShipment + CarrierCost)
+# ═══════════════════════════════════════════════════════════
+
+> Навіщо: `/carriers` — три `PlaceholderPage` (`index`/`new`/`import-costs`),
+> жодного реального коду на фронтенді. На відміну від 1С-імпорту (Фаза
+> 22), **бекенд тут уже повністю готовий і задеплоєний** — `CarrierShipment`/
+> `CarrierShipmentWaybill`/`CarrierCost` написані в тому самому push
+> Фази 18, що й найманий транспорт. Це структурний близнюк `/hired`:
+> менеджер реєструє відправлення служби доставки (Нова Пошта/Міст
+> Експрес), сканує накладні, що в нього ввійшли (той самий QR-флоу, що
+> водій), і окремо, раз на тиждень, заливає CSV-реєстр витрат від
+> служби доставки — рядки зіставляються з відправленнями по ТТН
+> автоматично на бекенді.
+
+## Крок 23.1 — Бекенд: перевір перед стартом
+
+На відміну від Фази 22 тут нічого чекати не треба — просто звір, що
+код виглядає так, як описано (модель/серіалізатори/views не
+переписуємо, лише читаємо):
+
+- `apps/logistics/models.py`: `CarrierShipment` (`carrier` — enum
+  `nova_poshta`/`mist_express`/`other`, `ttn`, `shipment_date`),
+  `CarrierShipmentWaybill` (`shipment` FK, `waybill_number`, унікальний
+  — той самий принцип ексклюзивності каналу, що `HiredTripWaybill`),
+  `CarrierCost` (`shipment` FK, `null=True` — зіставляється по `ttn`,
+  `ttn`, `weight_kg` **обов'язкове**, `cost_uah`, `cost_date`).
+- `apps/logistics/views.py`: `CarrierShipmentViewSet` (CRUD +
+  `attach_waybill`, права `IsManagerOrHead` на запис — тут це
+  навмисно ширший клас, ніж `IsManagerOrHeadOnly` з Фази 22: `logist`
+  сюди пише, бо це його штатна робота, на відміну від 1С-імпорту, де
+  саме logist свідомо виключений), `CarrierCostViewSet` (CRUD,
+  `perform_create` сам шукає `CarrierShipment` з таким самим `ttn` і
+  підв'язує — **лише в момент створення**, не пізніше).
+- `apps/logistics/serializers.py`: `CarrierShipmentSerializer` віддає
+  вкладені `waybills`, **не** віддає зворотну `costs` — картку
+  відправлення в цій фазі показуємо без списку підв'язаних витрат
+  (Крок 23.7, п. "ризик D" нижче).
+
+Ендпоінти вже змонтовані (`router.register` у `apps/logistics/urls.py`):
+`/api/carrier-shipments/`, `/api/carrier-shipments/{id}/attach_waybill/`,
+`/api/carrier-costs/`.
+
+## Крок 23.2 — Тип-фікс types/index.ts
+
+Фронтенд-типи писались наперед, до того, як бачили реальну модель —
+кожне поле нижче звірено з тим, що бекенд РЕАЛЬНО віддає:
+
+```typescript
+// src/types/index.ts — заміна секції "Delivery services"
+export type CarrierCode = "nova_poshta" | "mist_express" | "other";
+
+export interface CarrierShipment {
+  id: number;
+  carrier: CarrierCode;   // було carrierName: string — бекенд зберігає
+                           // фіксований enum, не вільний текст
+  ttn: string;
+  shipmentDate: string;
+  createdAt: string;
+  waybills?: CarrierWaybill[];
+  // НЕМАЄ cost/costs — CarrierShipmentSerializer не віддає зворотну
+  // relation costs узагалі (тільки waybills nested)
+}
+
+export type CarrierShipmentCreate = Omit<CarrierShipment, "id" | "createdAt" | "waybills">;
+
+export interface CarrierWaybill {
+  id: number;
+  shipmentId: number;
+  waybillNumber: string;
+  // НЕМАЄ scannedAt — той самий фікс, що HiredTripWaybill (Крок 18.2):
+  // CarrierShipmentWaybill на бекенді такого поля не має
+}
+
+export interface CarrierCost {
+  id: number;
+  shipmentId?: number;   // null, поки не зматчено по ttn
+  ttn: string;
+  costDate: string;
+  weightKg: number;      // було опціональне — на бекенді weight_kg
+                           // ОБОВ'ЯЗКОВЕ (без null/blank)
+  costUah: number;
+  importedAt: string;
+  // НЕМАЄ carrierName/importBatchId — CarrierCost таких полів не має:
+  // модель не знає, якій службі доставки належить рядок, поки він не
+  // зматчений з CarrierShipment (див. Крок 23.6 нижче)
+}
+
+// Локальний результат CSV-імпорту витрат — НЕ ImportResult (Фаза 22,
+// той має "перезаливка за датами", тут імпорт завжди додатковий)
+export interface CarrierCostImportResult {
+  imported: number;
+  skipped: number;
+  errors: ImportError[];
+}
+```
+
+Заразом додай `formatCarrier()` у `src/utils/formatters.ts`, той самий
+стиль, що `formatLegalEntity`/`channelLabel`:
+
+```typescript
+// src/utils/formatters.ts — доповнення
+export function formatCarrier(carrier: CarrierCode): string {
+  const labels: Record<CarrierCode, string> = {
+    nova_poshta: "Нова Пошта",
+    mist_express: "Міст Експрес",
+    other: "Інша служба",
+  };
+  return labels[carrier];
+}
+```
+
+## Крок 23.3 — src/api/carrierShipments.ts
+
+Той самий Raw/map патерн, що `hiredTrips.ts` (Крок 18.3):
+
+```typescript
+// src/api/carrierShipments.ts
+import type { CarrierShipment, CarrierWaybill, CarrierCode } from "../types";
+import { apiFetch } from "./config.ts";
+
+interface Paginated<T> {
+  results: T[];
+}
+
+interface RawCarrierShipmentWaybill {
+  id: number;
+  waybill_number: string;
+}
+
+interface RawCarrierShipment {
+  id: number;
+  carrier: string;
+  ttn: string;
+  shipment_date: string;
+  waybills: RawCarrierShipmentWaybill[];
+  created_at: string;
+}
+
+function mapCarrierShipment(raw: RawCarrierShipment): CarrierShipment {
+  return {
+    id: raw.id,
+    carrier: raw.carrier as CarrierCode,
+    ttn: raw.ttn,
+    shipmentDate: raw.shipment_date,
+    createdAt: raw.created_at,
+    waybills: raw.waybills.map((w): CarrierWaybill => ({
+      id: w.id,
+      shipmentId: raw.id,
+      waybillNumber: w.waybill_number,
+    })),
+  };
+}
+
+export async function fetchCarrierShipments(): Promise<CarrierShipment[]> {
+  const data = await apiFetch<Paginated<RawCarrierShipment>>("/carrier-shipments/");
+  return data.results.map(mapCarrierShipment);
+}
+
+export async function fetchCarrierShipment(id: number): Promise<CarrierShipment> {
+  const raw = await apiFetch<RawCarrierShipment>(`/carrier-shipments/${id}/`);
+  return mapCarrierShipment(raw);
+}
+
+export interface CarrierShipmentPayload {
+  carrier: CarrierCode;
+  ttn: string;
+  shipmentDate: string;
+}
+
+function toCarrierShipmentPayload(data: CarrierShipmentPayload) {
+  return {
+    carrier: data.carrier,
+    ttn: data.ttn,
+    shipment_date: data.shipmentDate,
+  };
+}
+
+export async function createCarrierShipment(data: CarrierShipmentPayload): Promise<CarrierShipment> {
+  const raw = await apiFetch<RawCarrierShipment>("/carrier-shipments/", { method: "POST", json: toCarrierShipmentPayload(data) });
+  return mapCarrierShipment(raw);
+}
+
+export async function updateCarrierShipment(id: number, data: CarrierShipmentPayload): Promise<CarrierShipment> {
+  const raw = await apiFetch<RawCarrierShipment>(`/carrier-shipments/${id}/`, { method: "PATCH", json: toCarrierShipmentPayload(data) });
+  return mapCarrierShipment(raw);
+}
+
+export async function deleteCarrierShipment(id: number): Promise<void> {
+  await apiFetch<void>(`/carrier-shipments/${id}/`, { method: "DELETE" });
+}
+
+// POST /carrier-shipments/{id}/attach_waybill/ — той самий принцип, що
+// attachWaybillToHiredTrip (Крок 18.3)
+export async function attachWaybillToCarrierShipment(id: number, waybillNumber: string): Promise<CarrierShipment> {
+  const raw = await apiFetch<RawCarrierShipment>(`/carrier-shipments/${id}/attach_waybill/`, {
+    method: "POST",
+    json: { waybill_number: waybillNumber },
+  });
+  return mapCarrierShipment(raw);
+}
+```
+
+## Крок 23.4 — src/api/carrierCosts.ts
+
+Окремий файл (той самий поділ, що `cars.ts`/`drivers.ts` — два
+пов'язані, але різні ресурси):
+
+```typescript
+// src/api/carrierCosts.ts
+import type { CarrierCost } from "../types";
+import { apiFetch } from "./config.ts";
+
+interface Paginated<T> {
+  results: T[];
+}
+
+interface RawCarrierCost {
+  id: number;
+  shipment: number | null;
+  ttn: string;
+  weight_kg: string;
+  cost_uah: string;
+  cost_date: string;
+  imported_at: string;
+}
+
+function mapCarrierCost(raw: RawCarrierCost): CarrierCost {
+  return {
+    id: raw.id,
+    shipmentId: raw.shipment ?? undefined,
+    ttn: raw.ttn,
+    costDate: raw.cost_date,
+    weightKg: Number(raw.weight_kg),
+    costUah: Number(raw.cost_uah),
+    importedAt: raw.imported_at,
+  };
+}
+
+export async function fetchCarrierCosts(): Promise<CarrierCost[]> {
+  const data = await apiFetch<Paginated<RawCarrierCost>>("/carrier-costs/");
+  return data.results.map(mapCarrierCost);
+}
+
+export interface CarrierCostPayload {
+  ttn: string;
+  weightKg: number;
+  costUah: number;
+  costDate: string;
+}
+
+// `shipment` НЕ надсилається — бекенд сам зіставляє по ttn в
+// perform_create (apps/logistics/views.py)
+function toCarrierCostPayload(data: CarrierCostPayload) {
+  return {
+    ttn: data.ttn,
+    weight_kg: data.weightKg,
+    cost_uah: data.costUah,
+    cost_date: data.costDate,
+  };
+}
+
+export async function createCarrierCost(data: CarrierCostPayload): Promise<CarrierCost> {
+  const raw = await apiFetch<RawCarrierCost>("/carrier-costs/", { method: "POST", json: toCarrierCostPayload(data) });
+  return mapCarrierCost(raw);
+}
+```
+
+## Крок 23.5 — hocks/useCarrierShipments.ts і useCarrierCosts.ts
+
+```typescript
+// src/hocks/useCarrierShipments.ts
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  fetchCarrierShipments,
+  fetchCarrierShipment,
+  createCarrierShipment,
+  updateCarrierShipment,
+  deleteCarrierShipment,
+  attachWaybillToCarrierShipment,
+} from "../api/carrierShipments";
+import type { CarrierShipmentPayload } from "../api/carrierShipments";
+
+export function useCarrierShipments() {
+  return useQuery({ queryKey: ["carrier-shipments"], queryFn: fetchCarrierShipments });
+}
+
+export function useCarrierShipment(id: number) {
+  return useQuery({
+    queryKey: ["carrier-shipments", id],
+    queryFn: () => fetchCarrierShipment(id),
+    enabled: !!id,
+  });
+}
+
+export function useCreateCarrierShipment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: CarrierShipmentPayload) => createCarrierShipment(data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["carrier-shipments"] }),
+  });
+}
+
+export function useUpdateCarrierShipment(id: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: CarrierShipmentPayload) => updateCarrierShipment(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["carrier-shipments"] });
+      queryClient.invalidateQueries({ queryKey: ["carrier-shipments", id] });
+    },
+  });
+}
+
+export function useDeleteCarrierShipment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => deleteCarrierShipment(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["carrier-shipments"] }),
+  });
+}
+
+// id окремо від аргументів хука — той самий call-time патерн, що
+// useAttachWaybillToHiredTrip (Крок 18.4)
+export function useAttachWaybillToCarrierShipment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, waybillNumber }: { id: number; waybillNumber: string }) =>
+      attachWaybillToCarrierShipment(id, waybillNumber),
+    onSuccess: (_data, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ["carrier-shipments"] });
+      queryClient.invalidateQueries({ queryKey: ["carrier-shipments", id] });
+    },
+  });
+}
+```
+
+```typescript
+// src/hocks/useCarrierCosts.ts
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { fetchCarrierCosts, createCarrierCost } from "../api/carrierCosts";
+import type { CarrierCostPayload } from "../api/carrierCosts";
+
+export function useCarrierCosts() {
+  return useQuery({ queryKey: ["carrier-costs"], queryFn: fetchCarrierCosts });
+}
+
+export function useCreateCarrierCost() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: CarrierCostPayload) => createCarrierCost(data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["carrier-costs"] }),
+  });
+}
+```
+
+## Крок 23.6 — src/utils/parseCarrierCostsCsv.ts
+
+> ⚠️ **Тимчасовий парсер.** Мапінг колонок нижче — здогадка зі старого
+> чорнового ескізу (`documents/06_IMPLEMENTATION_PLAN.md`, Крок 4.3),
+> реальних файлів-реєстрів від Нової Пошти/Міст Експрес ще не бачили.
+> Користувач попередив, що завтра надасть оригінальні файли — тоді
+> мапінг майже напевно доведеться міняти (той самий урок, що з 1С:
+> чорновий ескіз рідко переживає зустріч з реальним файлом). Саме тому
+> парсинг винесений в ОДНУ ізольовану чисту функцію без побічних
+> ефектів (той самий принцип, що `parseQR.ts`) — завтрашня правка
+> torkається лише цього файлу, не форми/API-шару/хуків.
+
+```typescript
+// src/utils/parseCarrierCostsCsv.ts
+import Papa from "papaparse";
+import type { ImportError, CarrierCode } from "../types";
+
+export interface ParsedCarrierCostRow {
+  ttn: string;
+  weightKg: number;
+  costUah: number;
+  costDate: string;
+}
+
+export interface ParseCarrierCostsResult {
+  rows: ParsedCarrierCostRow[];
+  errors: ImportError[];
+}
+
+// carrier поки не впливає на мапінг (той самий формат для обох служб —
+// поки не бачили реальних файлів, щоб стверджувати інше); лишений у
+// сигнатурі, щоб розгалуження по carrier не ламало виклик, якщо
+// завтрашні файли виявляться структурно різними
+export function parseCarrierCostsCsv(csvText: string, carrier: CarrierCode): ParseCarrierCostsResult {
+  const { data } = Papa.parse<Record<string, string>>(csvText, { header: true, skipEmptyLines: true });
+  const rows: ParsedCarrierCostRow[] = [];
+  const errors: ImportError[] = [];
+
+  data.forEach((raw, i) => {
+    const rowNumber = i + 2; // +1 за 0-індекс, +1 за заголовок
+    const ttn = raw["ТТН"] ?? raw["ttn"];
+    if (!ttn) {
+      errors.push({ row: rowNumber, field: "ttn", message: "Відсутній ТТН" });
+      return;
+    }
+
+    const weightKg = Number(raw["Вага"] ?? raw["weight_kg"]);
+    if (!Number.isFinite(weightKg)) {
+      errors.push({ row: rowNumber, field: "weightKg", message: "Не вдалось розпізнати вагу" });
+      return;
+    }
+
+    const costUah = Number(raw["Вартість"] ?? raw["cost_uah"]);
+    if (!Number.isFinite(costUah)) {
+      errors.push({ row: rowNumber, field: "costUah", message: "Не вдалось розпізнати вартість" });
+      return;
+    }
+
+    const costDate = raw["Дата"] ?? raw["date"];
+    if (!costDate) {
+      errors.push({ row: rowNumber, field: "costDate", message: "Відсутня дата" });
+      return;
+    }
+
+    rows.push({ ttn, weightKg, costUah, costDate });
+  });
+
+  return { rows, errors };
+}
+```
+
+## Крок 23.7 — pages/carriers/CarrierShipmentList.tsx і CarrierShipmentForm.tsx
+
+Список — структура `HiredTripList.tsx` (Крок 18.5):
+
+```typescript
+// src/pages/carriers/CarrierShipmentList.tsx
+import { Link } from "react-router-dom";
+import { useCarrierShipments } from "../../hocks/useCarrierShipments";
+import { Spinner } from "../../components/ui/Spinner";
+import { EmptyState } from "../../components/ui/EmptyState";
+import { ErrorBanner } from "../../components/ui/ErrorBanner";
+import { formatCarrier } from "../../utils/formatters";
+
+export function CarrierShipmentList() {
+  const { data: shipments, isLoading, isError, refetch } = useCarrierShipments();
+
+  return (
+    <div className="p-6 space-y-4">
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold text-white">Служби доставки</h1>
+        <Link to="/carriers/new" className="px-3 py-2 text-sm rounded-lg bg-violet-600 text-white hover:bg-violet-500">
+          + Нове відправлення
+        </Link>
+      </div>
+
+      {isLoading && <Spinner size="lg" label="Завантаження..." />}
+      {isError && !isLoading && <ErrorBanner message="Не вдалось завантажити відправлення" onRetry={refetch} />}
+      {!isLoading && !isError && shipments?.length === 0 && (
+        <EmptyState title="Відправлень ще немає" subtitle="Натисніть «Нове відправлення», щоб внести перше" />
+      )}
+
+      {!isLoading && !isError && shipments && shipments.length > 0 && (
+        <table className="w-full text-sm">
+          <thead className="text-left text-white/50 border-b border-white/10">
+            <tr>
+              <th className="py-2">Дата</th>
+              <th className="py-2">Служба</th>
+              <th className="py-2">ТТН</th>
+              <th className="py-2">Накладних</th>
+            </tr>
+          </thead>
+          <tbody>
+            {shipments.map((s) => (
+              <tr key={s.id} className="border-b border-white/5 hover:bg-white/5">
+                <td className="py-2">{s.shipmentDate}</td>
+                <td className="py-2">{formatCarrier(s.carrier)}</td>
+                <td className="py-2">
+                  <Link to={`/carriers/${s.id}`} className="text-violet-300 hover:underline">{s.ttn}</Link>
+                </td>
+                <td className="py-2">{s.waybills?.length ?? 0}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+```
+
+Форма — та сама структура, що `HiredTripForm.tsx`: локед-режим
+(`[[feedback_locked_edit_form_pattern]]`), менший набір полів (без
+carNumber/palletsCount/costUah — `CarrierShipment` взагалі не має суми,
+на відміну від `HiredTransportTrip`), той самий блок сканування QR у
+режимі редагування:
+
+```typescript
+// src/pages/carriers/CarrierShipmentForm.tsx
+import { useState } from "react";
+import type { FormEvent } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import {
+  useCarrierShipment,
+  useCreateCarrierShipment,
+  useUpdateCarrierShipment,
+  useAttachWaybillToCarrierShipment,
+} from "../../hocks/useCarrierShipments";
+import { Input } from "../../components/ui/Input";
+import { Button } from "../../components/ui/Button";
+import { ErrorBanner } from "../../components/ui/ErrorBanner";
+import { QRScanner } from "../../components/QRScanner";
+import { parseQRCode } from "../../utils/parseQR";
+import type { CarrierCode } from "../../types";
+import type { CarrierShipmentPayload } from "../../api/carrierShipments";
+
+export function CarrierShipmentForm() {
+  const { shipmentId } = useParams();
+  const navigate = useNavigate();
+  const isEdit = !!shipmentId;
+  const { data: existing } = useCarrierShipment(isEdit ? Number(shipmentId) : 0);
+
+  const [carrier, setCarrier] = useState<CarrierCode>(existing?.carrier ?? "nova_poshta");
+  const [ttn, setTtn] = useState(existing?.ttn ?? "");
+  const [shipmentDate, setShipmentDate] = useState(existing?.shipmentDate ?? "");
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
+
+  const [isEditingDetails, setIsEditingDetails] = useState(false);
+  const detailsLocked = isEdit && !isEditingDetails;
+
+  const createShipment = useCreateCarrierShipment();
+  const updateShipment = useUpdateCarrierShipment(Number(shipmentId));
+  const attachWaybill = useAttachWaybillToCarrierShipment();
+  const mutation = isEdit ? updateShipment : createShipment;
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    const payload: CarrierShipmentPayload = { carrier, ttn, shipmentDate };
+    mutation.mutate(payload, {
+      onSuccess: (saved) => navigate(isEdit ? "/carriers" : `/carriers/${saved.id}`),
+    });
+  }
+
+  function handleScan(raw: string) {
+    const parsed = parseQRCode(raw);
+    if (!parsed) {
+      setScanError("Не вдалось розпізнати QR — спробуй ще раз");
+      return;
+    }
+    setScanError(null);
+    setScannerOpen(false);
+    if (!existing) return;
+    attachWaybill.mutate(
+      { id: existing.id, waybillNumber: parsed.waybillNumber },
+      { onError: (err) => setScanError((err as Error).message) },
+    );
+  }
+
+  return (
+    <div className="p-6 max-w-lg mx-auto space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm p-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-bold text-white">{isEdit ? "Відправлення" : "Нове відправлення"}</h1>
+          {isEdit && !isEditingDetails && (
+            <Button type="button" variant="ghost" onClick={() => setIsEditingDetails(true)}>
+              ✏️ Редагувати
+            </Button>
+          )}
+        </div>
+        {detailsLocked && (
+          <p className="text-xs text-white/40 -mt-2">
+            Дані заблоковані від випадкової правки. Натисніть "Редагувати", щоб змінити.
+          </p>
+        )}
+
+        <div className="flex flex-col gap-1">
+          <label className="text-sm font-medium text-white/70">Служба доставки</label>
+          <select
+            value={carrier}
+            onChange={(e) => setCarrier(e.target.value as CarrierCode)}
+            disabled={detailsLocked}
+            className="w-full rounded-lg border border-white/10 bg-white/5 text-white px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 [&>option]:bg-slate-900 [&>option]:text-white"
+          >
+            <option value="nova_poshta">Нова Пошта</option>
+            <option value="mist_express">Міст Експрес</option>
+            <option value="other">Інша служба</option>
+          </select>
+        </div>
+        <Input label="ТТН" value={ttn} onChange={(e) => setTtn(e.target.value)} required disabled={detailsLocked} />
+        <Input label="Дата відправлення" type="date" value={shipmentDate} onChange={(e) => setShipmentDate(e.target.value)} required disabled={detailsLocked} />
+
+        {mutation.isError && <ErrorBanner message={(mutation.error as Error).message} />}
+
+        <div className="flex gap-3">
+          <Button type="button" variant="ghost" onClick={() => navigate("/carriers")}>
+            {detailsLocked ? "← Назад" : "Скасувати"}
+          </Button>
+          <Button type="submit" isLoading={mutation.isPending} className="flex-1">Зберегти</Button>
+        </div>
+      </form>
+
+      {isEdit && existing && (
+        <div className="space-y-2 rounded-lg border border-white/10 p-4">
+          <h2 className="text-sm font-semibold text-white">Накладні відправлення</h2>
+          {existing.waybills && existing.waybills.length > 0 ? (
+            <ul className="space-y-1 text-sm text-white/70">
+              {existing.waybills.map((w) => <li key={w.id}>№ {w.waybillNumber}</li>)}
+            </ul>
+          ) : (
+            <p className="text-sm text-white/40">Ще нічого не прикріплено</p>
+          )}
+          <Button type="button" variant="ghost" onClick={() => setScannerOpen(true)} isLoading={attachWaybill.isPending}>
+            📷 Сканувати накладну
+          </Button>
+          {scanError && <ErrorBanner message={scanError} />}
+          {scannerOpen && (
+            <QRScanner onScan={handleScan} onClose={() => setScannerOpen(false)} notice={scanError} />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+## Крок 23.8 — pages/carriers/CarrierCostImport.tsx
+
+Та сама UX-структура, що `BulkMonthlyCostsForm.tsx` (Крок 21.3) —
+"розпізнати → прев'ю з помилками → імпортувати → підсумок", але тут
+результат парсингу спершу лежить у стейті, а не постить одразу:
+
+```typescript
+// src/pages/carriers/CarrierCostImport.tsx
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useCreateCarrierCost } from "../../hocks/useCarrierCosts";
+import { parseCarrierCostsCsv } from "../../utils/parseCarrierCostsCsv";
+import type { ParsedCarrierCostRow } from "../../utils/parseCarrierCostsCsv";
+import { Button } from "../../components/ui/Button";
+import { ErrorBanner } from "../../components/ui/ErrorBanner";
+import type { CarrierCode, ImportError, CarrierCostImportResult } from "../../types";
+
+export function CarrierCostImport() {
+  const navigate = useNavigate();
+  const createCost = useCreateCarrierCost();
+
+  const [carrier, setCarrier] = useState<CarrierCode>("nova_poshta");
+  const [csvText, setCsvText] = useState("");
+  const [rows, setRows] = useState<ParsedCarrierCostRow[]>([]);
+  const [parseErrors, setParseErrors] = useState<ImportError[]>([]);
+  const [result, setResult] = useState<CarrierCostImportResult | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+
+  async function handleFile(file: File) {
+    const text = await file.text();
+    setCsvText(text);
+    const parsed = parseCarrierCostsCsv(text, carrier);
+    setRows(parsed.rows);
+    setParseErrors(parsed.errors);
+    setResult(null);
+  }
+
+  // Позначаємо (не блокуємо) рядки з однаковим ТТН у ЦЬОМУ файлі —
+  // типова помилка "залили той самий реєстр двічі"; звірку з уже
+  // імпортованим у БД свідомо не робимо (Крок 23, ризик C)
+  const duplicateTtns = new Set(
+    rows.map((r) => r.ttn).filter((ttn, i, arr) => arr.indexOf(ttn) !== i),
+  );
+
+  async function handleImport() {
+    setIsImporting(true);
+    let imported = 0;
+    const errors: ImportError[] = [...parseErrors];
+
+    for (const [i, row] of rows.entries()) {
+      try {
+        await createCost.mutateAsync({
+          ttn: row.ttn,
+          weightKg: row.weightKg,
+          costUah: row.costUah,
+          costDate: row.costDate,
+        });
+        imported++;
+      } catch (err) {
+        errors.push({ row: i + 2, field: "ttn", message: (err as Error).message });
+      }
+    }
+
+    setIsImporting(false);
+    setResult({ imported, skipped: errors.length, errors });
+    if (errors.length === 0) navigate("/carriers");
+  }
+
+  return (
+    <div className="p-6 max-w-lg mx-auto space-y-4">
+      <h1 className="text-xl font-bold text-white">Реєстр витрат служби доставки</h1>
+
+      <div className="flex flex-col gap-1">
+        <label className="text-sm font-medium text-white/70">Служба доставки</label>
+        <select
+          value={carrier}
+          onChange={(e) => setCarrier(e.target.value as CarrierCode)}
+          className="w-full rounded-lg border border-white/10 bg-white/5 text-white px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 [&>option]:bg-slate-900 [&>option]:text-white"
+        >
+          <option value="nova_poshta">Нова Пошта</option>
+          <option value="mist_express">Міст Експрес</option>
+          <option value="other">Інша служба</option>
+        </select>
+      </div>
+
+      <input
+        type="file"
+        accept=".csv"
+        onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
+        className="text-sm text-white/70 file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-violet-600 file:text-white file:text-sm hover:file:bg-violet-500"
+      />
+
+      {csvText && (
+        <div className="rounded-lg border border-white/10 p-4 space-y-2 text-sm">
+          <p className="text-white">Розпізнано {rows.length} рядків, помилок парсингу: {parseErrors.length}.</p>
+          {duplicateTtns.size > 0 && (
+            <p className="text-amber-300">Можливі дублі ТТН у файлі: {[...duplicateTtns].join(", ")}</p>
+          )}
+          {parseErrors.map((err, i) => (
+            <p key={i} className="text-white/50">Рядок {err.row}, {err.field}: {err.message}</p>
+          ))}
+        </div>
+      )}
+
+      {result && (
+        <div className="rounded-lg border border-white/10 p-4 space-y-1 text-sm">
+          <p className="text-white">Імпортовано: {result.imported}, з помилками: {result.skipped}.</p>
+          {result.errors.map((err, i) => (
+            <p key={i} className="text-red-400">Рядок {err.row}: {err.message}</p>
+          ))}
+        </div>
+      )}
+
+      <div className="flex gap-3">
+        <Button type="button" variant="ghost" onClick={() => navigate("/carriers")}>← Назад</Button>
+        <Button type="button" onClick={handleImport} isLoading={isImporting} disabled={rows.length === 0} className="flex-1">
+          Імпортувати ({rows.length})
+        </Button>
+      </div>
+    </div>
+  );
+}
+```
+
+## Крок 23.9 — Підключення в App.tsx
+
+Заміна 3 плейсхолдерів **плюс 4-й, новий маршрут** — без нього нема як
+відкрити ІСНУЮЧЕ відправлення для сканування накладної (той самий
+принцип, що `/hired/:tripId`):
+
+```tsx
+// src/App.tsx — фрагмент /carriers
+import { CarrierShipmentList } from "./pages/carriers/CarrierShipmentList";
+import { CarrierShipmentForm } from "./pages/carriers/CarrierShipmentForm";
+import { CarrierCostImport } from "./pages/carriers/CarrierCostImport";
+
+// ...
+
+<Route index element={<CarrierShipmentList />} />
+<Route path="new" element={<CarrierShipmentForm />} />
+<Route path=":shipmentId" element={<CarrierShipmentForm />} />
+<Route path="import-costs" element={<CarrierCostImport />} />
+```
+
+`RequireRole`/`rolesForRoute("/carriers")` уже налаштовано (Фаза 20,
+`logist`/`manager`/`head` усі мають доступ) — без змін.
+
+## Крок 23.10 — Перевірка
+
+1. `/carriers` → "+ Нове відправлення" → заповни, збережи → редирект на
+   картку щойно створеного відправлення.
+2. "📷 Сканувати накладну" → перевір у Django Admin, що
+   `WaybillRecord.delivery_channel` реально стало `carrier`.
+3. `/carriers/import-costs` → саморобний CSV з `ТТН`, що збігається з
+   уже створеним відправленням → після імпорту в Django Admin
+   `CarrierCost.shipment` одразу вказує на нього (зматчено по ttn).
+4. Той самий CSV із ТТН, якого відправлення ще нема → рядок все одно
+   імпортується, `shipment` лишається порожнім; після цього створи
+   відповідне відправлення — старий `CarrierCost` **не** підв'яжеться
+   заднім числом (очікувано — зіставлення лише в момент створення,
+   Крок 23.1).
+5. Навмисно зіпсований рядок (порожній ТТН чи нечислова вага) →
+   з'являється в списку помилок, не постить на бекенд.
+
+---
+
+# ═══════════════════════════════════════════════════════════
 <a id="shcho-dali"></a>
 # ЩО ДАЛІ
 # ═══════════════════════════════════════════════════════════
@@ -9331,6 +10411,13 @@ GRANT USAGE, SELECT ON SEQUENCE carrier_costs_id_seq TO vt_user;
 > `GRANT`-фікс уже застосований напряму на прод-БД (не потребує
 > коміту/деплою), фронтенд-частина ще НЕ закомічена — перевір
 > `git log`/`git status` цього репо перед тим, як вважати готовим.
+>
+> **Фаза 22** (імпорт накладних з 1С) — написана як ТЕКСТ гайду (гілка
+> `faza-22-1c-import`), код ще НЕ набраний в жодному з двох репо. Точна
+> форма бекенд-ендпоінта (Крок 22.1) — робоче припущення з файлу плану
+> сесії, не підтверджений факт — звір із реальним `Крок 16.x`
+> (`DJANGO_CODING_GUIDE.md`, Фаза 12 бекенду) перед тим, як типізувати
+> Кроки 22.2/22.4.
 
 ### Крок 13 — CarrierShipmentForm (служби доставки)
 ### Крок 14 — Аналітика і графіки (Recharts)

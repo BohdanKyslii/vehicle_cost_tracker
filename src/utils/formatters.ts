@@ -95,3 +95,14 @@ export function channelLabel(channel: "own" | "hired" | "carrier" | null | undef
 	};
 	return labels[channel];
 }
+
+// Роль користувача → українська назва (той самий набір, що Profile.Role на бекенді)
+export function formatRole(role: "driver" | "logist" | "manager" | "head"): string {
+	const labels = {
+		driver: "Водій",
+		logist: "Логіст",
+		manager: "Менеджер",
+		head: "Керівник",
+	};
+	return labels[role];
+}

@@ -4,14 +4,16 @@ import { Link } from "react-router-dom";
 // проксійований nginx-ом напряму на бекенд, звідси інша назва шляху,
 // "/panel"). Доступ лише для head — усе, чим користується логіст щодня
 // (Автопарк, Витрати, Найманий...), живе окремими верхньорівневими
-// розділами, не тут. Поки всі пункти нижче — PlaceholderPage-заглушки
-// (Крок 6-8 "Що далі" CODING_GUIDE.md), `ready` вмикати по мірі готовності.
+// розділами, не тут.
+// "Автопарк" веде на /fleet, а не на окремі /panel-сторінки — це вже
+// повнофункціональне керування авто ТА водіями (CarForm/FleetList/
+// DriverForm, Фаза 16), дублювати його тут не було сенсу.
 const sections = [
-	{ to: "/panel/cars", label: "Авто", icon: "🚛", ready: false },
-	{ to: "/panel/drivers", label: "Водії", icon: "🧑‍✈️", ready: false },
-	{ to: "/panel/products", label: "Товари", icon: "📦", ready: false },
-	{ to: "/panel/customers", label: "Клієнти", icon: "🧑‍💼", ready: false },
-	{ to: "/panel/stores", label: "Магазини", icon: "🏬", ready: false },
+	{ to: "/fleet", label: "Автопарк (авто, водії)", icon: "🚛", ready: true },
+	{ to: "/panel/products", label: "Товари", icon: "📦", ready: true },
+	{ to: "/panel/customers", label: "Клієнти", icon: "🧑‍💼", ready: true },
+	{ to: "/panel/stores", label: "Магазини", icon: "🏬", ready: true },
+	{ to: "/panel/users", label: "Користувачі", icon: "👤", ready: true },
 ];
 
 export function PanelHome() {
@@ -21,7 +23,7 @@ export function PanelHome() {
 			<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
 				{sections.map(({ to, label, icon, ready }) => (
 					<Link
-						key={to}
+						key={to + label}
 						to={to}
 						className={`flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors
               ${ready
