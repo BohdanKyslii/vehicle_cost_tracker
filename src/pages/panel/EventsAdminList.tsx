@@ -174,11 +174,10 @@ export function EventsAdminList() {
 									<td className="py-2">{driverLabel(root.driverId)}</td>
 									<td className="py-2 whitespace-nowrap">
 										{eventTypeIcon(root.eventType)} {eventTypeLabel(root.eventType, root.trackingMode)}
-										{isGroup && <span className="ml-1 text-xs text-violet-300">· {group.length} накладні</span>}
 									</td>
 									<td className="py-2 text-white/60 truncate max-w-[20rem]">
 										{[
-											group.map((g) => `№ ${g.waybillNumber}`).join(", "),
+											group.map((g) => g.waybillNumber).filter(Boolean).map((n) => `№ ${n}`).join(", "),
 											root.customerName,
 											eventComment(root),
 										]
