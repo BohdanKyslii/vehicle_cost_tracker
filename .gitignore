@@ -29,3 +29,4 @@ dist-ssr
 # Excel files source data (real business data, stays local - see documents/)
 documents/*.xls
 documents/*.xlsx
+documents/file_1C/
