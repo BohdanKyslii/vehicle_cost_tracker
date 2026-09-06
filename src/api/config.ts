@@ -61,6 +61,26 @@ export async function apiFetch<T>(path: string, options: FetchOptions = {}): Pro
 	return res.json();
 }
 
+// Окрема обгортка для файлів: apiFetch жорстко ставить Content-Type:
+// application/json і робить JSON.stringify — для multipart/form-data
+// це ламає запит, браузер сам мусить виставити свій Content-Type з boundary
+export async function apiFetchMultipart<T>(path: string, formData: FormData): Promise<T> {
+	const res = await fetch(`${API_BASE}${path}`, {
+		method: "POST",
+		credentials: "include",
+		headers: {
+			"X-CSRFToken": getCookie("csrftoken") ?? "",
+		},
+		body: formData,
+	});
+
+	if (!res.ok) {
+		const body = await res.json().catch(() => ({}));
+		throw new Error(extractErrorMessage(body) ?? `Request failed: ${res.status}.`);
+	}
+	return res.json();
+}
+
 // Допоміжна функція: імітує мережеву затримку у mock режимі
 // Без неї компоненти не встигають показати loading стан
 export function mockDelay(ms = 300): Promise<void> {

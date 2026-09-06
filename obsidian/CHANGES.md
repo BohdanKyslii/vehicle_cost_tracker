@@ -5,6 +5,43 @@
 
 ---
 
+## 2026-09-06 — Фаза 22: форма імпорту накладних з 1С
+
+### Що зроблено
+- Виявлено (`git fetch` + звірка `git log`), що `feat/panel-management`
+  уже змержена в `main` (PR #18), і поверх неї в `main` уже є
+  `/panel/events` + Excel-імпорт довідників — попередні нотатки vault
+  цього не відображали, бо локальний `main` не був підтягнутий.
+- Гілка `faza-22-1c-import` (стара, 10 комітів позаду `main`) оновлена
+  до поточного `main`, у ній реалізовано фронтенд Фази 22:
+  `WaybillImportForm.tsx` (`/waybills/import`, замінює `PlaceholderPage`),
+  `api/waybillImport.ts`, `apiFetchMultipart` в `api/config.ts`
+  (multipart/form-data без `JSON.stringify` — файли ламали
+  `apiFetch`), `hocks/useWaybillImport.ts`, `types/index.ts`
+  (`ImportResult.deleted`/`.dates`).
+- Перед кодуванням звірено бекенд напряму (`apps/waybills/views.py`,
+  `importing.py` в `vehicle_tracker_api`) — ендпоінт
+  `POST /api/waybill-records/import_file/`, права
+  `IsManagerOrHeadOnly`, форма відповіді `{batch_id, imported, deleted,
+  dates, errors}` збіглись з планом `CODING_GUIDE.md` Крок 22.1 один-в-один.
+- `npm run build` (`tsc -b` + `vite build`) проходить чисто.
+
+### Чому
+Наступний невиконаний крок гайду за нумерацією; бекенд для нього вже
+був готовий (написаний окремою сесією раніше), лишався фронтенд.
+
+### Статус
+Код на гілці `faza-22-1c-import`, НЕ змержений у `main`. **Крок 22.8
+(живий тест реальним файлом з `documents/file_1C/`) свідомо НЕ
+виконаний** — локальний бекенд-`.env` конфігурований на прод-PostgreSQL
+(Pi, `192.168.0.114`), а `import_file` робить деструктивну
+"перезаливку за датами" (DELETE+INSERT). Ризик для прод-даних визнано
+невиправданим без окремого dev-стенду чи бекапу — рішення й правило на
+майбутнє задокументовані в `decisions.md`. Перед мержем у `main`
+потрібен ручний живий тест користувачем.
+
+---
+
 ## 2026-08-31 (друга сесія того самого дня) — /panel/events + масовий Excel-імпорт довідників
 
 ### Що зроблено

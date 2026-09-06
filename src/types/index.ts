@@ -543,6 +543,8 @@ export interface SortParams {
 export interface ImportResult {
 	batchId: string;
 	imported: number;
+	deleted?: number;    // скільки старих рядків видалено при перезаливці
+	dates?: string[];     // які waybill_date охопило це завантаження
 	skipped: number;
 	errors: ImportError[];
 }

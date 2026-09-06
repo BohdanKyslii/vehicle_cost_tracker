@@ -6,6 +6,7 @@ import { EventForm } from "./pages/driver/EventForm";
 import { MainLayout } from "./components/layouts/MainLayout";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
 import { WaybillList } from "./components/waybills/WaybillList";
+import { WaybillImportForm } from "./pages/waybills/WaybillImportForm";
 import {DriverMiniApp } from "./pages/DriverMiniApp.tsx";
 import { RequireRole } from "./components/auth/RequireRole";
 import { RoleRedirect } from "./pages/RoleRedirect";
@@ -50,7 +51,7 @@ export default function App() {
             >
                 <Route index element={<WaybillList />} />
                 <Route path=":waybillNumber" element={<PlaceholderPage title="Деталі накладної" />} />
-                <Route path="import" element={<PlaceholderPage title="Імпорт із 1С" />} />
+                <Route path="import" element={<WaybillImportForm />} />
                 <Route path="unassigned" element={<PlaceholderPage title="Не призначені" />} />
                 <Route path="returns" element={<PlaceholderPage title="Матчинг повернень" />} />
             </Route>
