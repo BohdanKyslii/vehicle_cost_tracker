@@ -17,6 +17,9 @@ import { CarForm } from "./pages/fleet/CarForm";
 import { DriverForm } from "./pages/fleet/DriverForm";
 import { HiredTripList } from "./pages/hired/HiredTripList";
 import { HiredTripForm } from "./pages/hired/HiredTripForm";
+import { CarrierShipmentList } from "./pages/carriers/CarrierShipmentList";
+import { CarrierShipmentForm } from "./pages/carriers/CarrierShipmentForm";
+import { CarrierCostImport } from "./pages/carriers/CarrierCostImport";
 import { MonthlyCostsList } from "./pages/costs/MonthlyCostsList";
 import { MonthlyCostsForm } from "./pages/costs/MonthlyCostsForm";
 import { BulkMonthlyCostsForm } from "./pages/costs/BulkMonthlyCostsForm";
@@ -65,9 +68,10 @@ export default function App() {
                     </RequireRole>
                 }
             >
-                <Route index element={<PlaceholderPage title="Служби доставки" />} />
-                <Route path="new" element={<PlaceholderPage title="Нове відправлення" />} />
-                <Route path="import-costs" element={<PlaceholderPage title="Імпорт реєстру витрат" />} />
+                <Route index element={<CarrierShipmentList />} />
+                <Route path="new" element={<CarrierShipmentForm />} />
+                <Route path=":shipmentId" element={<CarrierShipmentForm />} />
+                <Route path="import-costs" element={<CarrierCostImport />} />
             </Route>
 
             {/* ── Аналітика ────────────────────────────────── */}
