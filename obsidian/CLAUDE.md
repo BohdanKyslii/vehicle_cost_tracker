@@ -4,21 +4,26 @@ Frontend-репозиторій застосунку обліку транспо
 навчальний проєкт (JS/React/TS з нуля) — весь процес написання коду
 задокументований крок за кроком у `CODING_GUIDE.md` у корені репо.
 
-> ⚠️ **Резинхронізовано 2026-08-31 (двічі того самого дня)** — Фази
-> 18-21 (найманий транспорт, місячні витрати, навігація/ролі, уніфікація
-> форм), `panel-management` (products/customers/stores CRUD + керування
-> користувачами) і `/panel/events` + масовий Excel-імпорт довідників —
-> усе поза нумерацією `CODING_GUIDE.md`. Деталі й дати —
-> `STATE.md`/`tasks.md`/`decisions.md`.
-> Бекенд-шлях нижче не перевірявся цієї сесії повторно (востаннє
-> підтверджено 2026-08-30 через `PowerShell`) — правило на майбутнє:
-> Windows-шляхи з `\` перевіряти через `PowerShell`, не `Bash` (POSIX
-> `ls` на такому шляху ненадійний). Деталі — `CLAUDE.md` цього репо
-> (не vault-копія).
+> ⚠️ **Резинхронізовано 2026-09-06** — після `git fetch` виявилось, що
+> `feat/panel-management` уже змержена в `main` (PR #18) і поверх неї
+> напряму в `main` додано ще `/panel/events` + масовий Excel-імпорт
+> довідників (усе це — Фази 18-21 + позапланова робота, вже було описано
+> нижче раніше). Нове цієї сесії: **Фаза 22** (форма імпорту накладних
+> з 1С, `/waybills/import`) реалізована в окремій гілці
+> `faza-22-1c-import` (`npm run build` проходить чисто), ще НЕ
+> змержена в `main`. Деталі й дати — `STATE.md`/`tasks.md`/`CHANGES.md`.
 >
-> **Не перевірено цією сесією:** чи запушено бекенд `vehicle_tracker_api`
-> для `apps.logistics` (Фази 18-19) — за нотатками 2026-08-30 було
-> закомічено лише локально.
+> Бекенд-шлях нижче перевірено 2026-08-30 через `PowerShell` (правило
+> на майбутнє: Windows-шляхи з `\` перевіряти через `PowerShell`, не
+> `Bash` — POSIX `ls` на такому шляху ненадійний). Деталі — `CLAUDE.md`
+> цього репо (не vault-копія).
+>
+> **Підтверджено 2026-09-06:** бекенд `vehicle_tracker_api` для
+> `apps.waybills` (`WaybillRecordViewSet.import_file`,
+> `IsManagerOrHeadOnly`) уже написаний і відповідає точно тому, що
+> описано в `CODING_GUIDE.md` Крок 22.1 — перевірено читанням реального
+> `apps/waybills/views.py`/`importing.py`. Чи запушено це в `main`
+> бекенд-репо — НЕ перевірено цією сесією.
 
 Пов'язаний репозиторій: **vehicle_tracker_api** (Django-бекенд,
 `C:\Users\b.kisliy\PycharmProjects\DjangoProject\vehicle_tracker_api\`) — один
@@ -68,6 +73,9 @@ src/
   pages/
     driver/DriverDashboard.tsx, EventForm.tsx, DriverHistory.tsx,
            EventDetail.tsx (Фаза 17 + inline-edit накладної, 2026-08-31)
+    waybills/WaybillImportForm.tsx (Фаза 22, 2026-09-06) — вибір
+           юрособи (РУБІН/ЄСП/ОПТ) + файл, без локед-режиму (одноразова
+           дія, не форма редагування)
     fleet/FleetList.tsx, CarForm.tsx, DriverForm.tsx
     hired/HiredTripList.tsx, HiredTripForm.tsx (Фаза 18)
     costs/MonthlyCostsList.tsx, MonthlyCostsForm.tsx, BulkMonthlyCostsForm.tsx
@@ -91,11 +99,17 @@ src/
     useHiredTrips.ts, useMonthlyCosts.ts, useProducts.ts, useCustomers.ts,
     useAdminUsers.ts, useBulkImport.ts (2026-08-31 — спільний хук
       масового імпорту, послідовний цикл зі збором помилок по рядку),
+    useWaybillImport.ts (Фаза 22, 2026-09-06 — одна мутація, інвалідує
+      waybills + waybills-unassigned),
     useDayMode.ts (carId-scoped), useCurrentUser.ts, useAuthModal.ts
   api/ — routeEvents.ts, cars.ts, drivers.ts, waybills.ts, hiredTrips.ts,
-         monthlyCosts.ts, products.ts, customers.ts, adminUsers.ts, config.ts,
-         auth.ts (жоден з products/customers/adminUsers НЕ має USE_MOCK
-         гілки — завжди б'ють у реальний бекенд, навіть при VITE_USE_MOCK=true)
+         monthlyCosts.ts, products.ts, customers.ts, adminUsers.ts,
+         waybillImport.ts (Фаза 22, 2026-09-06 — apiFetchMultipart, не
+         apiFetch: файл шле multipart/form-data, бекенд сам парсить
+         CSV/XLS за legalEntity), config.ts (тепер + apiFetchMultipart),
+         auth.ts (жоден з products/customers/adminUsers/waybillImport НЕ
+         має USE_MOCK гілки — завжди б'ють у реальний бекенд, навіть при
+         VITE_USE_MOCK=true)
   utils/ — formatters, eventHelpers (+findEventGroup — явний маркер
            [stop:N], НЕ часова евристика, з 2026-08-28), calcSummary,
            calcTransportCost, calcProduct, parseQR.ts, clientFilter,
@@ -115,20 +129,25 @@ documents/                    — ТЗ/специфікація проєкту (
                                  довідник, ресинхронізовано 2026-08-24 —
                                  НЕ джерело правди по факту імплементації,
                                  для цього CODING_GUIDE.md
-CODING_GUIDE.md                — покроковий навчальний гайд, Фази 1-21
-                                 задокументовані (Крок 22-23 написані,
-                                 код ще не набраний); panel-management і
-                                 /panel/events + Excel-імпорт — НЕ в гайді
-                                 ([[decisions.md]])
+CODING_GUIDE.md                — покроковий навчальний гайд, Фази 1-22
+                                 реально набрані в коді (Фаза 22 —
+                                 гілка faza-22-1c-import, 2026-09-06,
+                                 живий тест НЕ проведено, див.
+                                 [[decisions.md]]); Крок 23 написаний
+                                 текстом, код ще не набраний;
+                                 panel-management і /panel/events +
+                                 Excel-імпорт — НЕ в гайді ([[decisions.md]])
 Dockerfile, docker-compose.yml, nginx.conf — деплой на Raspberry Pi
 .github/workflows/deploy.yml   — автодеплой при push у main
 ```
 
 Стубів `src/pages/{fleet,hired,carriers,admin,analystics}`,
 `src/components/{fleet,hired,carriers,analystics}` (Фаза 2) уже немає.
-`/carriers` і `/analytics` усе ще `PlaceholderPage` (Крок 23/аналітика
-не набрані); `/admin` навмисно НЕ SPA-маршрут — nginx проксіює напряму
-на Django admin, кастомна адмінка живе на `/panel` ([[decisions.md]]).
+`/waybills/import` тепер `WaybillImportForm` (Фаза 22); `/waybills/unassigned`,
+`/waybills/returns`, `/carriers` і `/analytics` усе ще `PlaceholderPage`
+(Крок 23/аналітика не набрані); `/admin` навмисно НЕ SPA-маршрут —
+nginx проксіює напряму на Django admin, кастомна адмінка живе на
+`/panel` ([[decisions.md]]).
 
 ## Деплой
 
@@ -179,8 +198,15 @@ Email-реєстрація тепер теж створює порожній `Dr
 цього не робила — [[telegram-email-account-linking-gap]], пофіксено
 бекенд-комітом `e5b5f7f` 2026-08-28).
 
-`products`/`customers`/`analysis`/`waybills` (1С-імпорт) — app-теки
-існують, моделі мінімальні або відсутні, API ще не написане.
+`products`/`customers`/`analysis` — app-теки існують, моделі мінімальні
+або відсутні, API ще не написане. `apps/waybills` (1С-імпорт) —
+**уже написаний і робочий**: `WaybillRecordViewSet` (CRUD + `unassigned`
++ `assign_channel` + `import_file`), `importers/rubin_csv.py`,
+`importers/esp_opt_xls.py`, `importing.py` (перезаливка за датами),
+права `IsManagerOrHeadOnly` (manager+head, без logist — вужче за
+`IsManagerOrHead`) на запис/import, `IsAuthenticated` на читання.
+Підтверджено 2026-09-06 прямим читанням коду при наборі Фази 22
+фронтенду.
 
 **Наслідок для фронтенду:** усі `/api/cars/`, `/api/drivers/`,
 `/api/route-events/` вимагають автентифікованої сесії; DELETE на
