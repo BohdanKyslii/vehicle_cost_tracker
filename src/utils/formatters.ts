@@ -96,6 +96,16 @@ export function channelLabel(channel: "own" | "hired" | "carrier" | null | undef
 	return labels[channel];
 }
 
+// Служба доставки → українська назва
+export function formatCarrier(carrier: "nova_poshta" | "mist_express" | "other"): string {
+	const labels = {
+		nova_poshta: "Нова Пошта",
+		mist_express: "Міст Експрес",
+		other: "Інша служба",
+	};
+	return labels[carrier];
+}
+
 // Роль користувача → українська назва (той самий набір, що Profile.Role на бекенді)
 export function formatRole(role: "driver" | "logist" | "manager" | "head"): string {
 	const labels = {

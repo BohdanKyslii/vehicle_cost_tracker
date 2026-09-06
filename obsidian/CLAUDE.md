@@ -24,6 +24,13 @@ Frontend-репозиторій застосунку обліку транспо
 > описано в `CODING_GUIDE.md` Крок 22.1 — перевірено читанням реального
 > `apps/waybills/views.py`/`importing.py`. Чи запушено це в `main`
 > бекенд-репо — НЕ перевірено цією сесією.
+>
+> **Нове 2026-09-06 (та сама сесія): Фаза 23** (служби доставки,
+> `/carriers`) реалізована в окремій гілці `faza-23-carriers` (від
+> актуального `main`, включно з Фазою 22). `npm run build`+`eslint`
+> чисті. Живий тест (Крок 23.10 гайду) НЕ проведений — той самий ризик
+> для прод-БД, що й у Фазі 22. CSV-парсер витрат — тимчасовий, мапінг
+> колонок не звірявся з реальним файлом жодної служби доставки.
 
 Пов'язаний репозиторій: **vehicle_tracker_api** (Django-бекенд,
 `C:\Users\b.kisliy\PycharmProjects\DjangoProject\vehicle_tracker_api\`) — один
@@ -78,6 +85,11 @@ src/
            дія, не форма редагування)
     fleet/FleetList.tsx, CarForm.tsx, DriverForm.tsx
     hired/HiredTripList.tsx, HiredTripForm.tsx (Фаза 18)
+    carriers/CarrierShipmentList.tsx, CarrierShipmentForm.tsx,
+             CarrierCostImport.tsx (Фаза 23, 2026-09-06, гілка
+             faza-23-carriers) — той самий локед-режим/QR-сканування,
+             що HiredTripForm; CarrierCostImport окремо для
+             CSV-реєстру витрат (тимчасовий парсер колонок)
     costs/MonthlyCostsList.tsx, MonthlyCostsForm.tsx, BulkMonthlyCostsForm.tsx
           (Фаза 19/21, переїхало з admin/ у Фазі 20)
     panel/ — /panel, head-only "суперкористувацький" розділ
@@ -97,6 +109,7 @@ src/
     useCars.ts, useDrivers.ts, useRouteEvents.ts (+useAllRouteEvents/
       useRouteEvent, 2026-08-31), useWaybills.ts, useWaybillFilters.ts,
     useHiredTrips.ts, useMonthlyCosts.ts, useProducts.ts, useCustomers.ts,
+    useCarrierShipments.ts, useCarrierCosts.ts (Фаза 23, 2026-09-06),
     useAdminUsers.ts, useBulkImport.ts (2026-08-31 — спільний хук
       масового імпорту, послідовний цикл зі збором помилок по рядку),
     useWaybillImport.ts (Фаза 22, 2026-09-06 — одна мутація, інвалідує
@@ -104,6 +117,8 @@ src/
     useDayMode.ts (carId-scoped), useCurrentUser.ts, useAuthModal.ts
   api/ — routeEvents.ts, cars.ts, drivers.ts, waybills.ts, hiredTrips.ts,
          monthlyCosts.ts, products.ts, customers.ts, adminUsers.ts,
+         carrierShipments.ts, carrierCosts.ts (Фаза 23, 2026-09-06 —
+         той самий Raw/map патерн, що hiredTrips.ts),
          waybillImport.ts (Фаза 22, 2026-09-06 — apiFetchMultipart, не
          apiFetch: файл шле multipart/form-data, бекенд сам парсить
          CSV/XLS за legalEntity), config.ts (тепер + apiFetchMultipart),
@@ -129,12 +144,12 @@ documents/                    — ТЗ/специфікація проєкту (
                                  довідник, ресинхронізовано 2026-08-24 —
                                  НЕ джерело правди по факту імплементації,
                                  для цього CODING_GUIDE.md
-CODING_GUIDE.md                — покроковий навчальний гайд, Фази 1-22
+CODING_GUIDE.md                — покроковий навчальний гайд, Фази 1-23
                                  реально набрані в коді (Фаза 22 —
-                                 гілка faza-22-1c-import, 2026-09-06,
-                                 живий тест НЕ проведено, див.
-                                 [[decisions.md]]); Крок 23 написаний
-                                 текстом, код ще не набраний;
+                                 гілка faza-22-1c-import, Фаза 23 —
+                                 гілка faza-23-carriers, обидві
+                                 2026-09-06, живий тест жодної НЕ
+                                 проведено, див. [[decisions.md]]);
                                  panel-management і /panel/events +
                                  Excel-імпорт — НЕ в гайді ([[decisions.md]])
 Dockerfile, docker-compose.yml, nginx.conf — деплой на Raspberry Pi
@@ -143,11 +158,12 @@ Dockerfile, docker-compose.yml, nginx.conf — деплой на Raspberry Pi
 
 Стубів `src/pages/{fleet,hired,carriers,admin,analystics}`,
 `src/components/{fleet,hired,carriers,analystics}` (Фаза 2) уже немає.
-`/waybills/import` тепер `WaybillImportForm` (Фаза 22); `/waybills/unassigned`,
-`/waybills/returns`, `/carriers` і `/analytics` усе ще `PlaceholderPage`
-(Крок 23/аналітика не набрані); `/admin` навмисно НЕ SPA-маршрут —
-nginx проксіює напряму на Django admin, кастомна адмінка живе на
-`/panel` ([[decisions.md]]).
+`/waybills/import` тепер `WaybillImportForm` (Фаза 22); `/carriers`
+тепер `CarrierShipmentList`/`Form`/`CarrierCostImport` (Фаза 23,
+гілка `faza-23-carriers`); `/waybills/unassigned`, `/waybills/returns`
+і `/analytics` усе ще `PlaceholderPage` (аналітика не набрана);
+`/admin` навмисно НЕ SPA-маршрут — nginx проксіює напряму на Django
+admin, кастомна адмінка живе на `/panel` ([[decisions.md]]).
 
 ## Деплой
 

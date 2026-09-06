@@ -402,39 +402,47 @@ export interface HiredTripWaybill {
 // Delivery services (Nova Poshta, Meest Express)
 // ─────────────────────────────────────────────────────────
 
+export type CarrierCode = "nova_poshta" | "mist_express" | "other";
+
 export interface CarrierShipment {
 	id: number;
-	carrierName: string;    // Nova Poshta / Meest Express
-	ttn: string;            // Waybill number with the carrier
+	carrier: CarrierCode;   // фіксований enum на бекенді, не вільний текст
+	ttn: string;
 	shipmentDate: string;
-	comment?: string;
 	createdAt: string;
 	waybills?: CarrierWaybill[];
-	cost?: CarrierCost;
+	// НЕМАЄ cost/costs — CarrierShipmentSerializer не віддає зворотну
+	// relation costs узагалі (тільки waybills nested)
 }
 
-export type CarrierShipmentCreate = Omit<
-	CarrierShipment,
-	"id" | "createdAt" | "waybills" | "cost"
->;
+export type CarrierShipmentCreate = Omit<CarrierShipment, "id" | "createdAt" | "waybills">;
 
 export interface CarrierWaybill {
 	id: number;
 	shipmentId: number;
 	waybillNumber: string;
-	scannedAt: string;
+	// НЕМАЄ scannedAt — CarrierShipmentWaybill на бекенді такого поля не має
 }
 
 export interface CarrierCost {
 	id: number;
-	shipmentId?: number;
-	carrierName: string;
+	shipmentId?: number;   // undefined, поки не зматчено по ttn
 	ttn: string;
 	costDate: string;
-	weightKg?: number;
+	weightKg: number;      // на бекенді weight_kg ОБОВ'ЯЗКОВЕ
 	costUah: number;
-	importBatchId?: string;
 	importedAt: string;
+	// НЕМАЄ carrierName/importBatchId — CarrierCost таких полів не має:
+	// модель не знає, якій службі доставки належить рядок, поки він не
+	// зматчений з CarrierShipment
+}
+
+// Локальний результат CSV-імпорту витрат — НЕ ImportResult (той має
+// "перезаливка за датами", тут імпорт завжди додатковий)
+export interface CarrierCostImportResult {
+	imported: number;
+	skipped: number;
+	errors: ImportError[];
 }
 
 // ─────────────────────────────────────────────────────────
