@@ -1,9 +1,5 @@
 import type { CarrierShipment, CarrierWaybill, CarrierCode } from "../types";
-import { apiFetch } from "./config.ts";
-
-interface Paginated<T> {
-	results: T[];
-}
+import { apiFetch, fetchAllPages } from "./config.ts";
 
 interface RawCarrierShipmentWaybill {
 	id: number;
@@ -35,8 +31,8 @@ function mapCarrierShipment(raw: RawCarrierShipment): CarrierShipment {
 }
 
 export async function fetchCarrierShipments(): Promise<CarrierShipment[]> {
-	const data = await apiFetch<Paginated<RawCarrierShipment>>("/carrier-shipments/");
-	return data.results.map(mapCarrierShipment);
+	const raw = await fetchAllPages<RawCarrierShipment>("/carrier-shipments/");
+	return raw.map(mapCarrierShipment);
 }
 
 export async function fetchCarrierShipment(id: number): Promise<CarrierShipment> {

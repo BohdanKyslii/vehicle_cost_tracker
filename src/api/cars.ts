@@ -9,12 +9,9 @@ import {
     USE_MOCK,
     mockDelay,
     apiFetch,
+    fetchAllPages,
 } from "./config.ts";
 import mockCars from "../mocks/cars.json";
-
-interface Paginated<T> {
-    results: T[];
-}
 
 // Форма відповіді бекенду (snake_case) — окремо від camelCase TS-типів вище.
 interface RawCarSpecs {
@@ -103,8 +100,8 @@ export async function fetchCars(): Promise<Car[]> {
         // as Car[] — явне приведення типу (TypeScript довіряємо що JSON відповідає типу)
         return mockCars as Car[];
     }
-    const data = await apiFetch<Paginated<RawCar>>("/cars/");
-    return data.results.map(mapCar);
+    const raw = await fetchAllPages<RawCar>("/cars/");
+    return raw.map(mapCar);
 }
 
 // Отримати одне авто по id

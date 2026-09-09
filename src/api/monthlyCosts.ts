@@ -1,9 +1,5 @@
 import type { MonthlyCosts } from "../types";
-import { apiFetch } from "./config.ts";
-
-interface Paginated<T> {
-	results: T[];
-}
+import { apiFetch, fetchAllPages } from "./config.ts";
 
 // Форма відповіді бекенду (snake_case) + два розрахункові поля
 // (SerializerMethodField, лише на читання — їх немає в базовому MonthlyCosts)
@@ -50,8 +46,8 @@ function mapMonthlyCosts(raw: RawMonthlyCosts): MonthlyCostsRecord {
 // carId — опційний фільтр (бекенд уже підтримує ?car_id=)
 export async function fetchMonthlyCosts(carId?: number): Promise<MonthlyCostsRecord[]> {
 	const query = carId ? `?car_id=${carId}` : "";
-	const data = await apiFetch<Paginated<RawMonthlyCosts>>(`/monthly-costs/${query}`);
-	return data.results.map(mapMonthlyCosts);
+	const raw = await fetchAllPages<RawMonthlyCosts>(`/monthly-costs/${query}`);
+	return raw.map(mapMonthlyCosts);
 }
 
 export async function fetchMonthlyCost(id: number): Promise<MonthlyCostsRecord> {

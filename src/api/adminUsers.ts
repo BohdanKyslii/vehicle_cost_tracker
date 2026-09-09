@@ -1,9 +1,5 @@
 import type { AdminUser, UserRole } from "../types";
-import { apiFetch } from "./config.ts";
-
-interface Paginated<T> {
-	results: T[];
-}
+import { apiFetch, fetchAllPages } from "./config.ts";
 
 interface RawAdminUser {
 	id: number;
@@ -34,8 +30,8 @@ function mapAdminUser(raw: RawAdminUser): AdminUser {
 }
 
 export async function fetchAdminUsers(): Promise<AdminUser[]> {
-	const data = await apiFetch<Paginated<RawAdminUser>>("/users/");
-	return data.results.map(mapAdminUser);
+	const raw = await fetchAllPages<RawAdminUser>("/users/");
+	return raw.map(mapAdminUser);
 }
 
 // PATCH — і підтвердження заявки (isActive: true, разом з обраною роллю),

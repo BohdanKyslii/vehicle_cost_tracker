@@ -5,52 +5,12 @@ import type {
     TrackingMode,
 } from "../types";
 import {
-    API_BASE,
     USE_MOCK,
     mockDelay,
     apiFetch,
+    fetchAllPages,
 } from "./config.ts";
 import mockEvents from "../mocks/route-events.json";
-
-interface Paginated<T> {
-    results: T[];
-    next: string | null;
-}
-
-// DRF пагінує /route-events/ по PAGE_SIZE=10 (config/settings.py бекенду).
-// Усі fetch*-функції нижче раніше читали лише data.results з першої
-// сторінки — при >10 подіях за фільтром (типово: одне авто за день з
-// >10 накладних) решта мовчки губились. У Django-адмінці цього не видно
-// (інша пагінація/список), тому розбіжність "в адмінці є, тут нема"
-// помітили лише на живих даних. Йдемо по data.next, доки він не null.
-//
-// API_BASE сам містить шлях (напр. "https://warehouse.mom/api" або
-// "http://localhost:8000/api"), а apiFetch() приліплює його спереду до
-// будь-якого path. data.next — АБСОЛЮТНИЙ URL від DRF, який теж вже
-// містить цей шлях (".../api/route-events/?...page=2") — якщо просто
-// взяти url.pathname і віддати в apiFetch як є, шлях API_BASE
-// подвоюється ("/api/api/route-events/...") і бекенд віддає 404. Тому
-// прибираємо префікс шляху з API_BASE перед тим, як повернути next.
-const API_BASE_PATH = new URL(API_BASE).pathname.replace(/\/$/, "");
-
-async function fetchAllPages<T>(path: string): Promise<T[]> {
-    const results: T[] = [];
-    let next: string | null = path;
-    while (next) {
-        const data: Paginated<T> = await apiFetch<Paginated<T>>(next);
-        results.push(...data.results);
-        if (!data.next) {
-            next = null;
-        } else {
-            const url: URL = new URL(data.next, API_BASE);
-            const pathname = API_BASE_PATH && url.pathname.startsWith(API_BASE_PATH)
-                ? url.pathname.slice(API_BASE_PATH.length)
-                : url.pathname;
-            next = `${pathname}${url.search}`;
-        }
-    }
-    return results;
-}
 
 // RouteEventSerializer (fields = "__all__") — snake_case поля моделі
 interface RawRouteEvent {

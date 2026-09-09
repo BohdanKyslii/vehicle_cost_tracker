@@ -1,9 +1,5 @@
 import type { CarrierCost } from "../types";
-import { apiFetch } from "./config.ts";
-
-interface Paginated<T> {
-	results: T[];
-}
+import { apiFetch, fetchAllPages } from "./config.ts";
 
 interface RawCarrierCost {
 	id: number;
@@ -28,8 +24,8 @@ function mapCarrierCost(raw: RawCarrierCost): CarrierCost {
 }
 
 export async function fetchCarrierCosts(): Promise<CarrierCost[]> {
-	const data = await apiFetch<Paginated<RawCarrierCost>>("/carrier-costs/");
-	return data.results.map(mapCarrierCost);
+	const raw = await fetchAllPages<RawCarrierCost>("/carrier-costs/");
+	return raw.map(mapCarrierCost);
 }
 
 export interface CarrierCostPayload {

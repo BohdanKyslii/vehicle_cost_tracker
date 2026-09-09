@@ -1,9 +1,5 @@
 import type { Customer, Store, StoreDeliveryAddress } from "../types";
-import { apiFetch } from "./config.ts";
-
-interface Paginated<T> {
-	results: T[];
-}
+import { apiFetch, fetchAllPages } from "./config.ts";
 
 interface RawCustomer {
 	id_customer: number;
@@ -29,8 +25,8 @@ function mapCustomer(raw: RawCustomer): Customer {
 
 export async function fetchCustomers(search = ""): Promise<Customer[]> {
 	const query = search ? `?search=${encodeURIComponent(search)}` : "";
-	const data = await apiFetch<Paginated<RawCustomer>>(`/customers/${query}`);
-	return data.results.map(mapCustomer);
+	const raw = await fetchAllPages<RawCustomer>(`/customers/${query}`);
+	return raw.map(mapCustomer);
 }
 
 export async function fetchCustomer(id: number): Promise<Customer> {
@@ -114,8 +110,8 @@ function mapStore(raw: RawStore): Store {
 
 export async function fetchStores(search = ""): Promise<Store[]> {
 	const query = search ? `?search=${encodeURIComponent(search)}` : "";
-	const data = await apiFetch<Paginated<RawStore>>(`/stores/${query}`);
-	return data.results.map(mapStore);
+	const raw = await fetchAllPages<RawStore>(`/stores/${query}`);
+	return raw.map(mapStore);
 }
 
 export async function fetchStore(id: number): Promise<Store> {

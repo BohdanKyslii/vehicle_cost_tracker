@@ -1,10 +1,6 @@
 import type { Driver } from "../types";
-import { USE_MOCK, mockDelay, apiFetch} from "./config.ts";
+import { USE_MOCK, mockDelay, apiFetch, fetchAllPages } from "./config.ts";
 import mockDrivers from "../mocks/drivers.json";
-
-interface Paginated<T> {
-    results: T[];
-}
 
 // DriverSerializer: id, name_driver, phone, car, car_number, car_name, is_active
 interface RawDriver {
@@ -32,8 +28,8 @@ export async function fetchDrivers(): Promise<Driver[]> {
         await mockDelay();
         return mockDrivers as Driver[];
     }
-    const data = await apiFetch<Paginated<RawDriver>>("/drivers/");
-    return data.results.map(mapDriver);
+    const raw = await fetchAllPages<RawDriver>("/drivers/");
+    return raw.map(mapDriver);
 }
 
 // Один водій по id — картка водія (FleetList → клік на водія, як для авто)

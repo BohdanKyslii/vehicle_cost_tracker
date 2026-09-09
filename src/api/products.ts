@@ -1,9 +1,5 @@
 import type { Product, ProductCategory, ProductLogistics } from "../types";
-import { apiFetch } from "./config.ts";
-
-interface Paginated<T> {
-	results: T[];
-}
+import { apiFetch, fetchAllPages } from "./config.ts";
 
 interface RawProductCategory {
 	id: number;
@@ -24,8 +20,8 @@ function mapProductCategory(raw: RawProductCategory): ProductCategory {
 }
 
 export async function fetchProductCategories(): Promise<ProductCategory[]> {
-	const data = await apiFetch<Paginated<RawProductCategory>>("/product-categories/");
-	return data.results.map(mapProductCategory);
+	const raw = await fetchAllPages<RawProductCategory>("/product-categories/");
+	return raw.map(mapProductCategory);
 }
 
 export interface ProductCategoryPayload {
@@ -103,8 +99,8 @@ function mapProduct(raw: RawProduct): Product {
 
 export async function fetchProducts(search = ""): Promise<Product[]> {
 	const query = search ? `?search=${encodeURIComponent(search)}` : "";
-	const data = await apiFetch<Paginated<RawProduct>>(`/products/${query}`);
-	return data.results.map(mapProduct);
+	const raw = await fetchAllPages<RawProduct>(`/products/${query}`);
+	return raw.map(mapProduct);
 }
 
 export async function fetchProduct(id: number): Promise<Product> {

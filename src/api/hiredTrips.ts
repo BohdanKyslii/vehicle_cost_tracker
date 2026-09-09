@@ -1,9 +1,5 @@
 import type { HiredTransportTrip, HiredTripWaybill } from "../types";
-import { apiFetch } from "./config.ts";
-
-interface Paginated<T> {
-	results: T[];
-}
+import { apiFetch, fetchAllPages } from "./config.ts";
 
 interface RawHiredTripWaybill {
 	id: number;
@@ -41,8 +37,8 @@ function mapHiredTrip(raw: RawHiredTransportTrip): HiredTransportTrip {
 }
 
 export async function fetchHiredTrips(): Promise<HiredTransportTrip[]> {
-	const data = await apiFetch<Paginated<RawHiredTransportTrip>>("/hired-transport-trips/");
-	return data.results.map(mapHiredTrip);
+	const raw = await fetchAllPages<RawHiredTransportTrip>("/hired-transport-trips/");
+	return raw.map(mapHiredTrip);
 }
 
 export async function fetchHiredTrip(id: number): Promise<HiredTransportTrip> {
