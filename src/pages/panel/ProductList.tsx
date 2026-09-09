@@ -15,6 +15,9 @@ export function ProductList() {
 			<div className="flex items-center justify-between">
 				<h1 className="text-xl font-bold text-white">Товари</h1>
 				<div className="flex gap-2">
+					<Link to="/panel/products/categories/import" className="px-3 py-2 text-sm rounded-lg border border-white/10 text-white/70 hover:bg-white/5">
+						⬇️ Імпорт категорій
+					</Link>
 					<Link to="/panel/products/import" className="px-3 py-2 text-sm rounded-lg border border-white/10 text-white/70 hover:bg-white/5">
 						⬇️ Імпорт з Excel
 					</Link>

@@ -26,7 +26,11 @@ dist-ssr
 .env
 .env.production
 
-# Excel files source data (real business data, stays local - see documents/)
-documents/*.xls
-documents/*.xlsx
+# Excel/CSV source data (real business data, stays local - see documents/)
+# Recursive (**) — a previous plain "documents/*.xlsx" missed files added
+# under a subfolder like documents/wehicle_tracker/, which got git-added
+# by mistake (caught 2026-09-09) before this fix.
+documents/**/*.xls
+documents/**/*.xlsx
+documents/**/*.csv
 documents/file_1C/
