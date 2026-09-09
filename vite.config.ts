@@ -18,6 +18,11 @@ export default defineConfig({
       // замість Django-логіну користувач бачив 404 самого React-застосунку.
       workbox: {
         navigateFallbackDenylist: [/^\/admin/],
+        // Дефолтний ліміт workbox — 2 MiB; головний JS-бандл вже 2.13 MiB
+        // і зростає з кожною фічею, тому build почав падати (не просто
+        // попереджати) на PLUGIN_ERROR "exceeds the limit" — precache
+        // одразу зупиняв весь build, а не просто пропускав файл.
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
       },
       manifest: {
        name: 'Vehicle Cost Tracker',

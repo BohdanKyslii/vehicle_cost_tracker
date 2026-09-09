@@ -5,6 +5,7 @@ import type {
     TrackingMode,
 } from "../types";
 import {
+    API_BASE,
     USE_MOCK,
     mockDelay,
     apiFetch,
@@ -13,6 +14,31 @@ import mockEvents from "../mocks/route-events.json";
 
 interface Paginated<T> {
     results: T[];
+    next: string | null;
+}
+
+// DRF пагінує /route-events/ по PAGE_SIZE=10 (config/settings.py бекенду).
+// Усі fetch*-функції нижче раніше читали лише data.results з першої
+// сторінки — при >10 подіях за фільтром (типово: одне авто за день з
+// >10 накладних) решта мовчки губились. У Django-адмінці цього не видно
+// (інша пагінація/список), тому розбіжність "в адмінці є, тут нема"
+// помітили лише на живих даних. Йдемо по data.next, доки він не null.
+async function fetchAllPages<T>(path: string): Promise<T[]> {
+    const results: T[] = [];
+    let next: string | null = path;
+    while (next) {
+        const data: Paginated<T> = await apiFetch<Paginated<T>>(next);
+        results.push(...data.results);
+        if (!data.next) {
+            next = null;
+        } else {
+            // data.next — абсолютний URL (DRF будує його з Host запиту);
+            // apiFetch сам додає API_BASE, тож лишаємо тільки шлях+query
+            const url: URL = new URL(data.next, API_BASE);
+            next = `${url.pathname}${url.search}`;
+        }
+    }
+    return results;
 }
 
 // RouteEventSerializer (fields = "__all__") — snake_case поля моделі
@@ -132,8 +158,8 @@ export async function fetchTodayEvents(carId: number): Promise<RouteEvent[]> {
             .filter(e => e.carId === carId && e.eventTs.startsWith(today))
             .sort((a, b) => b.eventTs.localeCompare(a.eventTs));    // нові зверху, як fetchDriverEvents
     }
-    const data = await apiFetch<Paginated<RawRouteEvent>>(`/route-events/?car_id=${carId}&date=today`)
-    return data.results.map(mapRouteEvent).sort((a, b) => b.eventTs.localeCompare(a.eventTs));
+    const raw = await fetchAllPages<RawRouteEvent>(`/route-events/?car_id=${carId}&date=today`);
+    return raw.map(mapRouteEvent).sort((a, b) => b.eventTs.localeCompare(a.eventTs));
 }
 
 // Дістати усі події водія
@@ -144,8 +170,8 @@ export async function fetchDriverEvents(carId: number): Promise<RouteEvent[]> {
             .filter(e => e.carId === carId)
             .sort((a, b) => b.eventTs.localeCompare(a.eventTs));    // нові зверху
     }
-    const data = await apiFetch<Paginated<RawRouteEvent>>(`/route-events/?car_id=${carId}`);
-    return data.results.map(mapRouteEvent).sort((a, b) => b.eventTs.localeCompare(a.eventTs));
+    const raw = await fetchAllPages<RawRouteEvent>(`/route-events/?car_id=${carId}`);
+    return raw.map(mapRouteEvent).sort((a, b) => b.eventTs.localeCompare(a.eventTs));
 }
 
 // Усі події за фільтром (адмінка /panel/events) — на відміну від
@@ -165,8 +191,8 @@ export async function fetchAllRouteEvents(filters: { date?: string; carId?: numb
     if (filters.carId != null) params.set("car_id", String(filters.carId));
     if (filters.date) params.set("date", filters.date);
     const query = params.toString();
-    const data = await apiFetch<Paginated<RawRouteEvent>>(`/route-events/${query ? `?${query}` : ""}`);
-    return data.results.map(mapRouteEvent).sort((a, b) => b.eventTs.localeCompare(a.eventTs));
+    const raw = await fetchAllPages<RawRouteEvent>(`/route-events/${query ? `?${query}` : ""}`);
+    return raw.map(mapRouteEvent).sort((a, b) => b.eventTs.localeCompare(a.eventTs));
 }
 
 // Одна подія за id (форма редагування в адмінці)
