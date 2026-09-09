@@ -23,6 +23,16 @@ interface Paginated<T> {
 // >10 накладних) решта мовчки губились. У Django-адмінці цього не видно
 // (інша пагінація/список), тому розбіжність "в адмінці є, тут нема"
 // помітили лише на живих даних. Йдемо по data.next, доки він не null.
+//
+// API_BASE сам містить шлях (напр. "https://warehouse.mom/api" або
+// "http://localhost:8000/api"), а apiFetch() приліплює його спереду до
+// будь-якого path. data.next — АБСОЛЮТНИЙ URL від DRF, який теж вже
+// містить цей шлях (".../api/route-events/?...page=2") — якщо просто
+// взяти url.pathname і віддати в apiFetch як є, шлях API_BASE
+// подвоюється ("/api/api/route-events/...") і бекенд віддає 404. Тому
+// прибираємо префікс шляху з API_BASE перед тим, як повернути next.
+const API_BASE_PATH = new URL(API_BASE).pathname.replace(/\/$/, "");
+
 async function fetchAllPages<T>(path: string): Promise<T[]> {
     const results: T[] = [];
     let next: string | null = path;
@@ -32,10 +42,11 @@ async function fetchAllPages<T>(path: string): Promise<T[]> {
         if (!data.next) {
             next = null;
         } else {
-            // data.next — абсолютний URL (DRF будує його з Host запиту);
-            // apiFetch сам додає API_BASE, тож лишаємо тільки шлях+query
             const url: URL = new URL(data.next, API_BASE);
-            next = `${url.pathname}${url.search}`;
+            const pathname = API_BASE_PATH && url.pathname.startsWith(API_BASE_PATH)
+                ? url.pathname.slice(API_BASE_PATH.length)
+                : url.pathname;
+            next = `${pathname}${url.search}`;
         }
     }
     return results;
