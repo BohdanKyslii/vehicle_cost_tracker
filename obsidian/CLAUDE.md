@@ -31,6 +31,29 @@ Frontend-репозиторій застосунку обліку транспо
 > чисті. Живий тест (Крок 23.10 гайду) НЕ проведений — той самий ризик
 > для прод-БД, що й у Фазі 22. CSV-парсер витрат — тимчасовий, мапінг
 > колонок не звірявся з реальним файлом жодної служби доставки.
+>
+> **Резинхронізовано 2026-09-10:** Фази 22/23 змержені в `main` (PR
+> #19/#20), `documents/file_1C/` видалено. Ця сесія — велика робота
+> поза нумерацією гайду (як і `panel-management` раніше): довідник
+> **Категорії товарів** (`/panel/categories`, `CategoryList/Form.tsx`,
+> масовий імпорт `CategoryImport.tsx`), 🗑 видалення в усіх чотирьох
+> довідниках (Товари/Категорії/Клієнти/Магазини — спільний
+> `ConfirmDelete`), інлайн-фільтри по клацанню заголовка колонки
+> (`FilterableHeader.tsx`), клієнтська пагінація 25/50/100
+> (`usePagination.ts`+`PageSizeSelect.tsx`, `Pagination.tsx` тепер не
+> лише на Накладних), інлайн-перемикач статусу прямо в рядку списку.
+> Заразом два системні баги на всьому застосунку: (1) усі `fetch*` в
+> `src/api/*.ts` читали лише сторінку 1 DRF-пагінації (по 10) — тепер
+> спільний `fetchAllPages()` в `config.ts`; (2) 9 форм редагування
+> лишались порожніми на холодному кеші React Query (`useState`
+> ініціалізувався з ще не довантажених даних) — виправлено патерном
+> "adjust state during render". Залито реальний каталог у прод:
+> Категорії 85, Клієнти 382, Магазини 2152, Товари 1120. PWA-іконки
+> нарешті реальні (`manifest.icons` був порожній). **Спростування:**
+> нотатка нижче й у "Бекенд коротко" про те, що `apps/waybills
+> import_file` "звірено напряму й готовий" — перевірено ще раз
+> 2026-09-10, ендпоінта НЕМАЄ, вкладка "Імпорт із 1С" 404-ить для
+> будь-якої юрособи. Деталі — `tasks.md`.
 
 Пов'язаний репозиторій: **vehicle_tracker_api** (Django-бекенд,
 `C:\Users\b.kisliy\PycharmProjects\DjangoProject\vehicle_tracker_api\`) — один
@@ -94,10 +117,24 @@ src/
           (Фаза 19/21, переїхало з admin/ у Фазі 20)
     panel/ — /panel, head-only "суперкористувацький" розділ
       PanelHome.tsx           — тайли-посилання (Автопарк, Події водіїв,
-                                 Товари, Клієнти, Магазини, Користувачі)
+                                 Товари, Категорії, Клієнти, Магазини,
+                                 Користувачі)
       ProductList/Form.tsx, ProductImport.tsx      (2026-08-30/31)
+      CategoryList.tsx, CategoryForm.tsx, CategoryImport.tsx (2026-09-10,
+                                 `/panel/categories`, `/panel/categories/import`
+                                 — раніше `CategoryImport` жив під
+                                 `/panel/products/categories/import`,
+                                 переїхав разом з появою повного довідника)
       CustomerList/Form.tsx, CustomerImport.tsx    (2026-08-30/31)
       StoreList/Form.tsx, StoreImport.tsx          (2026-08-30/31)
+      — усі чотири списки (Товари/Категорії/Клієнти/Магазини, 2026-09-10):
+        🗑 видалення на рядок (`ConfirmDelete`, той самий компонент, що
+        в `EventsAdminList`), інлайн-фільтр по клацанню заголовка
+        колонки (`components/ui/FilterableHeader.tsx`), клієнтська
+        пагінація 25/50/100 (`hocks/usePagination.ts` +
+        `components/ui/PageSizeSelect.tsx` + наявний `Pagination.tsx`),
+        інлайн-перемикач статусу прямо в рядку (той самий принцип, що
+        швидка зміна статусу авто в `FleetList.tsx`)
       UserManagement.tsx      — підтвердження реєстрацій/зміна ролі
       EventsAdminList.tsx, EventAdminForm.tsx      (2026-08-31) — повний
                                  CRUD подій ВСІХ водіїв (не лише свого),
@@ -108,23 +145,39 @@ src/
   hocks/                      — тека названа "hocks", не "hooks" (навмисно, [[decision_hocks_typo]])
     useCars.ts, useDrivers.ts, useRouteEvents.ts (+useAllRouteEvents/
       useRouteEvent, 2026-08-31), useWaybills.ts, useWaybillFilters.ts,
-    useHiredTrips.ts, useMonthlyCosts.ts, useProducts.ts, useCustomers.ts,
+    useHiredTrips.ts, useMonthlyCosts.ts, useProducts.ts (2026-09-10:
+      +useDeleteProduct, +useUpdateProductById — id передається в
+      mutate(), не фіксується при виклику хука, щоб працювало в .map()
+      по рядках списку; +категорійні хуки), useCustomers.ts
+      (2026-09-10: +useDeleteCustomer/useUpdateCustomerById + той самий
+      принцип для Store — хуки Store живуть тут же, не в окремому
+      файлі),
     useCarrierShipments.ts, useCarrierCosts.ts (Фаза 23, 2026-09-06),
     useAdminUsers.ts, useBulkImport.ts (2026-08-31 — спільний хук
       масового імпорту, послідовний цикл зі збором помилок по рядку),
     useWaybillImport.ts (Фаза 22, 2026-09-06 — одна мутація, інвалідує
       waybills + waybills-unassigned),
+    usePagination.ts (2026-09-10 — page/pageSize, дефолт 25, для
+      клієнтської пагінації довідників),
     useDayMode.ts (carId-scoped), useCurrentUser.ts, useAuthModal.ts
   api/ — routeEvents.ts, cars.ts, drivers.ts, waybills.ts, hiredTrips.ts,
-         monthlyCosts.ts, products.ts, customers.ts, adminUsers.ts,
-         carrierShipments.ts, carrierCosts.ts (Фаза 23, 2026-09-06 —
-         той самий Raw/map патерн, що hiredTrips.ts),
+         monthlyCosts.ts, products.ts (2026-09-10: +fetchProductCategory/
+         updateProductCategory/deleteProductCategory — раніше лише
+         createProductCategory існував; +deleteProduct),
+         customers.ts (+deleteCustomer, +deleteStore — Store API теж
+         тут), adminUsers.ts, carrierShipments.ts, carrierCosts.ts
+         (Фаза 23, 2026-09-06 — той самий Raw/map патерн, що
+         hiredTrips.ts),
          waybillImport.ts (Фаза 22, 2026-09-06 — apiFetchMultipart, не
          apiFetch: файл шле multipart/form-data, бекенд сам парсить
-         CSV/XLS за legalEntity), config.ts (тепер + apiFetchMultipart),
-         auth.ts (жоден з products/customers/adminUsers/waybillImport НЕ
-         має USE_MOCK гілки — завжди б'ють у реальний бекенд, навіть при
-         VITE_USE_MOCK=true)
+         CSV/XLS за legalEntity), config.ts (+ apiFetchMultipart;
+         2026-09-10: + fetchAllPages<T>() — спільний хелпер, іде за
+         `data.next` DRF-пагінації, доки не `null`; усі list-фетчери
+         тепер через нього, бо кожен раніше читав лише сторінку 1
+         (PAGE_SIZE=10) і мовчки губив решту записів),
+         auth.ts (жоден з products/customers (+Store)/adminUsers/
+         waybillImport НЕ має USE_MOCK гілки — завжди б'ють у реальний
+         бекенд, навіть при VITE_USE_MOCK=true)
   utils/ — formatters, eventHelpers (+findEventGroup — явний маркер
            [stop:N], НЕ часова евристика, з 2026-08-28), calcSummary,
            calcTransportCost, calcProduct, parseQR.ts, clientFilter,
@@ -145,13 +198,18 @@ documents/                    — ТЗ/специфікація проєкту (
                                  НЕ джерело правди по факту імплементації,
                                  для цього CODING_GUIDE.md
 CODING_GUIDE.md                — покроковий навчальний гайд, Фази 1-23
-                                 реально набрані в коді (Фаза 22 —
-                                 гілка faza-22-1c-import, Фаза 23 —
-                                 гілка faza-23-carriers, обидві
-                                 2026-09-06, живий тест жодної НЕ
-                                 проведено, див. [[decisions.md]]);
-                                 panel-management і /panel/events +
-                                 Excel-імпорт — НЕ в гайді ([[decisions.md]])
+                                 реально набрані в коді (Фаза 22/23,
+                                 обидві 2026-09-06, змержені PR #19/#20,
+                                 живий тест жодної НЕ проведено, див.
+                                 [[decisions.md]]); panel-management,
+                                 /panel/events + Excel-імпорт, і весь
+                                 довідниковий блок 2026-09-10 (Категорії,
+                                 видалення, фільтри, пагінація,
+                                 fetchAllPages/blank-form фікси) — НЕ
+                                 описані як окремі Кроки/Фази (той самий
+                                 винятковий статус, [[decisions.md]]);
+                                 останній підсумований датованим блоком у
+                                 "## Наступні кроки" 2026-09-10
 Dockerfile, docker-compose.yml, nginx.conf — деплой на Raspberry Pi
 .github/workflows/deploy.yml   — автодеплой при push у main
 ```
@@ -214,15 +272,22 @@ Email-реєстрація тепер теж створює порожній `Dr
 цього не робила — [[telegram-email-account-linking-gap]], пофіксено
 бекенд-комітом `e5b5f7f` 2026-08-28).
 
-`products`/`customers`/`analysis` — app-теки існують, моделі мінімальні
-або відсутні, API ще не написане. `apps/waybills` (1С-імпорт) —
-**уже написаний і робочий**: `WaybillRecordViewSet` (CRUD + `unassigned`
-+ `assign_channel` + `import_file`), `importers/rubin_csv.py`,
-`importers/esp_opt_xls.py`, `importing.py` (перезаливка за датами),
-права `IsManagerOrHeadOnly` (manager+head, без logist — вужче за
-`IsManagerOrHead`) на запис/import, `IsAuthenticated` на читання.
-Підтверджено 2026-09-06 прямим читанням коду при наборі Фази 22
-фронтенду.
+`products`/`customers`/`analysis` — app-теки існують, моделі не мінімальні
+(реальний каталог 2026-09-10 підтверджує це) — стандартний CRUD API вже
+написаний і використовується `/panel/*`. `apps/waybills` — стандартний
+CRUD + `unassigned`/`assign_channel` написані й робочі, але
+**⚠️ Спростування 2026-09-10:** нотатка нижче й вище (від 2026-09-06)
+стверджувала, що `import_file` (1С-імпорт) теж уже готовий і звірений
+напряму з кодом — перевірено ще раз 2026-09-10 прямим читанням
+`apps/waybills/views.py`: **такого ендпоінта НЕМАЄ**, жодного `import_file`,
+CSV/XLS-парсера чи `importers/`-модуля в поточному `views.py`. Вкладка
+"Імпорт із 1С" (`WaybillImportForm.tsx`, Фаза 22) 404-ить для БУДЬ-ЯКОЇ
+юрособи (РУБІН/ЄСП/ОПТ) в реальному проді. Причина розбіжності
+2026-09-06 → 2026-09-10 не з'ясована (можливо, код читався в іншій
+гілці бекенду й не був змержений/запушений) — перш ніж покладатись на
+"живо й підтверджено" в старих записах цього файлу, перевіряй
+`apps/waybills/views.py` напряму. Деталі й контекст — `tasks.md`,
+[[open-items-2026-09-10]].
 
 **Наслідок для фронтенду:** усі `/api/cars/`, `/api/drivers/`,
 `/api/route-events/` вимагають автентифікованої сесії; DELETE на
