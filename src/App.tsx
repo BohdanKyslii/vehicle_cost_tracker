@@ -34,6 +34,7 @@ import { UserManagement } from "./pages/panel/UserManagement";
 import { EventsAdminList } from "./pages/panel/EventsAdminList";
 import { EventAdminForm } from "./pages/panel/EventAdminForm";
 import { ProductImport } from "./pages/panel/ProductImport";
+import { FixProductCategories } from "./pages/panel/FixProductCategories";
 import { CategoryList } from "./pages/panel/CategoryList";
 import { CategoryForm } from "./pages/panel/CategoryForm";
 import { CategoryImport } from "./pages/panel/CategoryImport";
@@ -171,6 +172,7 @@ export default function App() {
                 <Route path="products" element={<ProductList />} />
                 <Route path="products/new" element={<ProductForm />} />
                 <Route path="products/import" element={<ProductImport />} />
+                <Route path="products/fix-categories" element={<FixProductCategories />} />
                 <Route path="products/:productId" element={<ProductForm />} />
                 <Route path="categories" element={<CategoryList />} />
                 <Route path="categories/new" element={<CategoryForm />} />
