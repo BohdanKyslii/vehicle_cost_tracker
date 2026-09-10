@@ -4,10 +4,12 @@ import {
 	fetchCustomer,
 	createCustomer,
 	updateCustomer,
+	deleteCustomer,
 	fetchStores,
 	fetchStore,
 	createStore,
 	updateStore,
+	deleteStore,
 } from "../api/customers";
 import type { CustomerPayload, StorePayload } from "../api/customers";
 
@@ -55,6 +57,14 @@ export function useUpdateCustomerById() {
 	});
 }
 
+export function useDeleteCustomer() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: (id: number) => deleteCustomer(id),
+		onSuccess: () => queryClient.invalidateQueries({ queryKey: ["customers"] }),
+	});
+}
+
 export function useStores(search = "") {
 	return useQuery({ queryKey: ["stores", search], queryFn: () => fetchStores(search) });
 }
@@ -96,5 +106,13 @@ export function useUpdateStoreById() {
 			queryClient.invalidateQueries({ queryKey: ["stores"] });
 			queryClient.invalidateQueries({ queryKey: ["stores", "detail", id] });
 		},
+	});
+}
+
+export function useDeleteStore() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: (id: number) => deleteStore(id),
+		onSuccess: () => queryClient.invalidateQueries({ queryKey: ["stores"] }),
 	});
 }

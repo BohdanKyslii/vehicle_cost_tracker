@@ -1,11 +1,13 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { useProductCategories } from "../../hocks/useProducts";
+import { useProductCategories, useDeleteProductCategory } from "../../hocks/useProducts";
 import { usePagination } from "../../hocks/usePagination";
 import { Spinner } from "../../components/ui/Spinner";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorBanner } from "../../components/ui/ErrorBanner";
 import { Input } from "../../components/ui/Input";
+import { Button } from "../../components/ui/Button";
+import { ConfirmDelete } from "../../components/ui/ConfirmDelete";
 import { FilterableHeader } from "../../components/ui/FilterableHeader";
 import { PageSizeSelect } from "../../components/ui/PageSizeSelect";
 import { Pagination } from "../../components/ui/Pagination";
@@ -17,6 +19,8 @@ import { Pagination } from "../../components/ui/Pagination";
 export function CategoryList() {
 	const [search, setSearch] = useState("");
 	const { data: categories, isLoading, isError, refetch } = useProductCategories();
+	const deleteCategory = useDeleteProductCategory();
+	const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
 	const [parentFilter, setParentFilter] = useState("");
 
@@ -71,26 +75,52 @@ export function CategoryList() {
 							<th className="py-2">ID</th>
 							<th className="py-2">Назва</th>
 							<FilterableHeader label="Батьківська категорія" value={parentFilter} onChange={setParentFilter} options={parentOptions} />
+							<th className="py-2"></th>
 						</tr>
 					</thead>
 					<tbody>
-						{pageRows.map((c) => (
-							<tr key={c.id} className="border-b border-white/5 hover:bg-white/5">
-								<td className="py-2">
-									<Link to={`/panel/categories/${c.id}`} className="text-violet-300 hover:underline">
-										{c.id}
-									</Link>
-								</td>
-								<td className="py-2">{c.nameCategory}</td>
-								<td className="py-2 text-white/70">{c.parentName ?? "—"}</td>
-							</tr>
-						))}
+						{pageRows.map((c) => {
+							if (confirmDeleteId === c.id) {
+								return (
+									<tr key={c.id} className="border-b border-white/5">
+										<td colSpan={4} className="py-2">
+											<ConfirmDelete
+												message={`Видалити категорію "${c.nameCategory}"? Товари з нею стануть без категорії, дочірні категорії — кореневими.`}
+												pending={deleteCategory.isPending && deleteCategory.variables === c.id}
+												onCancel={() => setConfirmDeleteId(null)}
+												onConfirm={() => deleteCategory.mutate(c.id, { onSuccess: () => setConfirmDeleteId(null) })}
+											/>
+										</td>
+									</tr>
+								);
+							}
+							return (
+								<tr key={c.id} className="border-b border-white/5 hover:bg-white/5">
+									<td className="py-2">
+										<Link to={`/panel/categories/${c.id}`} className="text-violet-300 hover:underline">
+											{c.id}
+										</Link>
+									</td>
+									<td className="py-2">{c.nameCategory}</td>
+									<td className="py-2 text-white/70">{c.parentName ?? "—"}</td>
+									<td className="py-2 text-right">
+										<Button type="button" variant="ghost" size="sm" onClick={() => setConfirmDeleteId(c.id)}>
+											🗑
+										</Button>
+									</td>
+								</tr>
+							);
+						})}
 					</tbody>
 				</table>
 			)}
 
 			{!isLoading && !isError && filtered.length > 0 && (
 				<Pagination total={filtered.length} page={page} pageSize={pageSize} onChange={setPage} />
+			)}
+
+			{deleteCategory.isError && (
+				<ErrorBanner message={`Не вдалось видалити категорію: ${(deleteCategory.error as Error).message}`} />
 			)}
 		</div>
 	);

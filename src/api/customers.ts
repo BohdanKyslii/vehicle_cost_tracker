@@ -64,6 +64,10 @@ export async function updateCustomer(id: number, data: Omit<CustomerPayload, "id
 	return mapCustomer(raw);
 }
 
+export async function deleteCustomer(id: number): Promise<void> {
+	await apiFetch<void>(`/customers/${id}/`, { method: "DELETE" });
+}
+
 interface RawStoreDeliveryAddress {
 	id: number;
 	store: number;
@@ -147,4 +151,8 @@ export async function updateStore(id: number, data: Omit<StorePayload, "idStore"
 	void id_store;
 	const raw = await apiFetch<RawStore>(`/stores/${id}/`, { method: "PATCH", json: rest });
 	return mapStore(raw);
+}
+
+export async function deleteStore(id: number): Promise<void> {
+	await apiFetch<void>(`/stores/${id}/`, { method: "DELETE" });
 }

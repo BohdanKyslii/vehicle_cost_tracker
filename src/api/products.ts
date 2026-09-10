@@ -178,3 +178,7 @@ export async function updateProduct(id: number, data: Omit<ProductPayload, "idPr
 	const raw = await apiFetch<RawProduct>(`/products/${id}/`, { method: "PATCH", json: rest });
 	return mapProduct(raw);
 }
+
+export async function deleteProduct(id: number): Promise<void> {
+	await apiFetch<void>(`/products/${id}/`, { method: "DELETE" });
+}

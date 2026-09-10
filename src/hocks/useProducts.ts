@@ -6,6 +6,7 @@ import {
 	fetchProduct,
 	createProduct,
 	updateProduct,
+	deleteProduct,
 	createProductCategory,
 	updateProductCategory,
 	deleteProductCategory,
@@ -93,5 +94,13 @@ export function useUpdateProductById() {
 			queryClient.invalidateQueries({ queryKey: ["products"] });
 			queryClient.invalidateQueries({ queryKey: ["products", "detail", id] });
 		},
+	});
+}
+
+export function useDeleteProduct() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: (id: number) => deleteProduct(id),
+		onSuccess: () => queryClient.invalidateQueries({ queryKey: ["products"] }),
 	});
 }

@@ -1,11 +1,13 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { useProducts, useUpdateProductById } from "../../hocks/useProducts";
+import { useProducts, useUpdateProductById, useDeleteProduct } from "../../hocks/useProducts";
 import { usePagination } from "../../hocks/usePagination";
 import { Spinner } from "../../components/ui/Spinner";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorBanner } from "../../components/ui/ErrorBanner";
 import { Input } from "../../components/ui/Input";
+import { Button } from "../../components/ui/Button";
+import { ConfirmDelete } from "../../components/ui/ConfirmDelete";
 import { FilterableHeader } from "../../components/ui/FilterableHeader";
 import { PageSizeSelect } from "../../components/ui/PageSizeSelect";
 import { Pagination } from "../../components/ui/Pagination";
@@ -15,6 +17,8 @@ export function ProductList() {
 	const [search, setSearch] = useState("");
 	const { data: products, isLoading, isError, refetch } = useProducts(search);
 	const updateProduct = useUpdateProductById();
+	const deleteProduct = useDeleteProduct();
+	const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
 	const [articleFilter, setArticleFilter] = useState("");
 	const [categoryFilter, setCategoryFilter] = useState("");
@@ -83,31 +87,53 @@ export function ProductList() {
 							<th className="py-2">Назва</th>
 							<FilterableHeader label="Категорія" value={categoryFilter} onChange={setCategoryFilter} options={categoryOptions} />
 							<th className="py-2">Статус</th>
+							<th className="py-2"></th>
 						</tr>
 					</thead>
 					<tbody>
-						{pageRows.map((p) => (
-							<tr key={p.idProduct} className="border-b border-white/5 hover:bg-white/5">
-								<td className="py-2">
-									<Link to={`/panel/products/${p.idProduct}`} className="text-violet-300 hover:underline">
-										{p.idProduct}
-									</Link>
-								</td>
-								<td className="py-2">{p.nameProduct}</td>
-								<td className="py-2 text-white/70">{p.categoryName ?? "—"}</td>
-								<td className="py-2">
-									<select
-										value={p.isActive ? "active" : "inactive"}
-										disabled={updateProduct.isPending}
-										onChange={() => toggleStatus(p)}
-										className={`rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-violet-400 disabled:opacity-50 [&>option]:bg-slate-900 [&>option]:text-white ${p.isActive ? "text-emerald-400" : "text-white/40"}`}
-									>
-										<option value="active">Активний</option>
-										<option value="inactive">Неактивний</option>
-									</select>
-								</td>
-							</tr>
-						))}
+						{pageRows.map((p) => {
+							if (confirmDeleteId === p.idProduct) {
+								return (
+									<tr key={p.idProduct} className="border-b border-white/5">
+										<td colSpan={5} className="py-2">
+											<ConfirmDelete
+												message={`Видалити товар "${p.nameProduct}" (арт. ${p.idProduct})?`}
+												pending={deleteProduct.isPending && deleteProduct.variables === p.idProduct}
+												onCancel={() => setConfirmDeleteId(null)}
+												onConfirm={() => deleteProduct.mutate(p.idProduct, { onSuccess: () => setConfirmDeleteId(null) })}
+											/>
+										</td>
+									</tr>
+								);
+							}
+							return (
+								<tr key={p.idProduct} className="border-b border-white/5 hover:bg-white/5">
+									<td className="py-2">
+										<Link to={`/panel/products/${p.idProduct}`} className="text-violet-300 hover:underline">
+											{p.idProduct}
+										</Link>
+									</td>
+									<td className="py-2">{p.nameProduct}</td>
+									<td className="py-2 text-white/70">{p.categoryName ?? "—"}</td>
+									<td className="py-2">
+										<select
+											value={p.isActive ? "active" : "inactive"}
+											disabled={updateProduct.isPending}
+											onChange={() => toggleStatus(p)}
+											className={`rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-violet-400 disabled:opacity-50 [&>option]:bg-slate-900 [&>option]:text-white ${p.isActive ? "text-emerald-400" : "text-white/40"}`}
+										>
+											<option value="active">Активний</option>
+											<option value="inactive">Неактивний</option>
+										</select>
+									</td>
+									<td className="py-2 text-right">
+										<Button type="button" variant="ghost" size="sm" onClick={() => setConfirmDeleteId(p.idProduct)}>
+											🗑
+										</Button>
+									</td>
+								</tr>
+							);
+						})}
 					</tbody>
 				</table>
 			)}
@@ -118,6 +144,9 @@ export function ProductList() {
 
 			{updateProduct.isError && (
 				<ErrorBanner message={`Не вдалось змінити статус: ${(updateProduct.error as Error).message}`} />
+			)}
+			{deleteProduct.isError && (
+				<ErrorBanner message={`Не вдалось видалити товар: ${(deleteProduct.error as Error).message}`} />
 			)}
 		</div>
 	);
