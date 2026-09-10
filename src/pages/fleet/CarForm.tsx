@@ -69,6 +69,41 @@ export function CarForm() {
 	const currentDriverId = drivers?.find((d) => existing && d.idCar === existing.idCar)?.idDriver ?? null;
 	const [selectedDriverId, setSelectedDriverId] = useState<number | "">(currentDriverId ?? "");
 
+	// existing і drivers прилітають асинхронно (React Query) — на
+	// холодному кеші useState-ініціалізатори вище вже відпрацювали з
+	// existing=undefined. "Adjust state during render" (не useEffect —
+	// set-state-in-effect eslint-правило проєкту): syncedId відстежує,
+	// для якого авто стан уже синхронізовано, і оновлює поля прямо під
+	// час рендеру. Чекаємо і на existing, і на drivers одночасно (не
+	// двома окремими гейтами) — інакше currentDriverId, порахований до
+	// того як drivers довантажились, хибно виглядав би як "водія нема".
+	const [syncedId, setSyncedId] = useState<number | null>(null);
+	if (existing && drivers && existing.idCar !== syncedId) {
+		setSyncedId(existing.idCar);
+		setNameCar(existing.nameCar);
+		setNumberCar(existing.numberCar);
+		setFuelCardNumber(String(existing.fuelCardNumber ?? ""));
+		setAmountCar(String(existing.amountCar ?? ""));
+		setDefaultTrackingMode(existing.defaultTrackingMode ?? "daily");
+		setStatusCar(existing.statusCar ?? "active");
+		setIsActive(existing.isActive);
+		setVinCode(existing.specs?.vinCode ?? "");
+		setYearManufactured(String(existing.specs?.yearManufactured ?? ""));
+		setWeightKg(String(existing.specs?.weightKg ?? ""));
+		setPayloadKg(String(existing.specs?.payloadKg ?? ""));
+		setLengthCm(String(existing.specs?.lengthCm ?? ""));
+		setWidthCm(String(existing.specs?.widthCm ?? ""));
+		setHeightCm(String(existing.specs?.heightCm ?? ""));
+		setHasTailLift(existing.specs?.hasTailLift ?? false);
+		setHasTrailer(existing.specs?.hasTrailer ?? false);
+		setTrailerVinCode(existing.trailer?.vinCode ?? "");
+		setTrailerYear(String(existing.trailer?.yearManufactured ?? ""));
+		setTrailerName(existing.trailer?.nameTrailer ?? "");
+		setTrailerNumber(existing.trailer?.numberTrailer ?? "");
+		setTrailerIsActive(existing.trailer?.isActive ?? true);
+		setSelectedDriverId(currentDriverId ?? "");
+	}
+
 	const createCar = useCreateCar();
 	const updateCar = useUpdateCar(Number(carId));
 	const updateDriverAssignment = useUpdateDriver();

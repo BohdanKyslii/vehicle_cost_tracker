@@ -26,6 +26,25 @@ export function MonthlyCostsForm() {
 	const [otherCostUah, setOtherCostUah] = useState(String(existing?.otherCostUah ?? ""));
 	const [otherCostComment, setOtherCostComment] = useState(existing?.otherCostComment ?? "");
 
+	// existing прилітає асинхронно (React Query) — на холодному кеші
+	// useState-ініціалізатори вище вже відпрацювали з existing=undefined.
+	// "Adjust state during render" (не useEffect — set-state-in-effect
+	// eslint-правило проєкту): syncedId відстежує, для якого запису стан
+	// уже синхронізовано, і оновлює поля прямо під час рендеру.
+	const [syncedId, setSyncedId] = useState<number | null>(null);
+	if (existing && existing.id !== syncedId) {
+		setSyncedId(existing.id);
+		setCarId(existing.carId);
+		setMonth(existing.month.slice(0, 7));
+		setSalaryUah(String(existing.salaryUah ?? ""));
+		setTaxesUah(String(existing.taxesUah ?? ""));
+		setDepreciationUah(String(existing.depreciationUah ?? ""));
+		setRepairActualUah(String(existing.repairActualUah ?? ""));
+		setRepairRateUahKm(String(existing.repairRateUahKm ?? "2.00"));
+		setOtherCostUah(String(existing.otherCostUah ?? ""));
+		setOtherCostComment(existing.otherCostComment ?? "");
+	}
+
 	// Той самий патерн, що й CarForm (Фаза 16.5): запис витрат за місяць
 	// теж не хочеться правити випадково — відкриваєш картку заблокованою,
 	// "Редагувати" розблоковує поля. Для нового запису (isEdit=false)

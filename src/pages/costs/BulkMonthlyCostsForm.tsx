@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCars } from "../../hocks/useCars";
 import { useMonthlyCostsList, useSaveMonthlyCost } from "../../hocks/useMonthlyCosts";
@@ -48,8 +48,15 @@ export function BulkMonthlyCostsForm() {
 	const [saveErrors, setSaveErrors] = useState<Record<number, string>>({});
 	const [isSaving, setIsSaving] = useState(false);
 
-	useEffect(() => {
-		if (!month || !cars || !allCosts) return;
+	// Перебудовуємо всю таблицю щоразу, коли обрано (інший) місяць — і
+	// лише тоді, коли cars/allCosts уже довантажились. "Adjust state
+	// during render" (не useEffect — set-state-in-effect eslint-правило
+	// проєкту): syncedMonth відстежує, для якого місяця таблицю вже
+	// побудовано, порівняно з currentKey нижче.
+	const currentKey = month && cars && allCosts ? month : null;
+	const [syncedMonth, setSyncedMonth] = useState<string | null>(null);
+	if (currentKey !== null && cars && allCosts && currentKey !== syncedMonth) {
+		setSyncedMonth(currentKey);
 		const monthISO = `${month}-01`;
 		const next: Record<number, Row> = {};
 		for (const car of cars) {
@@ -83,7 +90,7 @@ export function BulkMonthlyCostsForm() {
 		setRows(next);
 		setTouchedCars(new Set());
 		setSaveErrors({});
-	}, [month, cars, allCosts]);
+	}
 
 	function setCell(carId: number, key: FieldKey, value: string) {
 		setRows((prev) => ({ ...prev, [carId]: { ...prev[carId], [key]: value } }));

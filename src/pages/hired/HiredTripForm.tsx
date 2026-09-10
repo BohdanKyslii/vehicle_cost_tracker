@@ -27,6 +27,23 @@ export function HiredTripForm() {
 	const [palletsCount, setPalletsCount] = useState(String(existing?.palletsCount ?? ""));
 	const [costUah, setCostUah] = useState(String(existing?.costUah ?? ""));
 	const [comment, setComment] = useState(existing?.comment ?? "");
+
+	// existing прилітає асинхронно (React Query) — на холодному кеші
+	// useState-ініціалізатори вище вже відпрацювали з existing=undefined.
+	// "Adjust state during render" (не useEffect — set-state-in-effect
+	// eslint-правило проєкту): syncedId відстежує, для якого рейсу стан
+	// уже синхронізовано, і оновлює поля прямо під час рендеру.
+	const [syncedId, setSyncedId] = useState<number | null>(null);
+	if (existing && existing.id !== syncedId) {
+		setSyncedId(existing.id);
+		setCarNumber(existing.carNumber);
+		setRouteName(existing.routeName);
+		setTripDate(existing.tripDate);
+		setPalletsCount(String(existing.palletsCount ?? ""));
+		setCostUah(String(existing.costUah ?? ""));
+		setComment(existing.comment ?? "");
+	}
+
 	const [scannerOpen, setScannerOpen] = useState(false);
 	const [scanError, setScanError] = useState<string | null>(null);
 

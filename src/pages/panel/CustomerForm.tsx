@@ -21,6 +21,20 @@ export function CustomerForm() {
 	const [networkCustomer, setNetworkCustomer] = useState(existing?.networkCustomer ?? "");
 	const [isActive, setIsActive] = useState(existing?.isActive ?? true);
 
+	// existing прилітає асинхронно (React Query) — на холодному кеші
+	// useState-ініціалізатори вище вже відпрацювали з existing=undefined.
+	// "Adjust state during render" (не useEffect — set-state-in-effect
+	// eslint-правило проєкту): syncedId відстежує, для якого клієнта стан
+	// уже синхронізовано, і оновлює поля прямо під час рендеру.
+	const [syncedId, setSyncedId] = useState<number | null>(null);
+	if (existing && existing.idCustomer !== syncedId) {
+		setSyncedId(existing.idCustomer);
+		setIdCustomer(String(existing.idCustomer));
+		setNameCustomer(existing.nameCustomer);
+		setNetworkCustomer(existing.networkCustomer ?? "");
+		setIsActive(existing.isActive);
+	}
+
 	const [isEditingDetails, setIsEditingDetails] = useState(false);
 	const detailsLocked = isEdit && !isEditingDetails;
 

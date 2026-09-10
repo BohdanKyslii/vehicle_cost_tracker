@@ -24,6 +24,20 @@ export function CarrierShipmentForm() {
 	const [carrier, setCarrier] = useState<CarrierCode>(existing?.carrier ?? "nova_poshta");
 	const [ttn, setTtn] = useState(existing?.ttn ?? "");
 	const [shipmentDate, setShipmentDate] = useState(existing?.shipmentDate ?? "");
+
+	// existing прилітає асинхронно (React Query) — на холодному кеші
+	// useState-ініціалізатори вище вже відпрацювали з existing=undefined.
+	// "Adjust state during render" (не useEffect — set-state-in-effect
+	// eslint-правило проєкту): syncedId відстежує, для якого відправлення
+	// стан уже синхронізовано, і оновлює поля прямо під час рендеру.
+	const [syncedId, setSyncedId] = useState<number | null>(null);
+	if (existing && existing.id !== syncedId) {
+		setSyncedId(existing.id);
+		setCarrier(existing.carrier);
+		setTtn(existing.ttn);
+		setShipmentDate(existing.shipmentDate);
+	}
+
 	const [scannerOpen, setScannerOpen] = useState(false);
 	const [scanError, setScanError] = useState<string | null>(null);
 

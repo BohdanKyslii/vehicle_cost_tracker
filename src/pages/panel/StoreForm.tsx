@@ -21,6 +21,21 @@ export function StoreForm() {
 	const [storeAddress, setStoreAddress] = useState(existing?.storeAddress ?? "");
 	const [isActive, setIsActive] = useState(existing?.isActive ?? true);
 
+	// existing прилітає асинхронно (React Query) — на холодному кеші
+	// useState-ініціалізатори вище вже відпрацювали з existing=undefined.
+	// "Adjust state during render" (не useEffect — set-state-in-effect
+	// eslint-правило проєкту): syncedId відстежує, для якого магазину стан
+	// уже синхронізовано, і оновлює поля прямо під час рендеру.
+	const [syncedId, setSyncedId] = useState<number | null>(null);
+	if (existing && existing.idStore !== syncedId) {
+		setSyncedId(existing.idStore);
+		setIdStore(String(existing.idStore));
+		setCustomer(existing.customer);
+		setNameStore(existing.nameStore);
+		setStoreAddress(existing.storeAddress ?? "");
+		setIsActive(existing.isActive);
+	}
+
 	const [isEditingDetails, setIsEditingDetails] = useState(false);
 	const detailsLocked = isEdit && !isEditingDetails;
 

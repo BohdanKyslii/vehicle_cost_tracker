@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useCars } from "../../hocks/useCars";
@@ -103,11 +103,17 @@ export function EventAdminForm() {
 	const [confirmDeleteSiblingId, setConfirmDeleteSiblingId] = useState<number | null>(null);
 	const [attachingId, setAttachingId] = useState<number | "">("");
 
-	// Підвантажені дані існуючої події заповнюють форму — окремим
-	// ефектом, бо useRouteEvent(id) резолвиться асинхронно вже ПІСЛЯ
-	// першого рендеру форми (initial useState не бачить existing)
-	useEffect(() => {
-		if (!existing) return;
+	// Підвантажені дані існуючої події заповнюють форму — useRouteEvent(id)
+	// резолвиться асинхронно вже ПІСЛЯ першого рендеру форми (initial
+	// useState не бачить existing). "Adjust state during render" (не
+	// useEffect — set-state-in-effect eslint-правило проєкту): syncedId
+	// відстежує, для якої події стан уже синхронізовано. Раніше тут
+	// стояв useEffect — окрім лінтера, він ще й давав один кадр
+	// застарілих/порожніх полів перед спінером нижче; тепер значення вже
+	// правильні до першого пофарбування форми.
+	const [syncedId, setSyncedId] = useState<number | null>(null);
+	if (existing && existing.id !== syncedId) {
+		setSyncedId(existing.id);
 		setCarId(existing.carId);
 		setDriverId(existing.driverId);
 		setTrackingMode(existing.trackingMode ?? "daily");
@@ -128,7 +134,7 @@ export function EventAdminForm() {
 		setExtraWeightKg(existing.extraWeightKg != null ? String(existing.extraWeightKg) : "");
 		setExtraWaybill(existing.extraWaybill ?? "");
 		setNotes(existing.notes ?? "");
-	}, [existing]);
+	}
 
 	if (isEdit && existingLoading) return <Spinner size="lg" label="Завантаження події..." />;
 	if (carsLoading || driversLoading) return <Spinner size="lg" label="Завантаження..." />;

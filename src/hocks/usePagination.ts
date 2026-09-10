@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 export type PageSize = 25 | 50 | 100;
 
@@ -12,11 +12,13 @@ export function usePagination(totalItems: number, defaultPageSize: PageSize = 25
 
 	// Скидаємо на першу сторінку, якщо через зміну фільтра/розміру сторінки
 	// поточна сторінка більше не існує (інакше можна застрягти на порожній
-	// сторінці після звуження фільтром)
-	useEffect(() => {
-		const maxPage = Math.max(1, Math.ceil(totalItems / pageSize));
-		if (page > maxPage) setPage(maxPage);
-	}, [totalItems, pageSize, page]);
+	// сторінці після звуження фільтром) — "adjust state during render"
+	// (не useEffect —set-state-in-effect eslint-правило проєкту), клемп
+	// рахується прямо тут і одразу застосовується, якщо вийшов за межі.
+	const maxPage = Math.max(1, Math.ceil(totalItems / pageSize));
+	if (page > maxPage) {
+		setPage(maxPage);
+	}
 
 	function changePageSize(size: PageSize) {
 		setPageSize(size);

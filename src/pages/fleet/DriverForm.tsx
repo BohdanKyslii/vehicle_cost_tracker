@@ -25,6 +25,21 @@ export function DriverForm() {
 	const [isActive, setIsActive] = useState(existing?.isActive ?? true);
 	const [selectedCarId, setSelectedCarId] = useState<number | "">(existing?.idCar ?? "");
 
+	// existing прилітає асинхронно (React Query) — на холодному кеші
+	// useState-ініціалізатори вище вже відпрацювали з existing=undefined.
+	// "Adjust state during render" (не useEffect — set-state-in-effect
+	// eslint-правило проєкту): syncedId відстежує, для якого водія стан
+	// уже синхронізовано, і оновлює поля прямо під час рендеру.
+	const [syncedId, setSyncedId] = useState<number | null>(null);
+	if (existing && existing.idDriver !== syncedId) {
+		setSyncedId(existing.idDriver);
+		setNameDriver(existing.nameDriver);
+		setPhoneDriver(existing.phoneDriver ?? "");
+		setDriversLicense(existing.driversLicense ?? "");
+		setIsActive(existing.isActive);
+		setSelectedCarId(existing.idCar ?? "");
+	}
+
 	const createDriver = useCreateDriver();
 	const updateDriver = useUpdateDriver();
 	const mutation = isEdit ? { mutateAsync: (data: DriverPayload) => updateDriver.mutateAsync({ id: Number(driverId), data }), isPending: updateDriver.isPending, isError: updateDriver.isError, error: updateDriver.error }

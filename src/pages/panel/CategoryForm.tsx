@@ -21,6 +21,19 @@ export function CategoryForm() {
 	const [nameCategory, setNameCategory] = useState(existing?.nameCategory ?? "");
 	const [parent, setParent] = useState<number | "">(existing?.parent ?? "");
 
+	// existing прилітає асинхронно (React Query) — на холодному кеші
+	// useState-ініціалізатори вище вже відпрацювали з existing=undefined.
+	// "Adjust state during render" (не useEffect — той-таки set-state-in-
+	// effect eslint-правило проєкту): syncedId відстежує, для якого запису
+	// стан уже синхронізовано, і оновлює поля прямо під час рендеру, коли
+	// existing щойно прилетів або показує інший запис.
+	const [syncedId, setSyncedId] = useState<number | null>(null);
+	if (existing && existing.id !== syncedId) {
+		setSyncedId(existing.id);
+		setNameCategory(existing.nameCategory);
+		setParent(existing.parent ?? "");
+	}
+
 	// Той самий локед-режим, що ProductForm/CarForm — картку категорії
 	// відкривають переважно подивитись, редагують рідко
 	const [isEditingDetails, setIsEditingDetails] = useState(false);

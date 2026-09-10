@@ -29,6 +29,26 @@ export function ProductForm() {
 
 	const [newCategoryName, setNewCategoryName] = useState("");
 
+	// existing прилітає асинхронно (React Query) — на холодному кеші
+	// useState-ініціалізатори вище вже відпрацювали з existing=undefined.
+	// "Adjust state during render" (не useEffect — set-state-in-effect
+	// eslint-правило проєкту): syncedId відстежує, для якого товару стан
+	// уже синхронізовано, і оновлює поля прямо під час рендеру.
+	const [syncedId, setSyncedId] = useState<number | null>(null);
+	if (existing && existing.idProduct !== syncedId) {
+		setSyncedId(existing.idProduct);
+		setIdProduct(String(existing.idProduct));
+		setNameProduct(existing.nameProduct);
+		setCategory(existing.category ?? "");
+		setDescription(existing.description ?? "");
+		setIsActive(existing.isActive);
+		setUnitWeightKg(String(existing.logistics?.unitWeightKg ?? ""));
+		setUnitLengthCm(String(existing.logistics?.unitLengthCm ?? ""));
+		setUnitWidthCm(String(existing.logistics?.unitWidthCm ?? ""));
+		setUnitHeightCm(String(existing.logistics?.unitHeightCm ?? ""));
+		setUnitsPerBox(String(existing.logistics?.unitsPerBox ?? ""));
+	}
+
 	// Дані товару змінюються рідко (артикул/назва/категорія) — той самий
 	// локед-режим, що CarForm/HiredTripForm/CarrierShipmentForm
 	const [isEditingDetails, setIsEditingDetails] = useState(false);
