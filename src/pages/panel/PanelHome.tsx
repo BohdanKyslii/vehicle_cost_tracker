@@ -12,6 +12,7 @@ const sections = [
 	{ to: "/fleet", label: "Автопарк (авто, водії)", icon: "🚛", ready: true },
 	{ to: "/panel/events", label: "Події водіїв", icon: "🧾", ready: true },
 	{ to: "/panel/products", label: "Товари", icon: "📦", ready: true },
+	{ to: "/panel/categories", label: "Категорії товарів", icon: "🗂️", ready: true },
 	{ to: "/panel/customers", label: "Клієнти", icon: "🧑‍💼", ready: true },
 	{ to: "/panel/stores", label: "Магазини", icon: "🏬", ready: true },
 	{ to: "/panel/users", label: "Користувачі", icon: "👤", ready: true },

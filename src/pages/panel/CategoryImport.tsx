@@ -104,7 +104,7 @@ export function CategoryImport() {
 		<div className="p-6 max-w-2xl mx-auto space-y-4">
 			<div className="flex items-center justify-between">
 				<h1 className="text-xl font-bold text-white">Імпорт категорій з Excel</h1>
-				<Button type="button" variant="ghost" onClick={() => navigate("/panel/products")}>
+				<Button type="button" variant="ghost" onClick={() => navigate("/panel/categories")}>
 					← Назад
 				</Button>
 			</div>

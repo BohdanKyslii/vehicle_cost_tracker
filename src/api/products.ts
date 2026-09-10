@@ -38,6 +38,20 @@ export async function createProductCategory(data: ProductCategoryPayload): Promi
 	return mapProductCategory(raw);
 }
 
+export async function fetchProductCategory(id: number): Promise<ProductCategory> {
+	const raw = await apiFetch<RawProductCategory>(`/product-categories/${id}/`);
+	return mapProductCategory(raw);
+}
+
+export async function updateProductCategory(id: number, data: ProductCategoryPayload): Promise<ProductCategory> {
+	const raw = await apiFetch<RawProductCategory>(`/product-categories/${id}/`, { method: "PATCH", json: toProductCategoryPayload(data) });
+	return mapProductCategory(raw);
+}
+
+export async function deleteProductCategory(id: number): Promise<void> {
+	await apiFetch<void>(`/product-categories/${id}/`, { method: "DELETE" });
+}
+
 // DRF серіалізує DecimalField як рядок у JSON — той самий гачок, що в cars.ts
 interface RawProductLogistics {
 	unit_weight_kg?: string | null;

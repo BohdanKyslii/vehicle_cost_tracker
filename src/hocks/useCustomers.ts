@@ -42,6 +42,19 @@ export function useUpdateCustomer(id: number) {
 	});
 }
 
+// Той самий updateCustomer, але id передається в mutate() — для інлайн-
+// редагування статусу прямо в рядку CustomerList (id хука не викликати в циклі)
+export function useUpdateCustomerById() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: ({ id, data }: { id: number; data: Omit<CustomerPayload, "idCustomer"> }) => updateCustomer(id, data),
+		onSuccess: (_result, { id }) => {
+			queryClient.invalidateQueries({ queryKey: ["customers"] });
+			queryClient.invalidateQueries({ queryKey: ["customers", "detail", id] });
+		},
+	});
+}
+
 export function useStores(search = "") {
 	return useQuery({ queryKey: ["stores", search], queryFn: () => fetchStores(search) });
 }
@@ -67,6 +80,19 @@ export function useUpdateStore(id: number) {
 	return useMutation({
 		mutationFn: (data: Omit<StorePayload, "idStore">) => updateStore(id, data),
 		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["stores"] });
+			queryClient.invalidateQueries({ queryKey: ["stores", "detail", id] });
+		},
+	});
+}
+
+// Той самий updateStore, але id передається в mutate() — для інлайн-
+// редагування статусу прямо в рядку StoreList (id хука не викликати в циклі)
+export function useUpdateStoreById() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: ({ id, data }: { id: number; data: Omit<StorePayload, "idStore"> }) => updateStore(id, data),
+		onSuccess: (_result, { id }) => {
 			queryClient.invalidateQueries({ queryKey: ["stores"] });
 			queryClient.invalidateQueries({ queryKey: ["stores", "detail", id] });
 		},
