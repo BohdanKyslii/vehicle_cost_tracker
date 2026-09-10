@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useProducts, useUpdateProductById } from "../../hocks/useProducts";
+import { useUpdateProductById } from "../../hocks/useProducts";
+import { fetchProducts } from "../../api/products";
 import { parseExcelFile } from "../../utils/excelImport";
 import { Button } from "../../components/ui/Button";
 import { ErrorBanner } from "../../components/ui/ErrorBanner";
+import type { Product } from "../../types";
 
 // ОДНОРАЗОВИЙ коригувальний інструмент (2026-09-10) — видалити після
 // використання разом з маршрутом /panel/products/fix-categories.
@@ -22,7 +24,16 @@ const HEADERS_NOTE = "Той самий файл, що й при звичайн�
 
 export function FixProductCategories() {
 	const navigate = useNavigate();
-	const { data: products } = useProducts();
+	// Пряме, ОДНОРАЗОВЕ завантаження (не useProducts()) — навмисно: якби
+	// компонент підписався на реактивний запит ["products"], кожен PATCH
+	// нижче інвалідував би його й перезапускав повне довантаження всіх
+	// ~1253 товарів (126 сторінок) — для ~950 виправлень це рознесло б
+	// кілька запитів у десятки тисяч. Знято живцем (2026-09-10): перші
+	// ж ~5 виправлень уже дали 550 запитів через це.
+	const [products, setProducts] = useState<Product[] | null>(null);
+	useEffect(() => {
+		fetchProducts().then(setProducts);
+	}, []);
 	const updateProduct = useUpdateProductById();
 
 	const [fileRows, setFileRows] = useState<Record<string, string>[]>([]);
