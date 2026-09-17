@@ -559,6 +559,7 @@ export interface ImportResult {
 	imported: number;
 	deleted?: number;    // скільки старих рядків видалено при перезаливці
 	dates?: string[];     // які waybill_date охопило це завантаження
+	linkedToOwnChannel?: number;  // скільки накладних автопризначено "own" за вже наявними сканами водіїв
 	skipped: number;
 	errors: ImportError[];
 }

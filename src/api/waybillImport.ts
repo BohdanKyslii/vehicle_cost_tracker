@@ -7,6 +7,7 @@ interface RawImportResult {
 	imported: number;
 	deleted?: number;
 	dates?: string[];
+	linked_to_own_channel?: number;
 	errors: { row: number; field: string; message: string }[];
 }
 
@@ -16,6 +17,7 @@ function mapImportResult(raw: RawImportResult): ImportResult {
 		imported: raw.imported,
 		deleted: raw.deleted,
 		dates: raw.dates,
+		linkedToOwnChannel: raw.linked_to_own_channel,
 		skipped: raw.errors.length,
 		errors: raw.errors,
 	};

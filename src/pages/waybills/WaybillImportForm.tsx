@@ -61,6 +61,12 @@ export function WaybillImportForm() {
 						{upload.data.dates && upload.data.dates.length > 0 && (
 							<p className="text-white/50">Дати: {upload.data.dates.join(", ")}</p>
 						)}
+						{!!upload.data.linkedToOwnChannel && (
+							<p className="text-emerald-300">
+								Автопризначено канал "Власне авто" для {upload.data.linkedToOwnChannel} накладних
+								(за вже наявними сканами водіїв).
+							</p>
+						)}
 						{upload.data.errors.length > 0 && (
 							<div className="space-y-1">
 								<p className="text-amber-300">Рядки з помилками (пропущені):</p>
