@@ -97,7 +97,7 @@ export async function fetchWaybills(
     params.set("page", String(pagination.page));
     params.set("page_size", String(pagination.pageSize));
 
-    const res = await fetch(`${API_BASE}/waybills/?${params}`);
+    const res = await fetch(`${API_BASE}/waybill-records/?${params}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
 }
@@ -108,7 +108,7 @@ export async function fetchWaybillDetail(number: string): Promise<WaybillRecord[
         await mockDelay();
         return (mockWaybills as WaybillRecord[]).filter(w => w.waybillNumber === number);
     }
-    const res = await fetch(`${API_BASE}/waybills/${number}/`);
+    const res = await fetch(`${API_BASE}/waybill-records/${number}/`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
 }
@@ -128,7 +128,7 @@ export async function checkWaybillChannel(
             deliveryChannel: record?.deliveryChannel ?? null,
         };
     }
-    const res = await fetch(`${API_BASE}/waybills/${number}/channel/`);
+    const res = await fetch(`${API_BASE}/waybill-records/${number}/channel/`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
 }
@@ -141,7 +141,7 @@ export async function fetchUnassignedWaybills(): Promise<WaybillSummary[]> {
         const summaries = aggregateToSummaries(records);
         return summaries.filter(w => !w.deliveryChannel);
     }
-    const res = await fetch(`${API_BASE}/waybills/unassigned/`);
+    const res = await fetch(`${API_BASE}/waybill-records/unassigned/`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
 }
