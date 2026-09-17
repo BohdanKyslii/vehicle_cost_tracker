@@ -120,6 +120,12 @@ src/
     waybills/WaybillImportForm.tsx (Фаза 22, 2026-09-06) — вибір
            юрособи (РУБІН/ЄСП/ОПТ) + файл, без локед-режиму (одноразова
            дія, не форма редагування)
+    waybills/WaybillDetail.tsx (2026-09-17, `/waybills/:waybillNumber`,
+           замінив `PlaceholderPage`) — товарні рядки однієї накладної +
+           форма призначення каналу (own → авто з `useCars()`, hired →
+           вільний номер, carrier → ТТН); після призначення показує
+           лише бейдж (бекенд не дає змінити канал вдруге), локед-режим
+           тут не потрібен — нема що редагувати вже призначене
     fleet/FleetList.tsx, CarForm.tsx, DriverForm.tsx
     hired/HiredTripList.tsx, HiredTripForm.tsx (Фаза 18)
     carriers/CarrierShipmentList.tsx, CarrierShipmentForm.tsx,
@@ -289,7 +295,15 @@ Email-реєстрація тепер теж створює порожній `Dr
 `products`/`customers`/`analysis` — app-теки існують, моделі не мінімальні
 (реальний каталог 2026-09-10 підтверджує це) — стандартний CRUD API вже
 написаний і використовується `/panel/*`. `apps/waybills` — стандартний
-CRUD + `unassigned`/`assign_channel` написані й робочі.
+CRUD + `unassigned`/`assign_channel` написані й робочі, плюс
+(2026-09-17) `summary/` (список агрегований по `waybill_number`, не по
+товарному рядку — `.values().annotate()` з `Count`/`Sum(Case(...))`,
+дивись коментар у коді чому аліаси анотацій НЕ можуть збігатись з
+реальними іменами полів моделі), `by-number/<номер>/` і
+`by-number/<номер>/assign-channel/` (bulk-призначення каналу одразу
+всій накладній, за зразком `attach_waybill` з `apps.logistics`; нові
+поля моделі `assigned_car`/`hired_car_number`/`carrier_ttn`, міграція
+`0002`).
 **⚠️ Третій виток цього спростування (2026-09-17, читай уважно):**
 запис нижче/вище стверджував, що на 2026-09-10 `import_file` "НЕМАЄ" —
 це саме по собі виявилось застарілим/помилковим. Перевірено напряму
@@ -307,13 +321,13 @@ Rubin CSV (1828/1828, [[rubin-csv-blank-customer-id-bug]]). Те, що
 чекав агрегований по накладній camelCase-об'єкт
 (`{items, total}`/`WaybillSummary`), а бекенд віддає сирий
 DRF-пейдж по товарних рядках (`{count, results}`, snake_case, без
-поля `status` узагалі). Виправлено (мапінг `RawWaybillLine` →
-`WaybillSummary`), але БЕЗ справжньої агрегації по `waybill_number` —
-кожен товарний рядок зараз показується як окремий рядок таблиці
-(`linesCount` завжди 1). Деталі, і що досі не зроблено (деталі
-накладної/channel-check лишаються биті — інший лукап по `pk`, не по
-номеру) — [[waybills-list-real-api-gap]] (пам'ять Claude Code) і
-`tasks.md`. **Урок:** "ендпоінт 404-ить/не працює" в браузері не
+поля `status` узагалі). Спершу виправлено мінімально (мапінг
+`RawWaybillLine` → `WaybillSummary`, БЕЗ агрегації), а далі тим же днем
+додано СПРАВЖНЮ агрегацію по `waybill_number` (бекенд-екшн `summary/`,
+див. вище) і сторінку деталей накладної з призначенням каналу
+(`WaybillDetail.tsx`) — деталі, і свідомі спрощення (без інтеграції з
+`HiredTransportTrip`/`CarrierShipment`) — [[waybills-list-real-api-gap]]
+(пам'ять Claude Code) і `tasks.md`. **Урок:** "ендпоінт 404-ить/не працює" в браузері не
 означає "ендпоінта нема на бекенді" — спершу перевір, який САМЕ шлях і
 яку форму відповіді реально шле фронтенд, а вже потім лізь у бекенд.
 
