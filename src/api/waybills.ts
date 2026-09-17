@@ -10,6 +10,7 @@ import type {
 import {
     USE_MOCK,
     API_BASE,
+    apiFetch,
     mockDelay,
 } from "./config.ts";
 import mockWaybills from "../mocks/waybills.json";
@@ -70,6 +71,52 @@ function aggregateToSummaries(records: WaybillRecord[]): WaybillSummary[] {
     return summaries;
 }
 
+// Форма одного рядка накладної, як її реально віддає бекенд
+// (WaybillRecordSerializer, snake_case) — без агрегації по накладній і
+// без поля "status" (його на бекенді взагалі нема, це суто мок-концепція).
+interface RawWaybillLine {
+    id: number;
+    legal_entity: WaybillSummary["legalEntity"];
+    waybill_number: string;
+    waybill_date: string;
+    customer: number | null;
+    customer_name: string;
+    store: number | null;
+    total_uah: string;
+    total_weight_kg: string | null;
+    total_volume_cbm: string | null;
+    delivery_channel: DeliveryChannel | null;
+    is_return: boolean;
+}
+
+interface RawPaginated<T> {
+    count: number;
+    results: T[];
+}
+
+// Тимчасове рішення (без агрегації по waybill_number — бекенд її не
+// рахує): один рядок бекенду = один рядок таблиці. "Кількість позицій"
+// і суми в UI показуватимуть дані по одній товарній позиції, а не по
+// всій накладній, доки на бекенді не з'явиться справжня агрегація.
+function mapLineToSummary(raw: RawWaybillLine): WaybillSummary {
+    const totalUah = Number(raw.total_uah);
+    return {
+        legalEntity: raw.legal_entity,
+        waybillNumber: raw.waybill_number,
+        waybillDate: raw.waybill_date,
+        customerId: raw.customer != null ? String(raw.customer) : "",
+        customerName: raw.customer_name,
+        storeId: raw.store != null ? String(raw.store) : undefined,
+        linesCount: 1,
+        totalUah: raw.is_return ? 0 : totalUah,
+        returnsUah: raw.is_return ? totalUah : 0,
+        totalWeightKg: raw.total_weight_kg ? Number(raw.total_weight_kg) : undefined,
+        totalVolumeCbm: raw.total_volume_cbm ? Number(raw.total_volume_cbm) : undefined,
+        deliveryChannel: raw.delivery_channel,
+        status: "pending",
+    };
+}
+
 // Отримати список накладних з фільтрами, сортуванням і пагінацією
 export async function fetchWaybills(
     filters: WaybillFilters,
@@ -86,20 +133,24 @@ export async function fetchWaybills(
         return paginate(sorted, pagination);
     }
 
-    // Для реального API передаємо параметри через URL query string
+    // Для реального API передаємо параметри через URL query string.
+    // sort/status/channel-фільтри поки НЕ мапляться — бекенд (DRF
+    // OrderingFilter/get_queryset) не має відповідних імен параметрів
+    // ні "status" взагалі; лишаємо тільки те, що реально працює.
     const params = new URLSearchParams();
     if (filters.search) params.set("search", filters.search);
-    if (filters.status) params.set("status", filters.status);
-    if (filters.deliveryChannel) params.set("channel", filters.deliveryChannel);
     if (filters.legalEntity) params.set("legal_entity", filters.legalEntity);
-    params.set("sort_field", sort.field);
-    params.set("sort_dir", sort.direction);
     params.set("page", String(pagination.page));
     params.set("page_size", String(pagination.pageSize));
 
-    const res = await fetch(`${API_BASE}/waybill-records/?${params}`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json();
+    const data = await apiFetch<RawPaginated<RawWaybillLine>>(`/waybill-records/?${params}`);
+    return {
+        items: data.results.map(mapLineToSummary),
+        total: data.count,
+        page: pagination.page,
+        pageSize: pagination.pageSize,
+        totalPages: Math.ceil(data.count / pagination.pageSize),
+    };
 }
 
 // Деталі накладної — всі рядки
