@@ -28,10 +28,8 @@ export function WaybillFiltersBar({ filters, onChange }: WaybillFiltersBarProps)
 					className="rounded-lg border border-white/10 bg-white/5 text-white placeholder:text-white/30 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 [&>option]:bg-slate-900 [&>option]:text-white"
 				>
 					<option value="">Всі статуси</option>
-					<option value="pending">Очікує</option>
-					<option value="scanned">Відскановано</option>
-					<option value="delivered">Доставлено</option>
-					<option value="cancelled">Скасовано</option>
+					<option value="pending">Очікує (канал не призначено)</option>
+					<option value="scanned">Призначено канал</option>
 				</select>
 				
 				{/* Канал доставки */}

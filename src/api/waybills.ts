@@ -3,13 +3,13 @@ import type {
     WaybillSummary,
     WaybillFilters,
     SortParams,
+    SortField,
     PaginationParams,
     PaginatedResponse,
     DeliveryChannel,
 } from "../types";
 import {
     USE_MOCK,
-    API_BASE,
     apiFetch,
     mockDelay,
 } from "./config.ts";
@@ -71,22 +71,58 @@ function aggregateToSummaries(records: WaybillRecord[]): WaybillSummary[] {
     return summaries;
 }
 
-// Форма одного рядка накладної, як її реально віддає бекенд
-// (WaybillRecordSerializer, snake_case) — без агрегації по накладній і
-// без поля "status" (його на бекенді взагалі нема, це суто мок-концепція).
+// Форма одного РЯДКА агрегованого реєстру (GET .../summary/,
+// одна накладна = один рядок відповіді) — snake_case, як і скрізь у
+// бекенді. shipped_uah/returned_uah/weight_kg_sum рахуються Django
+// aggregate-ами (Sum) над сирими рядками — приходять простими числами
+// (не рядком, на відміну від звичайних DecimalField у серіалізаторах).
+interface RawWaybillSummaryRow {
+    waybill_number: string;
+    waybill_date: string;
+    legal_entity: WaybillSummary["legalEntity"];
+    customer: number | null;
+    customer_name: string;
+    store: number | null;
+    delivery_channel: DeliveryChannel | null;
+    assigned_car: number | null;
+    assigned_car__number_car: string | null;
+    hired_car_number: string;
+    carrier_ttn: string;
+    lines_count: number;
+    shipped_uah: number;
+    returned_uah: number;
+    weight_kg_sum: number | null;
+}
+
+// Один товарний рядок накладної, як його віддає WaybillRecordSerializer
+// (list/, by-number/<number>/) — тут decimal-поля таки рядки (звичайна
+// поведінка ModelSerializer.DecimalField).
 interface RawWaybillLine {
     id: number;
     legal_entity: WaybillSummary["legalEntity"];
     waybill_number: string;
     waybill_date: string;
+    line_position: number;
     customer: number | null;
     customer_name: string;
     store: number | null;
+    product: number | null;
+    product_name: string;
+    quantity: string;
+    price_uah: string;
     total_uah: string;
+    comment: string;
     total_weight_kg: string | null;
     total_volume_cbm: string | null;
+    volumetric_weight_kg: string | null;
     delivery_channel: DeliveryChannel | null;
+    assigned_car: number | null;
+    assigned_car_number: string | null;
+    hired_car_number: string;
+    carrier_ttn: string;
     is_return: boolean;
+    imported_at: string;
+    import_batch_id: string;
 }
 
 interface RawPaginated<T> {
@@ -94,12 +130,11 @@ interface RawPaginated<T> {
     results: T[];
 }
 
-// Тимчасове рішення (без агрегації по waybill_number — бекенд її не
-// рахує): один рядок бекенду = один рядок таблиці. "Кількість позицій"
-// і суми в UI показуватимуть дані по одній товарній позиції, а не по
-// всій накладній, доки на бекенді не з'явиться справжня агрегація.
-function mapLineToSummary(raw: RawWaybillLine): WaybillSummary {
-    const totalUah = Number(raw.total_uah);
+// "Яке авто везе" — для own це реальне авто з парку, для hired це
+// вільний текстовий номер (найманий транспорт не веде довідник Car).
+// Показуємо в одному полі UI (WaybillSummary.carNumber) — лише один із
+// двох колись заповнений (ексклюзивність каналу гарантує бекенд).
+function mapSummaryRow(raw: RawWaybillSummaryRow): WaybillSummary {
     return {
         legalEntity: raw.legal_entity,
         waybillNumber: raw.waybill_number,
@@ -107,17 +142,66 @@ function mapLineToSummary(raw: RawWaybillLine): WaybillSummary {
         customerId: raw.customer != null ? String(raw.customer) : "",
         customerName: raw.customer_name,
         storeId: raw.store != null ? String(raw.store) : undefined,
-        linesCount: 1,
-        totalUah: raw.is_return ? 0 : totalUah,
-        returnsUah: raw.is_return ? totalUah : 0,
-        totalWeightKg: raw.total_weight_kg ? Number(raw.total_weight_kg) : undefined,
-        totalVolumeCbm: raw.total_volume_cbm ? Number(raw.total_volume_cbm) : undefined,
+        linesCount: raw.lines_count,
+        totalUah: raw.shipped_uah,
+        returnsUah: raw.returned_uah,
+        totalWeightKg: raw.weight_kg_sum ?? undefined,
         deliveryChannel: raw.delivery_channel,
-        status: "pending",
+        carId: raw.assigned_car ?? undefined,
+        carNumber: raw.assigned_car__number_car ?? raw.hired_car_number ?? undefined,
+        carrierTtn: raw.carrier_ttn || undefined,
+        // Реального "status" на бекенді нема — тільки delivery_channel.
+        // "delivered"/"cancelled" нічим підкріпити зараз (немає жодних
+        // даних про фактичну доставку), тому єдине, що можна чесно
+        // показати — призначено канал чи ні.
+        status: raw.delivery_channel ? "scanned" : "pending",
     };
 }
 
-// Отримати список накладних з фільтрами, сортуванням і пагінацією
+function mapLineToRecord(raw: RawWaybillLine): WaybillRecord {
+    return {
+        id: raw.id,
+        legalEntity: raw.legal_entity,
+        waybillNumber: raw.waybill_number,
+        waybillDate: raw.waybill_date,
+        linePosition: raw.line_position,
+        customerId: raw.customer != null ? String(raw.customer) : "",
+        customerName: raw.customer_name,
+        storeId: raw.store != null ? String(raw.store) : undefined,
+        productId: raw.product ?? 0,
+        productName: raw.product_name,
+        quantity: Number(raw.quantity),
+        priceUah: Number(raw.price_uah),
+        totalUah: Number(raw.total_uah),
+        comment: raw.comment || undefined,
+        totalWeightKg: raw.total_weight_kg ? Number(raw.total_weight_kg) : undefined,
+        totalVolumeCbm: raw.total_volume_cbm ? Number(raw.total_volume_cbm) : undefined,
+        volumetricWeightKg: raw.volumetric_weight_kg ? Number(raw.volumetric_weight_kg) : undefined,
+        deliveryChannel: raw.delivery_channel,
+        status: raw.delivery_channel ? "scanned" : "pending",
+        assignedCarId: raw.assigned_car ?? undefined,
+        assignedCarNumber: raw.assigned_car_number ?? undefined,
+        hiredCarNumber: raw.hired_car_number || undefined,
+        carrierTtn: raw.carrier_ttn || undefined,
+        importedAt: raw.imported_at,
+        importBatchId: raw.import_batch_id || undefined,
+    };
+}
+
+// field у SortParams → ordering-параметр, який розуміє .../summary/
+// ("vehicle" нічим не підкріплений на бекенді — просто ігнорується,
+// падає на дефолтне сортування за датою)
+const ORDERING_PARAM: Partial<Record<SortField, string>> = {
+    date: "date",
+    total: "total",
+    customer: "customer",
+    weight: "weight",
+};
+
+// Отримати список накладних з фільтрами, сортуванням і пагінацією —
+// РЕАЛЬНО агрегований по накладній (GET .../summary/), не по товарних
+// позиціях: один рядок таблиці = вся накладна, linesCount/суми вважає
+// бекенд (Django Sum/Count), не клієнт.
 export async function fetchWaybills(
     filters: WaybillFilters,
     sort: SortParams,
@@ -133,19 +217,26 @@ export async function fetchWaybills(
         return paginate(sorted, pagination);
     }
 
-    // Для реального API передаємо параметри через URL query string.
-    // sort/status/channel-фільтри поки НЕ мапляться — бекенд (DRF
-    // OrderingFilter/get_queryset) не має відповідних імен параметрів
-    // ні "status" взагалі; лишаємо тільки те, що реально працює.
     const params = new URLSearchParams();
     if (filters.search) params.set("search", filters.search);
     if (filters.legalEntity) params.set("legal_entity", filters.legalEntity);
+    if (filters.deliveryChannel && filters.deliveryChannel !== "all") {
+        params.set("delivery_channel", filters.deliveryChannel);
+    }
+    if (filters.lineType && filters.lineType !== "all") params.set("line_type", filters.lineType);
+    if (filters.status) params.set("status", filters.status);
+    if (filters.dateFrom) params.set("date_from", filters.dateFrom);
+    if (filters.dateTo) params.set("date_to", filters.dateTo);
+
+    const orderingKey = ORDERING_PARAM[sort.field];
+    if (orderingKey) params.set("ordering", sort.direction === "asc" ? orderingKey : `-${orderingKey}`);
+
     params.set("page", String(pagination.page));
     params.set("page_size", String(pagination.pageSize));
 
-    const data = await apiFetch<RawPaginated<RawWaybillLine>>(`/waybill-records/?${params}`);
+    const data = await apiFetch<RawPaginated<RawWaybillSummaryRow>>(`/waybill-records/summary/?${params}`);
     return {
-        items: data.results.map(mapLineToSummary),
+        items: data.results.map(mapSummaryRow),
         total: data.count,
         page: pagination.page,
         pageSize: pagination.pageSize,
@@ -153,15 +244,14 @@ export async function fetchWaybills(
     };
 }
 
-// Деталі накладної — всі рядки
+// Деталі накладної — всі товарні рядки
 export async function fetchWaybillDetail(number: string): Promise<WaybillRecord[]> {
     if (USE_MOCK) {
         await mockDelay();
         return (mockWaybills as WaybillRecord[]).filter(w => w.waybillNumber === number);
     }
-    const res = await fetch(`${API_BASE}/waybill-records/${number}/`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json();
+    const raw = await apiFetch<RawWaybillLine[]>(`/waybill-records/by-number/${number}/`);
+    return raw.map(mapLineToRecord);
 }
 
 // Перевірка чи накладна вже призначена до каналу
@@ -179,9 +269,8 @@ export async function checkWaybillChannel(
             deliveryChannel: record?.deliveryChannel ?? null,
         };
     }
-    const res = await fetch(`${API_BASE}/waybill-records/${number}/channel/`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json();
+    const raw = await apiFetch<RawWaybillLine[]>(`/waybill-records/by-number/${number}/`);
+    return { waybillNumber: number, deliveryChannel: raw[0]?.delivery_channel ?? null };
 }
 
 // Не призначені накладні (для сторінки UnassignedWaybills)
@@ -192,7 +281,35 @@ export async function fetchUnassignedWaybills(): Promise<WaybillSummary[]> {
         const summaries = aggregateToSummaries(records);
         return summaries.filter(w => !w.deliveryChannel);
     }
-    const res = await fetch(`${API_BASE}/waybill-records/unassigned/`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json();
+    const data = await apiFetch<RawPaginated<RawWaybillSummaryRow>>(
+        `/waybill-records/summary/?delivery_channel=unassigned`,
+    );
+    return data.results.map(mapSummaryRow);
+}
+
+export interface AssignChannelPayload {
+    deliveryChannel: DeliveryChannel;
+    assignedCarId?: number;
+    hiredCarNumber?: string;
+    carrierTtn?: string;
+}
+
+// Призначити канал доставки одразу всій накладній (усім її товарних
+// рядкам) + деталь каналу (авто власного парку / номер найманого авто /
+// ТТН — залежно від каналу). Ексклюзивно: бекенд відмовить, якщо канал
+// уже призначений.
+export async function assignWaybillChannel(
+    waybillNumber: string,
+    payload: AssignChannelPayload,
+): Promise<WaybillRecord[]> {
+    const body: Record<string, unknown> = { delivery_channel: payload.deliveryChannel };
+    if (payload.assignedCarId != null) body.assigned_car = payload.assignedCarId;
+    if (payload.hiredCarNumber) body.hired_car_number = payload.hiredCarNumber;
+    if (payload.carrierTtn) body.carrier_ttn = payload.carrierTtn;
+
+    const raw = await apiFetch<RawWaybillLine[]>(
+        `/waybill-records/by-number/${waybillNumber}/assign-channel/`,
+        { method: "POST", json: body },
+    );
+    return raw.map(mapLineToRecord);
 }

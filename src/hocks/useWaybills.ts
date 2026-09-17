@@ -1,16 +1,18 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { keepPreviousData } from "@tanstack/react-query";
 import {
     fetchWaybills,
     fetchWaybillDetail,
     checkWaybillChannel,
     fetchUnassignedWaybills,
+    assignWaybillChannel,
 } from "../api/waybills";
 import type {
     WaybillFilters,
     SortParams,
     PaginationParams
 } from "../types";
+import type { AssignChannelPayload } from "../api/waybills";
 
 export function useWaybills(
     filters: WaybillFilters,
@@ -47,5 +49,18 @@ export function useUnassignedWaybills() {
     return useQuery({
         queryKey: ["waybills-unassigned"],
         queryFn: fetchUnassignedWaybills,
+    });
+}
+
+export function useAssignWaybillChannel(waybillNumber: string) {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (payload: AssignChannelPayload) => assignWaybillChannel(waybillNumber, payload),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["waybill-detail", waybillNumber] });
+            queryClient.invalidateQueries({ queryKey: ["waybill-channel", waybillNumber] });
+            queryClient.invalidateQueries({ queryKey: ["waybills"] });
+            queryClient.invalidateQueries({ queryKey: ["waybills-unassigned"] });
+        },
     });
 }

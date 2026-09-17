@@ -215,6 +215,11 @@ export interface WaybillRecord {
 	// Channel: null = not yet assigned
 	deliveryChannel?: DeliveryChannel | null;
 	status?: WaybillStatus;
+	// Деталі каналу — заповнені лише для відповідного deliveryChannel
+	assignedCarId?: number;
+	assignedCarNumber?: string;
+	hiredCarNumber?: string;
+	carrierTtn?: string;
 	importedAt: string;
 	importBatchId?: string;
 }
@@ -241,6 +246,7 @@ export interface WaybillSummary {
 	tripRouteName?: string;
 	shipmentId?: number;
 	carrierName?: string;
+	carrierTtn?: string;
 	status: WaybillStatus;
 }
 
