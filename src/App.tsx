@@ -5,6 +5,8 @@ import { DriverDashboard } from "./pages/driver/DriverDashboard";
 import { EventForm } from "./pages/driver/EventForm";
 import { MainLayout } from "./components/layouts/MainLayout";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
+import { AnalyticsHome } from "./pages/analytics/AnalyticsHome";
+import { CarsAnalytics } from "./pages/analytics/CarsAnalytics";
 import { WaybillList } from "./components/waybills/WaybillList";
 import { UnassignedWaybills } from "./components/waybills/UnassignedWaybills";
 import { WaybillImportForm } from "./pages/waybills/WaybillImportForm";
@@ -88,10 +90,14 @@ export default function App() {
                     </RequireRole>
                 }
             >
-                <Route index element={<PlaceholderPage title="Аналітика" />} />
-                <Route path="transport-costs" element={<PlaceholderPage title="Транспортна собівартість" />} />
-                <Route path="customers" element={<PlaceholderPage title="По клієнтах" />} />
-                <Route path="channels" element={<PlaceholderPage title="Порівняння каналів" />} />
+                <Route index element={<AnalyticsHome />} />
+                <Route path="cars" element={<CarsAnalytics />} />
+                <Route path="carriers" element={<PlaceholderPage title="Аналітика — Служби доставки" />} />
+                <Route path="hired" element={<PlaceholderPage title="Аналітика — Найманий транспорт" />} />
+                <Route path="companies" element={<PlaceholderPage title="Аналітика — Компанії" />} />
+                <Route path="categories" element={<PlaceholderPage title="Аналітика — Категорії" />} />
+                <Route path="products" element={<PlaceholderPage title="Аналітика — Товари" />} />
+                <Route path="customers" element={<PlaceholderPage title="Аналітика — Клієнти" />} />
             </Route>
 
             <Route path="/" element={<RoleRedirect />} />

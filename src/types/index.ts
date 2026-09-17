@@ -236,6 +236,7 @@ export interface WaybillSummary {
 	linesCount: number;
 	totalUah: number;       // total value of shipments
 	returnsUah: number;     // sum of returns (negative)
+	totalQuantity?: number; // сума кількості лише по відвантаженнях (quantity > 0)
 	totalWeightKg?: number;
 	totalVolumeCbm?: number;
 	deliveryChannel?: DeliveryChannel | null;

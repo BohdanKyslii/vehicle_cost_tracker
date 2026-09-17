@@ -11,6 +11,7 @@ import type {
 import {
     USE_MOCK,
     apiFetch,
+    fetchAllPages,
     mockDelay,
 } from "./config.ts";
 import mockWaybills from "../mocks/waybills.json";
@@ -91,6 +92,7 @@ interface RawWaybillSummaryRow {
     lines_count: number;
     shipped_uah: number;
     returned_uah: number;
+    shipped_qty: number | null;
     weight_kg_sum: number | null;
 }
 
@@ -145,6 +147,7 @@ function mapSummaryRow(raw: RawWaybillSummaryRow): WaybillSummary {
         linesCount: raw.lines_count,
         totalUah: raw.shipped_uah,
         returnsUah: raw.returned_uah,
+        totalQuantity: raw.shipped_qty ?? undefined,
         totalWeightKg: raw.weight_kg_sum ?? undefined,
         deliveryChannel: raw.delivery_channel,
         carId: raw.assigned_car ?? undefined,
@@ -242,6 +245,23 @@ export async function fetchWaybills(
         pageSize: pagination.pageSize,
         totalPages: Math.ceil(data.count / pagination.pageSize),
     };
+}
+
+// Усі накладні каналу "own" за період, без пагінації UI (для
+// аналітики — бекенд ігнорує page_size, фіксовано віддає по 10/сторінку,
+// тому тут ідемо по data.next через fetchAllPages, а не через
+// fetchWaybills/PaginatedResponse, розрахований на одну сторінку UI).
+export async function fetchAllOwnWaybillSummaries(
+    dateFrom: string,
+    dateTo: string,
+): Promise<WaybillSummary[]> {
+    const params = new URLSearchParams({
+        delivery_channel: "own",
+        date_from: dateFrom,
+        date_to: dateTo,
+    });
+    const raw = await fetchAllPages<RawWaybillSummaryRow>(`/waybill-records/summary/?${params}`);
+    return raw.map(mapSummaryRow);
 }
 
 // Деталі накладної — всі товарні рядки

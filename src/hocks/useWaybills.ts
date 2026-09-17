@@ -6,6 +6,7 @@ import {
     checkWaybillChannel,
     fetchUnassignedWaybills,
     assignWaybillChannel,
+    fetchAllOwnWaybillSummaries,
 } from "../api/waybills";
 import type {
     WaybillFilters,
@@ -42,6 +43,15 @@ export function useCheckWaybillChannel(waybillNumber: string) {
         queryKey: ["waybill-channel", waybillNumber],
         queryFn: () => checkWaybillChannel(waybillNumber),
         enabled: !!waybillNumber,
+    });
+}
+
+// Для аналітики — усі накладні каналу "own" за період (не одна сторінка UI)
+export function useAllOwnWaybillSummaries(dateFrom: string, dateTo: string) {
+    return useQuery({
+        queryKey: ["waybills-own-all", dateFrom, dateTo],
+        queryFn: () => fetchAllOwnWaybillSummaries(dateFrom, dateTo),
+        enabled: !!dateFrom && !!dateTo,
     });
 }
 
