@@ -17,11 +17,14 @@ export function calcRepairCost(costs: MonthlyCosts, totalKm: number): number {
 }
 
 // Загальна сума місячних витрат по авто
+// (дзеркало MonthlyCostsSerializer.get_total_cost_uah на бекенді —
+// пальне в гривні входить, літри ні)
 export function calcTotalMonthlyCost(costs: MonthlyCosts, totalKm: number): number {
 	return (
 		costs.salaryUah +
 		costs.taxesUah +
 		costs.depreciationUah +
+		costs.fuelCostUah +
 		calcRepairCost(costs, totalKm) +
 		costs.otherCostUah
 	);

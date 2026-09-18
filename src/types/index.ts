@@ -365,6 +365,8 @@ export interface MonthlyCosts {
 	depreciationUah: number;
 	repairActualUah?: number;   // if present — takes precedence over the calculated value
 	repairRateUahKm: number;    // default: 2.00 uah/km
+	fuelCostUah: number;        // пальне за місяць (грн) — входить у total
+	fuelLiters: number;         // пальне за місяць (л) — довідково, поза сумою
 	otherCostUah: number;
 	otherCostComment?: string;
 }

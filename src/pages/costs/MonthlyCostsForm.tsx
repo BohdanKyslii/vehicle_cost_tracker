@@ -23,6 +23,8 @@ export function MonthlyCostsForm() {
 	const [depreciationUah, setDepreciationUah] = useState(String(existing?.depreciationUah ?? ""));
 	const [repairActualUah, setRepairActualUah] = useState(String(existing?.repairActualUah ?? ""));
 	const [repairRateUahKm, setRepairRateUahKm] = useState(String(existing?.repairRateUahKm ?? "2.00"));
+	const [fuelCostUah, setFuelCostUah] = useState(String(existing?.fuelCostUah ?? ""));
+	const [fuelLiters, setFuelLiters] = useState(String(existing?.fuelLiters ?? ""));
 	const [otherCostUah, setOtherCostUah] = useState(String(existing?.otherCostUah ?? ""));
 	const [otherCostComment, setOtherCostComment] = useState(existing?.otherCostComment ?? "");
 
@@ -41,6 +43,8 @@ export function MonthlyCostsForm() {
 		setDepreciationUah(String(existing.depreciationUah ?? ""));
 		setRepairActualUah(String(existing.repairActualUah ?? ""));
 		setRepairRateUahKm(String(existing.repairRateUahKm ?? "2.00"));
+		setFuelCostUah(String(existing.fuelCostUah ?? ""));
+		setFuelLiters(String(existing.fuelLiters ?? ""));
 		setOtherCostUah(String(existing.otherCostUah ?? ""));
 		setOtherCostComment(existing.otherCostComment ?? "");
 	}
@@ -66,6 +70,8 @@ export function MonthlyCostsForm() {
 			depreciationUah: Number(depreciationUah),
 			repairActualUah: repairActualUah ? Number(repairActualUah) : undefined,
 			repairRateUahKm: Number(repairRateUahKm),
+			fuelCostUah: Number(fuelCostUah || 0),
+			fuelLiters: Number(fuelLiters || 0),
 			otherCostUah: Number(otherCostUah || 0),
 			otherCostComment: otherCostComment || undefined,
 		};
@@ -118,6 +124,25 @@ export function MonthlyCostsForm() {
 						value={repairActualUah}
 						onChange={(e) => setRepairActualUah(e.target.value)}
 						helpText="Переважає над розрахунком за ставкою"
+						disabled={detailsLocked}
+					/>
+				</div>
+				<div className="grid grid-cols-2 gap-3">
+					<Input
+						label="Пальне (грн)"
+						type="number"
+						value={fuelCostUah}
+						onChange={(e) => setFuelCostUah(e.target.value)}
+						helpText="За місяць, з паливної картки/звіту"
+						disabled={detailsLocked}
+					/>
+					<Input
+						label="Пальне (л)"
+						type="number"
+						step="0.01"
+						value={fuelLiters}
+						onChange={(e) => setFuelLiters(e.target.value)}
+						helpText="Довідково, у суму не входить"
 						disabled={detailsLocked}
 					/>
 				</div>

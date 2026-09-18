@@ -13,6 +13,8 @@ interface RawMonthlyCosts {
 	depreciation_uah: string;
 	repair_actual_uah?: string | null;
 	repair_rate_uah_km: string;
+	fuel_cost_uah: string;
+	fuel_liters: string;
 	other_costs_uah: string;
 	other_costs_comment: string;
 	repair_cost_uah: number;
@@ -36,6 +38,8 @@ function mapMonthlyCosts(raw: RawMonthlyCosts): MonthlyCostsRecord {
 		depreciationUah: Number(raw.depreciation_uah),
 		repairActualUah: raw.repair_actual_uah != null ? Number(raw.repair_actual_uah) : undefined,
 		repairRateUahKm: Number(raw.repair_rate_uah_km),
+		fuelCostUah: Number(raw.fuel_cost_uah),
+		fuelLiters: Number(raw.fuel_liters),
 		otherCostUah: Number(raw.other_costs_uah),
 		otherCostComment: raw.other_costs_comment || undefined,
 		repairCostUah: raw.repair_cost_uah,
@@ -63,6 +67,8 @@ export interface MonthlyCostsPayload {
 	depreciationUah: number;
 	repairActualUah?: number;
 	repairRateUahKm: number;
+	fuelCostUah: number;
+	fuelLiters: number;
 	otherCostUah: number;
 	otherCostComment?: string;
 }
@@ -76,6 +82,8 @@ function toMonthlyCostsPayload(data: MonthlyCostsPayload) {
 		depreciation_uah: data.depreciationUah,
 		repair_actual_uah: data.repairActualUah ?? null,
 		repair_rate_uah_km: data.repairRateUahKm,
+		fuel_cost_uah: data.fuelCostUah,
+		fuel_liters: data.fuelLiters,
 		other_costs_uah: data.otherCostUah,
 		other_costs_comment: data.otherCostComment ?? "",
 	};

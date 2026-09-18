@@ -6,12 +6,15 @@ import { Input } from "../../components/ui/Input";
 import { Button } from "../../components/ui/Button";
 import { ErrorBanner } from "../../components/ui/ErrorBanner";
 import { Spinner } from "../../components/ui/Spinner";
+import { formatUah } from "../../utils/formatters";
 import type { MonthlyCostsPayload } from "../../api/monthlyCosts";
 
 type FieldKey =
 	| "salaryUah"
 	| "taxesUah"
 	| "depreciationUah"
+	| "fuelCostUah"
+	| "fuelLiters"
 	| "repairActualUah"
 	| "repairRateUahKm"
 	| "otherCostUah";
@@ -22,9 +25,24 @@ const FIELDS: { key: FieldKey; label: string }[] = [
 	{ key: "salaryUah", label: "ЗП водія (грн)" },
 	{ key: "taxesUah", label: "Податки із ЗП (грн)" },
 	{ key: "depreciationUah", label: "Амортизація (грн)" },
+	{ key: "fuelCostUah", label: "Пальне (грн)" },
+	{ key: "fuelLiters", label: "Пальне (л)" },
 	{ key: "repairActualUah", label: "Ремонт — фактично (грн)" },
 	{ key: "repairRateUahKm", label: "Ставка ремонту (грн/км)" },
 	{ key: "otherCostUah", label: "Інші витрати (грн)" },
+];
+
+// Тільки гривневі статті — у підсумок знизу. Свідомо поза сумою:
+// "Ставка ремонту" (грн/км, а не грн) і "Пальне (л)" (літри, не гроші).
+// Ремонт за ставкою теж не рахуємо тут — для нього потрібен пробіг за
+// місяць, який ця форма не знає (його додає бекенд у total_cost_uah).
+const MONEY_FIELDS: FieldKey[] = [
+	"salaryUah",
+	"taxesUah",
+	"depreciationUah",
+	"fuelCostUah",
+	"repairActualUah",
+	"otherCostUah",
 ];
 
 const cellClass =
@@ -66,6 +84,8 @@ export function BulkMonthlyCostsForm() {
 					salaryUah: String(existing.salaryUah),
 					taxesUah: String(existing.taxesUah),
 					depreciationUah: String(existing.depreciationUah),
+					fuelCostUah: String(existing.fuelCostUah ?? ""),
+					fuelLiters: String(existing.fuelLiters ?? ""),
 					repairActualUah: existing.repairActualUah != null ? String(existing.repairActualUah) : "",
 					repairRateUahKm: String(existing.repairRateUahKm),
 					otherCostUah: String(existing.otherCostUah),
@@ -81,6 +101,8 @@ export function BulkMonthlyCostsForm() {
 					salaryUah: "",
 					taxesUah: "",
 					depreciationUah: prevDepreciation != null ? String(prevDepreciation) : "",
+					fuelCostUah: "",
+					fuelLiters: "",
 					repairActualUah: "",
 					repairRateUahKm: "2.00",
 					otherCostUah: "",
@@ -96,6 +118,16 @@ export function BulkMonthlyCostsForm() {
 		setRows((prev) => ({ ...prev, [carId]: { ...prev[carId], [key]: value } }));
 		setTouchedCars((prev) => new Set(prev).add(carId));
 	}
+
+	// Підсумок по авто рахуємо просто з полів на екрані, не чекаючи
+	// збереження — щоб логіст одразу бачив, що ввів
+	function carTotalUah(carId: number): number {
+		const row = rows[carId];
+		if (!row) return 0;
+		return MONEY_FIELDS.reduce((sum, key) => sum + Number(row[key] || 0), 0);
+	}
+
+	const grandTotalUah = cars?.reduce((sum, car) => sum + carTotalUah(car.idCar), 0) ?? 0;
 
 	async function handleSave() {
 		if (!month || touchedCars.size === 0) return;
@@ -115,6 +147,8 @@ export function BulkMonthlyCostsForm() {
 				depreciationUah: Number(row.depreciationUah || 0),
 				repairActualUah: row.repairActualUah ? Number(row.repairActualUah) : undefined,
 				repairRateUahKm: Number(row.repairRateUahKm || 2),
+				fuelCostUah: Number(row.fuelCostUah || 0),
+				fuelLiters: Number(row.fuelLiters || 0),
 				otherCostUah: Number(row.otherCostUah || 0),
 			};
 			try {
@@ -187,8 +221,26 @@ export function BulkMonthlyCostsForm() {
 									</tr>
 								))}
 							</tbody>
+							<tfoot>
+								<tr className="border-t-2 border-white/20 bg-white/5">
+									<td className="sticky left-0 bg-[#0f1724] text-white font-semibold px-3 py-2 whitespace-nowrap">
+										Разом (грн)
+									</td>
+									{cars.map((car) => (
+										<td key={car.idCar} className="px-2 py-2 text-white font-semibold whitespace-nowrap">
+											{formatUah(carTotalUah(car.idCar))}
+										</td>
+									))}
+								</tr>
+							</tfoot>
 						</table>
 					</div>
+
+					<p className="text-xs text-white/40">
+						«Разом» — сума гривневих статей, які ви ввели вище (без ставки ремонту грн/км:
+						її бекенд множить на пробіг за місяць уже при розрахунку). Літри — довідково, у суму не входять.
+						Разом по всьому автопарку: <span className="text-white/70">{formatUah(grandTotalUah)}</span>
+					</p>
 
 					<div className="flex gap-3">
 						<Button type="button" variant="ghost" onClick={() => navigate("/costs")}>Скасувати</Button>
