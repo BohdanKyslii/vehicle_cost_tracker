@@ -126,6 +126,20 @@ src/
            вільний номер, carrier → ТТН); після призначення показує
            лише бейдж (бекенд не дає змінити канал вдруге), локед-режим
            тут не потрібен — нема що редагувати вже призначене
+    waybills/UnassignedWaybills.tsx + UnassignedFiltersBar.tsx
+           (2026-09-17, `/waybills/unassigned`, замінив `PlaceholderPage`)
+           — той самий `useWaybills` з `deliveryChannel` примусово
+           "unassigned", фільтри скорочені до пошуку/юрособи/дати; кожен
+           рядок веде на WaybillDetail для призначення каналу
+    analytics/AnalyticsHome.tsx (2026-09-17, `/analytics`, замінив
+           `PlaceholderPage`) — хаб, 7 плиток (Авто/Служби доставки/
+           Найманий/Компанії/Категорії/Товари/Клієнти); лише Авто `ready`
+    analytics/CarsAnalytics.tsx (2026-09-17→18, `/analytics/cars`) —
+           повна сторінка: за обраний місяць на авто — місячна вартість
+           (з паливом), к-сть накладних, сума продажу, вага (кг), об'єм
+           (м³), % від суми продажу, вартість/накладну/кг/м³; розподіл
+           вартості — пропорційно сумі продажу
+           (`allocateMonthlyCosts()` з `utils/calcTransportCost.ts`)
     fleet/FleetList.tsx, CarForm.tsx, DriverForm.tsx
     hired/HiredTripList.tsx, HiredTripForm.tsx (Фаза 18)
     carriers/CarrierShipmentList.tsx, CarrierShipmentForm.tsx,
@@ -155,6 +169,17 @@ src/
         `components/ui/PageSizeSelect.tsx` + наявний `Pagination.tsx`),
         інлайн-перемикач статусу прямо в рядку (той самий принцип, що
         швидка зміна статусу авто в `FleetList.tsx`)
+      DeliveredProducts.tsx (2026-09-18, `/panel/delivered-products`) —
+                                 обрати місяць → унікальні товари з
+                                 накладних із призначеним каналом за цей
+                                 місяць (будь-який канал), інлайн-
+                                 заповнення ваги/габаритів, статус
+                                 🔴/🟡/🟢, липкий `<thead>`, сортування
+                                 по колонках, фільтр по категорії
+                                 (опції — тільки категорії, що реально є
+                                 в товарах місяця); поступове заповнення
+                                 повного каталогу, не разова дія
+                                 ([[delivered-products-page]] у пам'яті)
       UserManagement.tsx      — підтвердження реєстрацій/зміна ролі
       EventsAdminList.tsx, EventAdminForm.tsx      (2026-08-31) — повний
                                  CRUD подій ВСІХ водіїв (не лише свого),
@@ -180,6 +205,11 @@ src/
     usePagination.ts (2026-09-10 — page/pageSize, дефолт 25, для
       клієнтської пагінації довідників),
     useDayMode.ts (carId-scoped), useCurrentUser.ts, useAuthModal.ts
+    useWaybills.ts (2026-09-17→18: +useAssignWaybillChannel(waybillNumber),
+      +useAllOwnWaybillSummaries(dateFrom, dateTo) — для аналітики)
+    useProducts.ts (2026-09-18: +useDeliveredProducts(monthIso),
+      +useUpdateProductLogistics() — id передається в mutate(), той
+      самий принцип, що useUpdateProductById)
   api/ — routeEvents.ts, cars.ts, drivers.ts, waybills.ts, hiredTrips.ts,
          monthlyCosts.ts, products.ts (2026-09-10: +fetchProductCategory/
          updateProductCategory/deleteProductCategory — раніше лише
@@ -198,6 +228,19 @@ src/
          auth.ts (жоден з products/customers (+Store)/adminUsers/
          waybillImport НЕ має USE_MOCK гілки — завжди б'ють у реальний
          бекенд, навіть при VITE_USE_MOCK=true)
+  api/waybills.ts (2026-09-17→18: реальна агрегація по накладній через
+         `.../summary/`, `fetchWaybillDetail`/`checkWaybillChannel` через
+         `.../by-number/<номер>/`, `assignWaybillChannel()` →
+         `.../by-number/<номер>/assign-channel/`,
+         `fetchAllOwnWaybillSummaries(dateFrom, dateTo)` — пейджиться
+         через `fetchAllPages`, бо бекенд ігнорує `page_size`)
+  api/monthlyCosts.ts (2026-09-18: +`fuel_cost_uah`/`fuel_liters` у
+         Raw/Record/Payload і мапінгах)
+  api/products.ts (2026-09-18: +`fetchDeliveredProducts(monthIso)` →
+         `delivered_in_month/?month=...`, +`updateProductLogistics(id,
+         logistics)` — PATCHить ЛИШЕ `{logistics}`, не через
+         `updateProduct()`/`toProductPayload()`, щоб не зачепити
+         назву/категорію)
   utils/ — formatters, eventHelpers (+findEventGroup — явний маркер
            [stop:N], НЕ часова евристика, з 2026-08-28), calcSummary,
            calcTransportCost, calcProduct, parseQR.ts, clientFilter,
@@ -209,6 +252,13 @@ src/
                                   WaybillRecord/HiredTransportTrip/
                                   CarrierShipment/Product/Customer/Store/
                                   аналітичні типи; CarStatus 5 значень
+                                  (2026-09-17→18: WaybillRecord +
+                                  assignedCarId/assignedCarNumber/
+                                  hiredCarNumber/carrierTtn; WaybillSummary
+                                  + carId/carNumber/carrierTtn/
+                                  totalQuantity; MonthlyCosts +
+                                  fuelCostUah/fuelLiters; новий
+                                  DeliveredProduct)
   mocks/ — cars.json, drivers.json, route-events.json, waybills.json (лише ці 4 —
            Product/Customer/Store/HiredTrip НЕ мають mock-файлів, бо їхні
            api/*.ts завжди б'ють у реальний бекенд, USE_MOCK їх не стосується)
@@ -238,10 +288,12 @@ Dockerfile, docker-compose.yml, nginx.conf — деплой на Raspberry Pi
 `src/components/{fleet,hired,carriers,analystics}` (Фаза 2) уже немає.
 `/waybills/import` тепер `WaybillImportForm` (Фаза 22); `/carriers`
 тепер `CarrierShipmentList`/`Form`/`CarrierCostImport` (Фаза 23,
-гілка `faza-23-carriers`); `/waybills/unassigned`, `/waybills/returns`
-і `/analytics` усе ще `PlaceholderPage` (аналітика не набрана);
-`/admin` навмисно НЕ SPA-маршрут — nginx проксіює напряму на Django
-admin, кастомна адмінка живе на `/panel` ([[decisions.md]]).
+гілка `faza-23-carriers`); `/waybills/unassigned`, `/analytics` і
+`/analytics/cars` реалізовані 2026-09-17→18 (див. вище) — `/waybills/
+returns` і решта `/analytics/*` (carriers/hired/companies/categories/
+products/customers) усе ще `PlaceholderPage`; `/admin` навмисно НЕ
+SPA-маршрут — nginx проксіює напряму на Django admin, кастомна
+адмінка живе на `/panel` ([[decisions.md]]).
 
 ## Деплой
 
@@ -335,6 +387,41 @@ DRF-пейдж по товарних рядках (`{count, results}`, snake_cas
 `/api/route-events/` вимагають автентифікованої сесії; DELETE на
 `/api/route-events/<id>/` уже підтримується без додаткових бекенд-змін
 (Фаза 17 фронтенду просто почала його викликати).
+
+**Scan↔import лінкування каналу (2026-09-17, той самий день).** Реальний
+порядок подій у цьому бізнесі: спершу скан водієм (`RouteEvent`
+event_type=delivery), лише через 2-4 тижні — імпорт реєстру 1С
+(`WaybillRecord`). `apps/waybills/importing.py`: `link_waybill_to_own_channel()`
++ `link_own_channel_from_scans()` (виклик з `import_waybills()` одразу
+після bulk_create) лінкують у напрямку скан→імпорт; `apps/cars/views.py`
+`RouteEventViewSet.perform_create`/`perform_update` (+ спільний
+`_link_own_channel_if_delivery()`) — у напрямку імпорт→скан, якщо
+`WaybillRecord` уже існує непризначеним. Одноразовий бекфіл старих
+записів (`POST /waybill-records/backfill_own_channel/`) запущено на
+проді 2026-09-17 (129 накладних / 1245 рядків залінковано) і ВИДАЛЕНО
+з коду після використання — тимчасовий інструмент, той самий принцип,
+що старий `ProductsCleanup`.
+
+**MonthlyCosts + паливо (2026-09-18).** `apps/cars/models.py`
+`MonthlyCosts` отримав `fuel_cost_uah` (рахується в
+`get_total_cost_uah()`) + `fuel_liters` (довідково, не гроші) —
+міграція `cars/0007` (довелось вручну підчистити від шуму-`AlterField`
+і виправити `dependencies`, див. [[django-migration-noise-local-files]]
+у пам'яті Claude Code). **Відомий незакритий баг:**
+`get_repair_cost_uah()` читає `self.context["total_km"]`, але жоден
+view не передає його в контекст серіалізатора — ремонт-за-ставкою
+завжди 0, рахується лише "Ремонт — фактично" вручну.
+
+**`apps/products` + `delivered_in_month` (2026-09-18).**
+`ProductViewSet.delivered_in_month` (`GET /api/products/
+delivered_in_month/?month=YYYY-MM`) — постійний ендпоінт (на відміну
+від одноразового `missing_logistics_for_own`, використаного й
+видаленого раніше того ж дня): фільтрує `Product` по
+`waybill_records__delivery_channel__isnull=False` + діапазон дат
+місяця, анотує `lines_count`, віддає поточний стан `ProductLogistics`
+через `getattr(p, "logistics", None)` (reverse OneToOne кидає
+`RelatedObjectDoesNotExist`, підклас `AttributeError`, коли рядка
+логістики ще нема).
 
 ## Obsidian vault sync
 
