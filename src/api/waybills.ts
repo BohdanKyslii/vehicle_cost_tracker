@@ -94,6 +94,7 @@ interface RawWaybillSummaryRow {
     returned_uah: number;
     shipped_qty: number | null;
     weight_kg_sum: number | null;
+    volume_cbm_sum: number | null;
 }
 
 // Один товарний рядок накладної, як його віддає WaybillRecordSerializer
@@ -149,6 +150,7 @@ function mapSummaryRow(raw: RawWaybillSummaryRow): WaybillSummary {
         returnsUah: raw.returned_uah,
         totalQuantity: raw.shipped_qty ?? undefined,
         totalWeightKg: raw.weight_kg_sum ?? undefined,
+        totalVolumeCbm: raw.volume_cbm_sum ?? undefined,
         deliveryChannel: raw.delivery_channel,
         carId: raw.assigned_car ?? undefined,
         carNumber: raw.assigned_car__number_car ?? raw.hired_car_number ?? undefined,

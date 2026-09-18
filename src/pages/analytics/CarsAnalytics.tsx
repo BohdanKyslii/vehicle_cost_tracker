@@ -5,7 +5,7 @@ import { useMonthlyCostsList } from "../../hocks/useMonthlyCosts";
 import { useAllOwnWaybillSummaries } from "../../hocks/useWaybills";
 import { allocateMonthlyCosts } from "../../utils/calcTransportCost";
 import { Spinner } from "../../components/ui/Spinner";
-import { formatUah, formatPct } from "../../utils/formatters";
+import { formatUah, formatPct, formatKg, formatCbm } from "../../utils/formatters";
 import type { MonthlyCostsSummary } from "../../types";
 
 function currentMonthIso(): string {
@@ -30,18 +30,25 @@ interface CarRow {
 	waybillsCount: number;
 	saleUah: number;
 	quantity: number;
+	weightKg: number;
+	volumeCbm: number;
 	costPctOfSale: number | null;
 	costPerWaybill: number | null;
+	costPerKg: number | null;
+	costPerCbm: number | null;
 }
 
 // Перший повноцінний розріз аналітики (2026-09-17) — вартість власного
 // авто за місяць (MonthlyCosts), розподілена по його накладних
 // пропорційно сумі продажу (allocateMonthlyCosts — вже існувала в коді,
-// просто ніколи не була підключена). Вага/об'єм свідомо НЕ показуємо:
-// WaybillRecord.total_weight_kg завжди null (importing.py не рахує
-// його), а ProductLogistics майже порожній — рахувати зараз означало б
-// показувати оманливі нулі. Буде наступним кроком, коли довідник
-// товарів заповнять (Excel, надісланий 2026-09-17).
+// просто ніколи не була підключена).
+// Вага/об'єм (2026-09-18) рахуються бекендом "на льоту" з кількості ×
+// ProductLogistics (weight_kg_sum/volume_cbm_sum на .../summary/) —
+// WaybillRecord.total_weight_kg сам по собі завжди null, тому це
+// підмінна, а не пряма агрегація поля. Рядки товарів без заповненої
+// ваги/габаритів дають 0 — доки довідник не заповнений повністю
+// (135 товарів надіслано Excel-файлом 2026-09-17), ці колонки — це
+// НИЖНЯ межа реальної ваги/об'єму, не точне значення.
 export function CarsAnalytics() {
 	const [month, setMonth] = useState(currentMonthIso());
 	const [dateFrom, dateTo] = monthRange(month);
@@ -60,9 +67,12 @@ export function CarsAnalytics() {
 			);
 			const carWaybills = (waybills ?? []).filter(w => w.carId === car.idCar);
 
+			const saleUah = carWaybills.reduce((s, w) => s + w.totalUah, 0);
+			const quantity = carWaybills.reduce((s, w) => s + (w.totalQuantity ?? 0), 0);
+			const weightKg = carWaybills.reduce((s, w) => s + (w.totalWeightKg ?? 0), 0);
+			const volumeCbm = carWaybills.reduce((s, w) => s + (w.totalVolumeCbm ?? 0), 0);
+
 			if (!costRecord || carWaybills.length === 0) {
-				const saleUah = carWaybills.reduce((s, w) => s + w.totalUah, 0);
-				const quantity = carWaybills.reduce((s, w) => s + (w.totalQuantity ?? 0), 0);
 				return {
 					carId: car.idCar,
 					carNumber: car.numberCar,
@@ -71,15 +81,17 @@ export function CarsAnalytics() {
 					waybillsCount: carWaybills.length,
 					saleUah,
 					quantity,
+					weightKg,
+					volumeCbm,
 					costPctOfSale: null,
 					costPerWaybill: null,
+					costPerKg: null,
+					costPerCbm: null,
 				};
 			}
 
 			const costsSummary: MonthlyCostsSummary = { ...costRecord, totalKm: 0 };
 			const allocated = allocateMonthlyCosts(carWaybills, costsSummary, car.numberCar);
-			const saleUah = carWaybills.reduce((s, w) => s + w.totalUah, 0);
-			const quantity = carWaybills.reduce((s, w) => s + (w.totalQuantity ?? 0), 0);
 
 			return {
 				carId: car.idCar,
@@ -89,8 +101,12 @@ export function CarsAnalytics() {
 				waybillsCount: allocated.length,
 				saleUah,
 				quantity,
+				weightKg,
+				volumeCbm,
 				costPctOfSale: saleUah > 0 ? (costRecord.totalCostUah / saleUah) * 100 : null,
 				costPerWaybill: allocated.length > 0 ? costRecord.totalCostUah / allocated.length : null,
+				costPerKg: weightKg > 0 ? costRecord.totalCostUah / weightKg : null,
+				costPerCbm: volumeCbm > 0 ? costRecord.totalCostUah / volumeCbm : null,
 			};
 		});
 	}, [cars, monthlyCosts, waybills, month]);
@@ -111,8 +127,9 @@ export function CarsAnalytics() {
 			</div>
 
 			<p className="text-xs text-white/40">
-				Вага/об'єм поки не рахуємо — товари на цих накладних здебільшого без ваги в довіднику
-				(див. надісланий Excel). Розподіл місячної вартості авто по накладних — пропорційно сумі продажу.
+				Розподіл місячної вартості авто по накладних — пропорційно сумі продажу. Вага/об'єм рахуються
+				лише по товарах із заповненою вагою/габаритами в довіднику — поки заповнено не все (див.
+				надісланий Excel), ці колонки й "вартість/кг", "вартість/м³" — нижня межа, реальні числа вищі.
 			</p>
 
 			{isLoading && (
@@ -131,8 +148,12 @@ export function CarsAnalytics() {
 								<th className="px-4 py-3 text-right text-xs font-medium text-white/50 uppercase">Накладних</th>
 								<th className="px-4 py-3 text-right text-xs font-medium text-white/50 uppercase">Сума продажу</th>
 								<th className="px-4 py-3 text-right text-xs font-medium text-white/50 uppercase">К-сть, од.</th>
+								<th className="px-4 py-3 text-right text-xs font-medium text-white/50 uppercase">Вага, кг</th>
+								<th className="px-4 py-3 text-right text-xs font-medium text-white/50 uppercase">Об'єм, м³</th>
 								<th className="px-4 py-3 text-right text-xs font-medium text-white/50 uppercase">% від суми продажу</th>
 								<th className="px-4 py-3 text-right text-xs font-medium text-white/50 uppercase">На 1 накладну</th>
+								<th className="px-4 py-3 text-right text-xs font-medium text-white/50 uppercase">Вартість/кг</th>
+								<th className="px-4 py-3 text-right text-xs font-medium text-white/50 uppercase">Вартість/м³</th>
 							</tr>
 						</thead>
 						<tbody className="divide-y divide-white/10">
@@ -150,11 +171,23 @@ export function CarsAnalytics() {
 										{r.saleUah > 0 ? formatUah(r.saleUah) : "—"}
 									</td>
 									<td className="px-4 py-3 text-right text-white/70">{r.quantity || "—"}</td>
+									<td className="px-4 py-3 text-right text-white/70 whitespace-nowrap">
+										{r.weightKg > 0 ? formatKg(r.weightKg) : "—"}
+									</td>
+									<td className="px-4 py-3 text-right text-white/70 whitespace-nowrap">
+										{r.volumeCbm > 0 ? formatCbm(r.volumeCbm) : "—"}
+									</td>
 									<td className="px-4 py-3 text-right text-white/70">
 										{r.costPctOfSale != null ? formatPct(r.costPctOfSale) : "—"}
 									</td>
 									<td className="px-4 py-3 text-right text-white/70 whitespace-nowrap">
 										{r.costPerWaybill != null ? formatUah(r.costPerWaybill) : "—"}
+									</td>
+									<td className="px-4 py-3 text-right text-white/70 whitespace-nowrap">
+										{r.costPerKg != null ? `${formatUah(r.costPerKg)}/кг` : "—"}
+									</td>
+									<td className="px-4 py-3 text-right text-white/70 whitespace-nowrap">
+										{r.costPerCbm != null ? `${formatUah(r.costPerCbm)}/м³` : "—"}
 									</td>
 								</tr>
 							))}
