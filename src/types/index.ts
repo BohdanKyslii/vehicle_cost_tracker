@@ -55,6 +55,21 @@ export interface ProductLogistics {
 	calculatedBoxWeight?: number | null;
 }
 
+// Товар з накладних за обраний місяць, яким уже призначено канал
+// доставки (будь-який) — для сторінки "Доставлені товари"
+// (Адміністрування), де каталог дозаповнюється поступово, а не весь одразу
+export interface DeliveredProduct {
+	idProduct: number;
+	nameProduct: string;
+	categoryName: string;
+	linesCount: number;
+	unitWeightKg?: number;
+	unitLengthCm?: number;
+	unitWidthCm?: number;
+	unitHeightCm?: number;
+	unitsPerBox?: number;
+}
+
 // Client (purchasing company) to whom the goods are shipped
 export interface Customer {
 	idCustomer: number;

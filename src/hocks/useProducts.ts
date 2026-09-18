@@ -10,8 +10,10 @@ import {
 	createProductCategory,
 	updateProductCategory,
 	deleteProductCategory,
+	fetchDeliveredProducts,
+	updateProductLogistics,
 } from "../api/products";
-import type { ProductPayload, ProductCategoryPayload } from "../api/products";
+import type { ProductPayload, ProductCategoryPayload, ProductLogisticsPayload } from "../api/products";
 
 export function useProductCategories() {
 	return useQuery({ queryKey: ["product-categories"], queryFn: fetchProductCategories });
@@ -102,5 +104,28 @@ export function useDeleteProduct() {
 	return useMutation({
 		mutationFn: (id: number) => deleteProduct(id),
 		onSuccess: () => queryClient.invalidateQueries({ queryKey: ["products"] }),
+	});
+}
+
+// monthIso — "2026-08". Для сторінки "Доставлені товари" (Адміністрування).
+export function useDeliveredProducts(monthIso: string) {
+	return useQuery({
+		queryKey: ["delivered-products", monthIso],
+		queryFn: () => fetchDeliveredProducts(monthIso),
+		enabled: !!monthIso,
+	});
+}
+
+// id — у mutate(), не при виклику хука — той самий принцип, що
+// useUpdateProductById, потрібен для циклу збереження по рядках таблиці
+export function useUpdateProductLogistics() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: ({ id, logistics }: { id: number; logistics: ProductLogisticsPayload }) =>
+			updateProductLogistics(id, logistics),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["delivered-products"] });
+			queryClient.invalidateQueries({ queryKey: ["products"] });
+		},
 	});
 }

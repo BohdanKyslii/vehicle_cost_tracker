@@ -36,6 +36,7 @@ import { StoreList } from "./pages/panel/StoreList";
 import { StoreForm } from "./pages/panel/StoreForm";
 import { UserManagement } from "./pages/panel/UserManagement";
 import { EventsAdminList } from "./pages/panel/EventsAdminList";
+import { DeliveredProducts } from "./pages/panel/DeliveredProducts";
 import { EventAdminForm } from "./pages/panel/EventAdminForm";
 import { ProductImport } from "./pages/panel/ProductImport";
 import { CategoryList } from "./pages/panel/CategoryList";
@@ -196,6 +197,7 @@ export default function App() {
                 <Route path="events" element={<EventsAdminList />} />
                 <Route path="events/new" element={<EventAdminForm />} />
                 <Route path="events/:eventId" element={<EventAdminForm />} />
+                <Route path="delivered-products" element={<DeliveredProducts />} />
             </Route>
 
             {/* Telegram Mini App — залишається ЄДИНИМ маршрутом, без RequireRole

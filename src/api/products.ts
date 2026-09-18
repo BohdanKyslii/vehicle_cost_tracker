@@ -1,4 +1,4 @@
-import type { Product, ProductCategory, ProductLogistics } from "../types";
+import type { Product, ProductCategory, ProductLogistics, DeliveredProduct } from "../types";
 import { apiFetch, fetchAllPages } from "./config.ts";
 
 interface RawProductCategory {
@@ -181,4 +181,70 @@ export async function updateProduct(id: number, data: Omit<ProductPayload, "idPr
 
 export async function deleteProduct(id: number): Promise<void> {
 	await apiFetch<void>(`/products/${id}/`, { method: "DELETE" });
+}
+
+interface RawDeliveredProduct {
+	id_product: number;
+	name_product: string;
+	category_name: string;
+	lines_count: number;
+	unit_weight_kg: number | null;
+	unit_length_cm: number | null;
+	unit_width_cm: number | null;
+	unit_height_cm: number | null;
+	units_per_box: number | null;
+}
+
+function mapDeliveredProduct(raw: RawDeliveredProduct): DeliveredProduct {
+	return {
+		idProduct: raw.id_product,
+		nameProduct: raw.name_product,
+		categoryName: raw.category_name,
+		linesCount: raw.lines_count,
+		unitWeightKg: raw.unit_weight_kg ?? undefined,
+		unitLengthCm: raw.unit_length_cm ?? undefined,
+		unitWidthCm: raw.unit_width_cm ?? undefined,
+		unitHeightCm: raw.unit_height_cm ?? undefined,
+		unitsPerBox: raw.units_per_box ?? undefined,
+	};
+}
+
+// monthIso — "2026-08" (як з <input type="month">)
+export async function fetchDeliveredProducts(monthIso: string): Promise<DeliveredProduct[]> {
+	const data = await apiFetch<{ count: number; products: RawDeliveredProduct[] }>(
+		`/products/delivered_in_month/?month=${monthIso}`,
+	);
+	return data.products.map(mapDeliveredProduct);
+}
+
+export interface ProductLogisticsPayload {
+	unitWeightKg?: number;
+	unitLengthCm?: number;
+	unitWidthCm?: number;
+	unitHeightCm?: number;
+	unitsPerBox?: number;
+}
+
+// НАМІРЕНО не через updateProduct()/toProductPayload — той завжди шле
+// повний об'єкт (name/category/isActive), а тут відомі лише поля
+// логістики. PATCH з тілом {logistics: {...}} — DRF-в'юсет робить
+// partial_update (partial=True), тому інші поля товару лишаються
+// незмінними (див. ProductSerializer.update()).
+export async function updateProductLogistics(
+	id: number,
+	logistics: ProductLogisticsPayload,
+): Promise<Product> {
+	const raw = await apiFetch<RawProduct>(`/products/${id}/`, {
+		method: "PATCH",
+		json: {
+			logistics: {
+				unit_weight_kg: logistics.unitWeightKg ?? null,
+				unit_length_cm: logistics.unitLengthCm ?? null,
+				unit_width_cm: logistics.unitWidthCm ?? null,
+				unit_height_cm: logistics.unitHeightCm ?? null,
+				units_per_box: logistics.unitsPerBox ?? null,
+			},
+		},
+	});
+	return mapProduct(raw);
 }
