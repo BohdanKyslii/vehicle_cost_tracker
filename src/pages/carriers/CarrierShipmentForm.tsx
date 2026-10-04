@@ -13,7 +13,21 @@ import { ErrorBanner } from "../../components/ui/ErrorBanner";
 import { QRScanner } from "../../components/QRScanner";
 import { parseQRCode } from "../../utils/parseQR";
 import type { CarrierCode } from "../../types";
+import { attachWaybillToCarrierShipment } from "../../api/carrierShipments";
 import type { CarrierShipmentPayload } from "../../api/carrierShipments";
+import { useQueryClient } from "@tanstack/react-query";
+
+// Розбиває введений вручну текст на номери накладних: роздільник —
+// новий рядок, кома, крапка з комою або пробіл. Якщо вставили повний
+// рядок з QR ("0000391877:06.07.26") — беремо з нього тільки номер.
+function parseManualWaybills(text: string): string[] {
+	const numbers = text
+		.split(/[\s,;]+/)
+		.map((part) => part.trim())
+		.filter(Boolean)
+		.map((part) => parseQRCode(part)?.waybillNumber ?? part);
+	return [...new Set(numbers)];
+}
 
 export function CarrierShipmentForm() {
 	const { shipmentId } = useParams();
@@ -40,6 +54,12 @@ export function CarrierShipmentForm() {
 
 	const [scannerOpen, setScannerOpen] = useState(false);
 	const [scanError, setScanError] = useState<string | null>(null);
+
+	const queryClient = useQueryClient();
+	const [manualText, setManualText] = useState("");
+	const [manualPending, setManualPending] = useState(false);
+	const [manualErrors, setManualErrors] = useState<string[]>([]);
+	const [manualAdded, setManualAdded] = useState(0);
 
 	// Той самий локед-режим, що CarForm/HiredTripForm
 	const [isEditingDetails, setIsEditingDetails] = useState(false);
@@ -71,6 +91,46 @@ export function CarrierShipmentForm() {
 			{ id: existing.id, waybillNumber: parsed.waybillNumber },
 			{ onError: (err) => setScanError((err as Error).message) },
 		);
+	}
+
+	// Кілька номерів за раз. API викликається напряму, а не через
+	// useAttachWaybillToCarrierShipment — інакше invalidate після кожного
+	// номера перезавантажував би весь список відправлень N разів.
+	// Інвалідуємо один раз у кінці.
+	async function handleManualAttach() {
+		if (!existing) return;
+		const attached = new Set(existing.waybills?.map((w) => w.waybillNumber) ?? []);
+		const numbers = parseManualWaybills(manualText);
+		if (numbers.length === 0) return;
+
+		setManualPending(true);
+		setManualErrors([]);
+		setManualAdded(0);
+		const errors: string[] = [];
+		const failed: string[] = [];
+		let added = 0;
+		for (const number of numbers) {
+			if (attached.has(number)) {
+				errors.push(`№ ${number}: вже прикріплена до цього відправлення`);
+				continue;
+			}
+			try {
+				await attachWaybillToCarrierShipment(existing.id, number);
+				added++;
+			} catch (err) {
+				errors.push(`№ ${number}: ${(err as Error).message}`);
+				failed.push(number);
+			}
+		}
+		await Promise.all([
+			queryClient.invalidateQueries({ queryKey: ["carrier-shipments"] }),
+			queryClient.invalidateQueries({ queryKey: ["carrier-shipments", existing.id] }),
+		]);
+		// У полі лишаються тільки номери, що не пройшли — їх можна виправити й повторити
+		setManualText(failed.join("\n"));
+		setManualErrors(errors);
+		setManualAdded(added);
+		setManualPending(false);
 	}
 
 	return (
@@ -130,6 +190,29 @@ export function CarrierShipmentForm() {
 						📷 Сканувати накладну
 					</Button>
 					{scanError && <ErrorBanner message={scanError} />}
+
+					<div className="flex flex-col gap-2 pt-2 border-t border-white/10">
+						<label className="text-sm font-medium text-white/70">Ввести номери вручну</label>
+						<textarea
+							value={manualText}
+							onChange={(e) => setManualText(e.target.value)}
+							rows={3}
+							placeholder={"0000391877\n0000391878, 7908"}
+							disabled={manualPending}
+							className="w-full rounded-lg border border-white/10 bg-white/5 text-white px-2 py-2 text-sm placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-violet-400"
+						/>
+						<p className="text-xs text-white/40">Кожен номер з нового рядка або через кому</p>
+						<Button
+							type="button"
+							onClick={handleManualAttach}
+							isLoading={manualPending}
+							disabled={parseManualWaybills(manualText).length === 0}
+						>
+							Додати накладні
+						</Button>
+						{manualAdded > 0 && <p className="text-sm text-emerald-300">Додано: {manualAdded}</p>}
+						{manualErrors.length > 0 && <ErrorBanner message={manualErrors.join("\n")} />}
+					</div>
 					{scannerOpen && (
 						<QRScanner onScan={handleScan} onClose={() => setScannerOpen(false)} notice={scanError} />
 					)}

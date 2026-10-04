@@ -77,3 +77,48 @@ export async function attachWaybillToCarrierShipment(id: number, waybillNumber: 
 	});
 	return mapCarrierShipment(raw);
 }
+
+export interface CarrierShipmentImportItem {
+	ttn: string;
+	shipmentDate: string;
+	waybills: string[];
+}
+
+export interface CarrierShipmentImportResult {
+	createdShipments: number;
+	existingShipments: number;
+	attachedWaybills: number;
+	skippedWaybills: number;
+	errors: { ttn: string; waybillNumber?: string; message: string }[];
+}
+
+interface RawCarrierShipmentImportResult {
+	created_shipments: number;
+	existing_shipments: number;
+	attached_waybills: number;
+	skipped_waybills: number;
+	errors: { ttn: string; waybill_number?: string; message: string }[];
+}
+
+// POST /carrier-shipments/bulk_import/ — реєстр служби доставки пачкою
+// (бекенд приймає до 500 ТТН за запит). Ідемпотентний: повторна заливка
+// того самого файлу нічого не дублює.
+export async function bulkImportCarrierShipments(
+	carrier: CarrierCode,
+	items: CarrierShipmentImportItem[],
+): Promise<CarrierShipmentImportResult> {
+	const raw = await apiFetch<RawCarrierShipmentImportResult>("/carrier-shipments/bulk_import/", {
+		method: "POST",
+		json: {
+			carrier,
+			shipments: items.map((i) => ({ ttn: i.ttn, shipment_date: i.shipmentDate, waybills: i.waybills })),
+		},
+	});
+	return {
+		createdShipments: raw.created_shipments,
+		existingShipments: raw.existing_shipments,
+		attachedWaybills: raw.attached_waybills,
+		skippedWaybills: raw.skipped_waybills,
+		errors: raw.errors.map((e) => ({ ttn: e.ttn, waybillNumber: e.waybill_number, message: e.message })),
+	};
+}

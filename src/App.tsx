@@ -24,6 +24,7 @@ import { HiredTripForm } from "./pages/hired/HiredTripForm";
 import { CarrierShipmentList } from "./pages/carriers/CarrierShipmentList";
 import { CarrierShipmentForm } from "./pages/carriers/CarrierShipmentForm";
 import { CarrierCostImport } from "./pages/carriers/CarrierCostImport";
+import { CarrierShipmentImport } from "./pages/carriers/CarrierShipmentImport";
 import { MonthlyCostsList } from "./pages/costs/MonthlyCostsList";
 import { MonthlyCostsForm } from "./pages/costs/MonthlyCostsForm";
 import { BulkMonthlyCostsForm } from "./pages/costs/BulkMonthlyCostsForm";
@@ -80,6 +81,7 @@ export default function App() {
                 <Route path="new" element={<CarrierShipmentForm />} />
                 <Route path=":shipmentId" element={<CarrierShipmentForm />} />
                 <Route path="import-costs" element={<CarrierCostImport />} />
+                <Route path="import-shipments" element={<CarrierShipmentImport />} />
             </Route>
 
             {/* ── Аналітика ────────────────────────────────── */}
