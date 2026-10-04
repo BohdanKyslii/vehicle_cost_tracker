@@ -16,18 +16,7 @@ import type { CarrierCode } from "../../types";
 import { attachWaybillToCarrierShipment } from "../../api/carrierShipments";
 import type { CarrierShipmentPayload } from "../../api/carrierShipments";
 import { useQueryClient } from "@tanstack/react-query";
-
-// Розбиває введений вручну текст на номери накладних: роздільник —
-// новий рядок, кома, крапка з комою або пробіл. Якщо вставили повний
-// рядок з QR ("0000391877:06.07.26") — беремо з нього тільки номер.
-function parseManualWaybills(text: string): string[] {
-	const numbers = text
-		.split(/[\s,;]+/)
-		.map((part) => part.trim())
-		.filter(Boolean)
-		.map((part) => parseQRCode(part)?.waybillNumber ?? part);
-	return [...new Set(numbers)];
-}
+import { parseWaybillNumbers } from "../../utils/parseWaybillNumbers";
 
 export function CarrierShipmentForm() {
 	const { shipmentId } = useParams();
@@ -100,7 +89,7 @@ export function CarrierShipmentForm() {
 	async function handleManualAttach() {
 		if (!existing) return;
 		const attached = new Set(existing.waybills?.map((w) => w.waybillNumber) ?? []);
-		const numbers = parseManualWaybills(manualText);
+		const numbers = parseWaybillNumbers(manualText);
 		if (numbers.length === 0) return;
 
 		setManualPending(true);
@@ -206,7 +195,7 @@ export function CarrierShipmentForm() {
 							type="button"
 							onClick={handleManualAttach}
 							isLoading={manualPending}
-							disabled={parseManualWaybills(manualText).length === 0}
+							disabled={parseWaybillNumbers(manualText).length === 0}
 						>
 							Додати накладні
 						</Button>

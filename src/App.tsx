@@ -7,6 +7,7 @@ import { MainLayout } from "./components/layouts/MainLayout";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
 import { AnalyticsHome } from "./pages/analytics/AnalyticsHome";
 import { CarsAnalytics } from "./pages/analytics/CarsAnalytics";
+import { CarriersAnalytics } from "./pages/analytics/CarriersAnalytics";
 import { WaybillList } from "./components/waybills/WaybillList";
 import { UnassignedWaybills } from "./components/waybills/UnassignedWaybills";
 import { WaybillImportForm } from "./pages/waybills/WaybillImportForm";
@@ -95,7 +96,7 @@ export default function App() {
             >
                 <Route index element={<AnalyticsHome />} />
                 <Route path="cars" element={<CarsAnalytics />} />
-                <Route path="carriers" element={<PlaceholderPage title="Аналітика — Служби доставки" />} />
+                <Route path="carriers" element={<CarriersAnalytics />} />
                 <Route path="hired" element={<PlaceholderPage title="Аналітика — Найманий транспорт" />} />
                 <Route path="companies" element={<PlaceholderPage title="Аналітика — Компанії" />} />
                 <Route path="categories" element={<PlaceholderPage title="Аналітика — Категорії" />} />

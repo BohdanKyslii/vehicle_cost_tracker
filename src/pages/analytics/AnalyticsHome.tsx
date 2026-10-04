@@ -6,7 +6,7 @@ import { Link } from "react-router-dom";
 // по одному розрізу за раз, а не вгадуємо все наперед.
 const sections = [
 	{ to: "/analytics/cars", label: "Авто", icon: "🚛", ready: true },
-	{ to: "/analytics/carriers", label: "Служби доставки", icon: "🏢", ready: false },
+	{ to: "/analytics/carriers", label: "Служби доставки", icon: "🏢", ready: true },
 	{ to: "/analytics/hired", label: "Найманий транспорт", icon: "📦", ready: false },
 	{ to: "/analytics/companies", label: "Компанії", icon: "🏭", ready: false },
 	{ to: "/analytics/categories", label: "Категорії", icon: "🗂️", ready: false },
