@@ -13,6 +13,9 @@ export function CarrierShipmentList() {
 			<div className="flex items-center justify-between">
 				<h1 className="text-xl font-bold text-white">Служби доставки</h1>
 				<div className="flex gap-2">
+					<Link to="/carriers/import-costs" className="px-3 py-2 text-sm rounded-lg border border-white/10 text-white/80 hover:bg-white/5">
+						Імпорт вартості
+					</Link>
 					<Link to="/carriers/import-shipments" className="px-3 py-2 text-sm rounded-lg border border-white/10 text-white/80 hover:bg-white/5">
 						Імпорт з реєстру НП
 					</Link>

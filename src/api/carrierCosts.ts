@@ -50,3 +50,38 @@ export async function createCarrierCost(data: CarrierCostPayload): Promise<Carri
 	const raw = await apiFetch<RawCarrierCost>("/carrier-costs/", { method: "POST", json: toCarrierCostPayload(data) });
 	return mapCarrierCost(raw);
 }
+
+export interface CarrierCostBulkItem {
+	ttn: string;
+	costDate: string;
+	costUah: number;
+	weightKg: number;
+}
+
+export interface CarrierCostBulkResult {
+	created: number;
+	linked: number;           // одразу зматчено з відправленням по ТТН
+	skippedExisting: number;  // вартість для ТТН уже є — повторна заливка безпечна
+	errors: { ttn: string; message: string }[];
+}
+
+// POST /carrier-costs/bulk_import/ — до 500 рядків за запит, ідемпотентно
+export async function bulkImportCarrierCosts(items: CarrierCostBulkItem[]): Promise<CarrierCostBulkResult> {
+	const raw = await apiFetch<{
+		created: number;
+		linked: number;
+		skipped_existing: number;
+		errors: { ttn: string; message: string }[];
+	}>("/carrier-costs/bulk_import/", {
+		method: "POST",
+		json: {
+			costs: items.map((i) => ({
+				ttn: i.ttn,
+				cost_date: i.costDate,
+				cost_uah: i.costUah.toFixed(2),
+				weight_kg: i.weightKg.toFixed(2),
+			})),
+		},
+	});
+	return { created: raw.created, linked: raw.linked, skippedExisting: raw.skipped_existing, errors: raw.errors };
+}
